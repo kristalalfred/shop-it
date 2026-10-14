@@ -186,7 +186,7 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 				}
 			}
 			if line.Selected == nil {
-				line.Issue = "Review this line after refreshing the catalog."
+				line.Issue = "No previously selected product available after refreshing."
 			}
 		}
 	}

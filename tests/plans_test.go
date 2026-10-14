@@ -74,7 +74,7 @@ func TestShoppingPlanToBasket(t *testing.T) {
 func TestConstraintsReviewAndBudget(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
 	plan := createPlan(t, s, planRequest("2 l lactose-free milk\n500 g bananas"))
-	if plan.Status != "needs_review" || plan.Lines[0].Selected != nil {
+	if plan.Status != "ready" || plan.Lines[0].Selected != nil {
 		t.Fatalf("unsafe dietary choice: %+v", plan)
 	}
 	for _, candidate := range plan.Lines[0].Candidates {
@@ -84,8 +84,12 @@ func TestConstraintsReviewAndBudget(t *testing.T) {
 	}
 	path := "/v1/shopping-plans/" + plan.ID
 	res, err := s.request("POST", path+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "unresolved")
-	if err != nil || res.status != 409 {
-		t.Fatalf("unresolved handoff accepted: %+v, %v", res, err)
+	if err != nil || res.status != 202 {
+		t.Fatalf("available groceries blocked: %+v, %v", res, err)
+	}
+	items := res.data["items"].([]any)
+	if len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
+		t.Fatalf("unverified dietary product transferred: %+v", items)
 	}
 	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "product_id": "milk-basic"}, userToken, "")
 	if err != nil || res.status != 400 {
@@ -156,6 +160,27 @@ func TestConcurrentPlanEditsAndRefresh(t *testing.T) {
 	res, err = s.request("POST", path+"/refresh", map[string]int{"revision": plan.Revision}, userToken, "")
 	if err != nil || res.status != 200 || decodePlan(t, res).Revision != 3 {
 		t.Fatalf("refresh: %+v, %v", res, err)
+	}
+}
+
+func TestMissingGroceriesDoNotBlockBasket(t *testing.T) {
+	s := startSystem(t, demoScenario(t))
+	plan := createPlan(t, s, planRequest("500 g sallad\n500 g bananer"))
+	if plan.Status != "ready" || len(plan.Lines) != 2 || plan.Lines[0].Selected != nil || plan.Lines[0].Skipped || plan.Lines[0].Issue == "" {
+		t.Fatalf("missing salad blocks or disappears: %+v", plan)
+	}
+	res, err := s.request("POST", "/v1/shopping-plans/"+plan.ID+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "missing-salad")
+	if err != nil || res.status != 202 {
+		t.Fatalf("available groceries blocked: %+v, %v", res, err)
+	}
+	items := res.data["items"].([]any)
+	if len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
+		t.Fatalf("unexpected basket items: %+v", items)
+	}
+	plan = createPlan(t, s, planRequest("500 g sallad"))
+	res, err = s.request("POST", "/v1/shopping-plans/"+plan.ID+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "empty-basket")
+	if err != nil || res.status != 409 {
+		t.Fatalf("empty basket accepted: %+v, %v", res, err)
 	}
 }
 

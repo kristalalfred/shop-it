@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false, interpreterMode = '';
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false, interpreterMode = '', basketRedirect = null, redirectTransfer = null;
 let preferredShop = localStorage.getItem('ship-it-shop') || '';
 const contextEqual = (a, b) => ['store_id', 'postal_code', 'fulfillment', 'delivery_slot_id', 'session_id'].every((key) => (a[key] || '') === (b[key] || '')) && JSON.stringify(a.memberships || []) === JSON.stringify(b.memberships || []);
 function shoppingTarget() {
@@ -18,7 +18,7 @@ function planClient() {
 }
 const examples = {
   breakfast: 'We need 2 litres of organic milk, 12 eggs and 500 g bananas.',
-  dinner: 'Korvstroganoff för 5 personer. Vi har redan salt och peppar.',
+  dinner: 'Korvstroganoff för 5 personer.',
   diet: '2 litres lactose-free milk\n1 pack gluten-free bread\n500 g bananas',
 };
 
@@ -57,16 +57,32 @@ async function action(work) {
 
 function stopPoll() { if (poll !== null) clearTimeout(poll); poll = null; }
 
+function stopBasketRedirect() {
+  if (basketRedirect !== null) clearTimeout(basketRedirect);
+  basketRedirect = null;
+  redirectTransfer = null;
+}
+
 function showPlan(value) {
-  stopPoll(); plan = value;
+  stopPoll(); stopBasketRedirect(); plan = value;
   $('ack').checked = false; $('over').checked = false;
   $('review').hidden = false; $('plan').hidden = false;
   $('receipt').replaceChildren();
-  $('plan-state').textContent = plan.status === 'ready' ? 'Ready' : 'Needs review';
+  const missing = plan.lines.filter((line) => !line.skipped && !line.selected);
+  const hasProducts = plan.lines.some((line) => !line.skipped && line.selected);
+  $('plan-state').textContent = plan.status === 'ready' ? (missing.length ? 'Ready · some items missing' : 'Ready') : (hasProducts ? 'Needs review' : 'Nothing to add');
   const retailer = retailers.find((r) => r.id === plan.retailer_id);
   const simulated = retailer?.mode === 'mock';
   $('transfer').textContent = simulated ? 'Fill demo basket' : 'Fill basket';
   $('plan-meta').textContent = `${retailer?.name || 'Your shop'} · ${plan.context.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}${simulated ? ' · Demo' : ''}`;
+  $('missing').replaceChildren();
+  if (missing.length) {
+    const box = el('div', null, 'notice missing');
+    box.append(el('strong', 'Not included in the basket'), el('p', hasProducts ? 'These items could not be matched. The rest can still be added.' : 'No matching products found. Nothing will be added.'));
+    const list = el('ul');
+    for (const line of missing) list.append(el('li', `${line.item.label} · ${line.item.amount.quantity} ${line.item.amount.unit}`));
+    box.append(list); $('missing').append(box);
+  }
   $('warnings').replaceChildren();
   if (plan.warnings.length) {
     const box = el('div', null, 'notice'); box.append(el('strong', 'Assumptions'));
@@ -94,7 +110,7 @@ function renderLine(line) {
     const row = el('div', null, 'line-top');
     row.append(el('p', `${selected.target_quantity} × ${selected.product.name}`, 'product'), el('p', money(selected.total), 'line-price'));
     node.append(row, el('p', `${selected.product.pack.quantity} ${selected.product.pack.unit} / pack · ${money(selected.unit_price)} / pack`, 'muted'));
-  } else if (!line.skipped) node.append(el('p', line.issue || 'Choose a product or skip this line.', 'notice'));
+  } else if (!line.skipped) node.append(el('p', `Not included in the basket. ${line.issue || 'No matching product found.'}`, 'notice'));
   if (line.skipped) return node;
   const details = el('details'); details.append(el('summary', 'Edit or change product'));
   if (line.search_limited) details.append(el('p', `First ${line.search_limit || 500} results checked. Narrow the search for more options.`, 'muted'));
@@ -244,11 +260,22 @@ function showReceipt(transfer) {
     const name = plan?.lines.find((item) => item.selected?.product.id === line.product_id)?.selected.product.name || 'Item';
     $('receipt').append(el('p', `${name}: ${labels[line.status] || 'Needs review'}${line.confirmed_quantity ? ` · ${line.confirmed_quantity} packs` : ''}${line.message ? ` · ${line.message}` : ''}`));
   }
-  if (!simulated) { const link = el('a', 'Open shop basket ↗'); link.href = transfer.basket_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('receipt').append(link); }
+  if (!simulated) {
+    const link = el('a', 'Open shop basket ↗'); link.href = transfer.basket_url; $('receipt').append(link);
+    if (transfer.state === 'completed') {
+      $('receipt').append(el('p', 'Opening the shop basket in 3 seconds.', 'muted'));
+      if (redirectTransfer !== transfer.id) {
+        stopBasketRedirect(); redirectTransfer = transfer.id;
+        basketRedirect = setTimeout(() => { basketRedirect = null; window.location.assign(transfer.basket_url); }, 3000);
+      }
+    } else if (redirectTransfer !== null) stopBasketRedirect();
+  }
+  if (simulated) stopBasketRedirect();
   $('receipt').append(el('p', simulated ? 'Simulation only.' : 'Review the basket before checkout.', 'muted'));
 }
 
 $('transfer').addEventListener('click', () => action(async () => {
+  stopBasketRedirect();
   const clientID = planClient();
   if (!clientID) throw new Error('Open your shop and sign in before filling your basket.');
   const scope = `ship-it-transfer:${plan.id}:${plan.revision}:${clientID}`;
@@ -266,7 +293,7 @@ $('transfer').addEventListener('click', () => action(async () => {
   if (['pending', 'claimed'].includes(result.state)) poll = setTimeout(check, 500);
 }));
 
-window.addEventListener('pagehide', () => { stopPoll(); if (sessionPoll) clearInterval(sessionPoll); });
+window.addEventListener('pagehide', () => { stopPoll(); stopBasketRedirect(); if (sessionPoll) clearInterval(sessionPoll); });
 let savedPreferences = [];
 try { savedPreferences = JSON.parse(localStorage.getItem('ship-it-preferences') || '[]'); } catch { localStorage.removeItem('ship-it-preferences'); }
 function updateOptions() {

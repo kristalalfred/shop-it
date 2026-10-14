@@ -90,6 +90,9 @@ legend { font-size: 12px; font-weight: 700; margin-bottom: 12px; }
 .notice { border: var(--border); padding: 14px; background: #fff6b8; margin: 24px 0; font-size: 13px; line-height: 1.6; }
 .notice p { margin: 6px 0 0; }
 .error { background: #ffe0dc; }
+.missing { background: #ffe0dc; }
+.missing ul { margin: 10px 0 0; padding-left: 20px; }
+.missing li { margin-top: 6px; }
 
 .review-panel { margin-top: 44px; scroll-margin-top: 24px; }
 .review-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: var(--border); padding-bottom: 16px; }

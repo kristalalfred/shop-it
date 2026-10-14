@@ -26,12 +26,24 @@ func Open(path string) (*Store, error) {
 	if data == nil {
 		return nil, shopping.ErrInvalid
 	}
+	if len(data) > 0 {
+		if err := state.Update(func(data *map[string]shopping.Plan) error {
+			for id, plan := range *data {
+				Recalculate(&plan)
+				(*data)[id] = plan
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
 	return &Store{state}, nil
 }
 
 func (s *Store) Create(ctx context.Context, plan shopping.Plan) (shopping.Plan, error) {
 	plan.ID, plan.Revision = "plan-"+rand.Text(), 1
 	plan.CreatedAt = time.Now().UTC()
+	plan.UpdatedAt = plan.CreatedAt
 	Recalculate(&plan)
 	err := s.state.Update(func(data *map[string]shopping.Plan) error {
 		if err := ctx.Err(); err != nil {
@@ -102,6 +114,7 @@ func (s *Store) Update(ctx context.Context, id string, revision int, change func
 			return err
 		}
 		plan.Revision++
+		plan.UpdatedAt = time.Now().UTC()
 		Recalculate(&plan)
 		(*data)[id] = plan
 		updated = plan

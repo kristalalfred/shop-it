@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
@@ -84,7 +83,7 @@ func Select(line *shopping.PlanLine) {
 		}
 	}
 	if len(line.Candidates) == 0 {
-		line.Issue = "No products found. Try a more specific grocery search."
+		line.Issue = "No matching product found."
 	} else if line.Selected == nil {
 		line.Issue = "No product has verified availability, requirements and a compatible pack size."
 	}
@@ -157,7 +156,7 @@ func Recalculate(plan *shopping.Plan) {
 	plan.Status = "ready"
 	quantities := map[string]int{}
 	for _, line := range plan.Lines {
-		if line.Selected != nil && !line.Skipped {
+		if line.Selected != nil && line.Selected.Eligible && !line.Skipped {
 			quantities[line.Selected.Product.ID] += line.Selected.Quantity
 		}
 	}
@@ -168,6 +167,9 @@ func Recalculate(plan *shopping.Plan) {
 			continue
 		}
 		if line.Selected == nil {
+			continue
+		}
+		if !line.Selected.Eligible {
 			plan.Status = "needs_review"
 			continue
 		}
@@ -184,7 +186,6 @@ func Recalculate(plan *shopping.Plan) {
 		plan.Status = "needs_review"
 	}
 	plan.OverBudget = plan.BudgetMinor > 0 && plan.Total.AmountMinor > plan.BudgetMinor
-	plan.UpdatedAt = time.Now().UTC()
 }
 
 func BasketItems(plan shopping.Plan) ([]shopping.BasketItem, error) {
@@ -194,10 +195,10 @@ func BasketItems(plan shopping.Plan) ([]shopping.BasketItem, error) {
 	items := []shopping.BasketItem{}
 	indices := map[string]int{}
 	for _, line := range plan.Lines {
-		if line.Skipped {
+		if line.Skipped || line.Selected == nil {
 			continue
 		}
-		if line.Selected == nil || !line.Selected.Eligible {
+		if !line.Selected.Eligible {
 			return nil, shopping.ErrConflict
 		}
 		id := line.Selected.Product.ID

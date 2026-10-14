@@ -10,14 +10,14 @@ build:
     ./bin/ship-it -extension-dir bin/extension
 
 test case="all": build
-    if [ {{quote(case)}} = all ]; then node --test extension/tests/*.test.mjs; fi
+    if [ {{quote(case)}} = all ]; then node --test extension/tests/*.test.mjs tests/web/*.test.mjs; fi
     ./bin/test-harness -case {{quote(case)}}
 
 check: build
     test -z "$(gofmt -l cmd internal tests extension)"
     go vet ./...
     for script in internal/backend/web/app.js extension/assets/*.js; do node --check "$script"; done
-    node --test extension/tests/*.test.mjs
+    node --test extension/tests/*.test.mjs tests/web/*.test.mjs
     hurlfmt --check tests/api/*.hurl
     ./bin/test-harness
 
