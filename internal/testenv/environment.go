@@ -93,6 +93,7 @@ func Start(ctx context.Context, options Options) (_ *Environment, err error) {
 	e.server = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = e.server.Serve(listener) }()
 	config := options.Config
+	config.DataDir = filepath.Join(e.dir, "data")
 	config.Listen = "127.0.0.1:0"
 	config.APIToken = UserToken
 	config.AdapterTimeoutMS = 200

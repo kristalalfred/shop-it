@@ -2,7 +2,7 @@ GET {{base_url}}/healthz
 HTTP 200
 [Asserts]
 jsonpath "$.status" == "ok"
-jsonpath "$.mode" == "scaffold"
+jsonpath "$.mode" == "service"
 
 GET {{base_url}}/v1/retailers
 Authorization: Bearer {{user_token}}

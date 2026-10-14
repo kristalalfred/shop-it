@@ -7,17 +7,24 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/kristalalfred/ship-it/internal/interpret"
+	"github.com/kristalalfred/ship-it/internal/planner"
 	"github.com/kristalalfred/ship-it/internal/retailer"
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
 type Server struct {
-	config    Config
-	catalogs  map[string]shopping.Catalog
-	transfers shopping.TransferStore
+	config          Config
+	catalogs        map[string]shopping.Catalog
+	transfers       shopping.TransferStore
+	plans           *planner.Store
+	interpreter     shopping.Interpreter
+	interpreterMode string
 }
 
 func New(config Config, transfers shopping.TransferStore) (http.Handler, error) {
@@ -25,13 +32,33 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 		return nil, err
 	}
 	s := &Server{config: config, transfers: transfers, catalogs: make(map[string]shopping.Catalog)}
+	planPath := ""
+	if config.DataDir != "" {
+		planPath = filepath.Join(config.DataDir, "plans.json")
+	}
+	var err error
+	s.plans, err = planner.Open(planPath)
+	if err != nil {
+		return nil, err
+	}
+	s.interpreter, s.interpreterMode = interpret.Builtin{}, "builtin"
+	if config.Interpreter.Mode == "openai" {
+		key := os.Getenv("OPENAI_API_KEY")
+		if strings.TrimSpace(key) == "" {
+			return nil, errors.New("OPENAI_API_KEY is required for the openai interpreter")
+		}
+		s.interpreter = interpret.NewOpenAI(key, config.Interpreter.Model)
+		s.interpreterMode = "openai"
+	}
 	for _, r := range config.Retailers {
 		s.catalogs[r.ID] = retailer.NewHTTP(r.GatewayURL, time.Duration(config.AdapterTimeoutMS)*time.Millisecond)
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, http.StatusOK, map[string]string{"status": "ok", "mode": "scaffold"})
+		respond(w, http.StatusOK, map[string]any{"status": "ok", "mode": "service", "interpreter": s.interpreterMode, "persistent": config.DataDir != ""})
 	})
+	s.registerPlans(mux)
+	s.registerWeb(mux)
 	mux.HandleFunc("GET /v1/retailers", s.user(s.listRetailers))
 	mux.HandleFunc("POST /v1/catalog/search", s.user(s.search))
 	mux.HandleFunc("POST /v1/basket-transfers", s.user(s.createTransfer))

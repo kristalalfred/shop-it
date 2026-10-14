@@ -24,11 +24,18 @@ type ClientConfig struct {
 }
 
 type Config struct {
-	Listen           string           `json:"listen"`
-	APIToken         string           `json:"api_token"`
-	AdapterTimeoutMS int              `json:"adapter_timeout_ms"`
-	Retailers        []RetailerConfig `json:"retailers"`
-	Clients          []ClientConfig   `json:"clients"`
+	Listen           string            `json:"listen"`
+	APIToken         string            `json:"api_token"`
+	AdapterTimeoutMS int               `json:"adapter_timeout_ms"`
+	Retailers        []RetailerConfig  `json:"retailers"`
+	Clients          []ClientConfig    `json:"clients"`
+	DataDir          string            `json:"data_dir,omitempty"`
+	Interpreter      InterpreterConfig `json:"interpreter,omitempty"`
+}
+
+type InterpreterConfig struct {
+	Mode  string `json:"mode"`
+	Model string `json:"model,omitempty"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -52,7 +59,7 @@ func LoadConfig(path string) (Config, error) {
 func (c Config) Validate() error {
 	host, _, err := net.SplitHostPort(c.Listen)
 	if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
-		return fmt.Errorf("scaffold listen address must be a loopback IP and port")
+		return fmt.Errorf("listen address must be a loopback IP and port")
 	}
 	if strings.TrimSpace(c.APIToken) == "" || c.AdapterTimeoutMS < 1 || c.AdapterTimeoutMS > 30000 {
 		return fmt.Errorf("api_token and adapter_timeout_ms (1..30000) are required")
@@ -60,10 +67,16 @@ func (c Config) Validate() error {
 	if len(c.Retailers) == 0 || len(c.Clients) == 0 {
 		return fmt.Errorf("at least one retailer and client are required")
 	}
+	if c.Interpreter.Mode != "" && c.Interpreter.Mode != "builtin" && c.Interpreter.Mode != "openai" {
+		return fmt.Errorf("interpreter mode must be builtin or openai")
+	}
+	if c.Interpreter.Mode == "openai" && strings.TrimSpace(c.Interpreter.Model) == "" {
+		return fmt.Errorf("openai interpreter requires a model")
+	}
 	ids, tokens := map[string]bool{}, map[string]bool{c.APIToken: true}
 	for _, r := range c.Retailers {
-		if !validID(r.ID) || ids[r.ID] || strings.TrimSpace(r.Name) == "" || r.Mode != "mock" {
-			return fmt.Errorf("retailer IDs must be unique, named, and use mock mode")
+		if !validID(r.ID) || ids[r.ID] || strings.TrimSpace(r.Name) == "" || (r.Mode != "mock" && r.Mode != "gateway") {
+			return fmt.Errorf("retailer IDs must be unique, named, and use mock or gateway mode")
 		}
 		if !validURL(r.GatewayURL) || !validURL(r.BasketURL) {
 			return fmt.Errorf("retailer %s requires absolute HTTP gateway and basket URLs", r.ID)

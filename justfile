@@ -14,6 +14,7 @@ test case="all": build
 check:
     test -z "$(gofmt -l cmd internal tests)"
     go vet ./...
+    node --check internal/backend/web/app.js
     hurlfmt --check tests/api/*.hurl
     just test
 

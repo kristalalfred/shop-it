@@ -60,7 +60,7 @@ func (h *HTTP) Search(ctx context.Context, input shopping.SearchRequest) (shoppi
 	}
 	ids := map[string]bool{}
 	for _, p := range result.Products {
-		if p.ID == "" || ids[p.ID] || p.Price.AmountMinor < 0 || p.Price.Currency != "SEK" || p.Pack.Quantity < 1 || !oneOf(p.Pack.Unit, "g", "ml", "each") || !oneOf(p.PriceKind, "fixed", "estimated") || !oneOf(p.Availability, "in_stock", "out_of_stock", "unknown") {
+		if p.ID == "" || len(p.ID) > 256 || strings.TrimSpace(p.Name) == "" || ids[p.ID] || p.Price.AmountMinor < 0 || p.Price.AmountMinor > 100000000 || p.Price.Currency != "SEK" || p.Pack.Quantity < 1 || p.Pack.Quantity > 1000000000 || !oneOf(p.Pack.Unit, "g", "ml", "each") || !oneOf(p.PriceKind, "fixed", "estimated") || !oneOf(p.Availability, "in_stock", "out_of_stock", "unknown") {
 			return shopping.SearchResult{}, shopping.ErrUpstream
 		}
 		ids[p.ID] = true
@@ -70,7 +70,7 @@ func (h *HTTP) Search(ctx context.Context, input shopping.SearchRequest) (shoppi
 			}
 		}
 		for _, offer := range p.Offers {
-			if offer.MinQuantity < 1 || offer.Price.AmountMinor < 0 || offer.Price.Currency != "SEK" {
+			if offer.MinQuantity < 1 || offer.MinQuantity > 1000 || offer.Price.AmountMinor < 0 || offer.Price.AmountMinor > 100000000 || offer.Price.Currency != "SEK" {
 				return shopping.SearchResult{}, shopping.ErrUpstream
 			}
 		}

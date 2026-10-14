@@ -94,10 +94,11 @@ type Receipt struct {
 type Transfer struct {
 	ID string `json:"id"`
 	TransferRequest
-	State     string    `json:"state"`
-	BasketURL string    `json:"basket_url"`
-	CreatedAt time.Time `json:"created_at"`
-	Receipt   *Receipt  `json:"receipt,omitempty"`
+	State          string     `json:"state"`
+	BasketURL      string     `json:"basket_url"`
+	CreatedAt      time.Time  `json:"created_at"`
+	Receipt        *Receipt   `json:"receipt,omitempty"`
+	ClaimExpiresAt *time.Time `json:"claim_expires_at,omitempty"`
 }
 
 type TransferStore interface {

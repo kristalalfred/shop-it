@@ -2,6 +2,8 @@
   "listen": "127.0.0.1:18080",
   "api_token": "local-demo-api-token",
   "adapter_timeout_ms": 500,
+  "data_dir": ".data",
+  "interpreter": {"mode": "builtin"},
   "retailers": [
     {"id": "ica", "name": "ICA", "gateway_url": "http://127.0.0.1:18081/retailers/ica", "basket_url": "https://handla.ica.se/", "mode": "mock"},
     {"id": "mathem", "name": "Mathem", "gateway_url": "http://127.0.0.1:18081/retailers/mathem", "basket_url": "https://www.mathem.se/se/cart/", "mode": "mock"},

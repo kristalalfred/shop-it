@@ -7,116 +7,145 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/kristalalfred/ship-it/internal/persistence"
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
 type entry struct {
-	transfer shopping.Transfer
-	payload  string
+	Transfer shopping.Transfer `json:"transfer"`
+	Payload  string            `json:"payload"`
 }
 
-type Memory struct {
-	mu      sync.Mutex
-	entries map[string]*entry
-	keys    map[idempotencyKey]string
-	order   []string
+type snapshot struct {
+	Entries map[string]entry  `json:"entries"`
+	Keys    map[string]string `json:"keys"`
+	Order   []string          `json:"order"`
 }
 
-type idempotencyKey struct {
-	clientID string
-	key      string
+type Store struct {
+	state *persistence.Store[snapshot]
+	lease time.Duration
 }
 
-func NewMemory() *Memory {
-	return &Memory{entries: make(map[string]*entry), keys: make(map[idempotencyKey]string)}
+func NewMemory() *Store {
+	s, _ := Open("")
+	return s
 }
 
-func (m *Memory) Create(ctx context.Context, req shopping.TransferRequest, key, basketURL string) (shopping.Transfer, bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return shopping.Transfer{}, false, err
+func Open(path string) (*Store, error) {
+	state, err := persistence.Open(path, snapshot{Entries: map[string]entry{}, Keys: map[string]string{}, Order: []string{}})
+	if err != nil {
+		return nil, err
 	}
-	payload, _ := json.Marshal(req)
-	scopedKey := idempotencyKey{req.ClientID, key}
-	if id, ok := m.keys[scopedKey]; ok {
-		e := m.entries[id]
-		if e.payload != string(payload) {
-			return shopping.Transfer{}, false, shopping.ErrConflict
+	data, err := state.Read()
+	if err != nil {
+		return nil, err
+	}
+	if data.Entries == nil || data.Keys == nil || data.Order == nil {
+		return nil, shopping.ErrInvalid
+	}
+	return &Store{state: state, lease: 30 * time.Second}, nil
+}
+
+func (s *Store) Create(ctx context.Context, req shopping.TransferRequest, key, basketURL string) (t shopping.Transfer, created bool, err error) {
+	err = s.state.Update(func(data *snapshot) error {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-		return clone(e.transfer), false, nil
-	}
-	t := shopping.Transfer{
-		ID: "transfer-" + rand.Text(), TransferRequest: req,
-		State: "pending", BasketURL: basketURL, CreatedAt: time.Now().UTC(),
-	}
-	m.entries[t.ID] = &entry{transfer: clone(t), payload: string(payload)}
-	m.keys[scopedKey] = t.ID
-	m.order = append(m.order, t.ID)
-	return clone(t), true, nil
+		payload, err := json.Marshal(req)
+		if err != nil {
+			return err
+		}
+		scopedKey := req.ClientID + "/" + key
+		if id, ok := data.Keys[scopedKey]; ok {
+			e := data.Entries[id]
+			if e.Payload != string(payload) {
+				return shopping.ErrConflict
+			}
+			t = clone(e.Transfer)
+			return nil
+		}
+		t = shopping.Transfer{ID: "transfer-" + rand.Text(), TransferRequest: req, State: "pending", BasketURL: basketURL, CreatedAt: time.Now().UTC()}
+		data.Entries[t.ID] = entry{Transfer: clone(t), Payload: string(payload)}
+		data.Keys[scopedKey] = t.ID
+		data.Order = append(data.Order, t.ID)
+		created = true
+		return nil
+	})
+	return t, created, err
 }
 
-func (m *Memory) Get(ctx context.Context, id string) (shopping.Transfer, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Store) Get(ctx context.Context, id string) (shopping.Transfer, error) {
 	if err := ctx.Err(); err != nil {
 		return shopping.Transfer{}, err
 	}
-	e, ok := m.entries[id]
-	if !ok {
-		return shopping.Transfer{}, shopping.ErrNotFound
-	}
-	return clone(e.transfer), nil
-}
-
-func (m *Memory) Claim(ctx context.Context, clientID string) (shopping.Transfer, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return shopping.Transfer{}, err
-	}
-	for _, id := range m.order {
-		e := m.entries[id]
-		if e.transfer.ClientID == clientID && e.transfer.State == "pending" {
-			e.transfer.State = "claimed"
-			return clone(e.transfer), nil
-		}
-	}
-	return shopping.Transfer{}, shopping.ErrNotFound
-}
-
-func (m *Memory) Complete(ctx context.Context, id, clientID string, receipt shopping.Receipt) (shopping.Transfer, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return shopping.Transfer{}, err
-	}
-	receipt.Lines = slices.Clone(receipt.Lines)
-	slices.SortFunc(receipt.Lines, func(a, b shopping.LineResult) int { return strings.Compare(a.ProductID, b.ProductID) })
-	e, ok := m.entries[id]
-	if !ok || e.transfer.ClientID != clientID {
-		return shopping.Transfer{}, shopping.ErrNotFound
-	}
-	if e.transfer.Receipt != nil {
-		if !reflect.DeepEqual(*e.transfer.Receipt, receipt) {
-			return shopping.Transfer{}, shopping.ErrConflict
-		}
-		return clone(e.transfer), nil
-	}
-	if e.transfer.State != "claimed" {
-		return shopping.Transfer{}, shopping.ErrConflict
-	}
-	state, err := receiptState(e.transfer.Items, receipt)
+	data, err := s.state.Read()
 	if err != nil {
 		return shopping.Transfer{}, err
 	}
-	e.transfer.Receipt = &receipt
-	e.transfer.State = state
-	e.transfer = clone(e.transfer)
-	return clone(e.transfer), nil
+	e, ok := data.Entries[id]
+	if !ok {
+		return shopping.Transfer{}, shopping.ErrNotFound
+	}
+	return e.Transfer, nil
+}
+
+func (s *Store) Claim(ctx context.Context, clientID string) (t shopping.Transfer, err error) {
+	err = s.state.Update(func(data *snapshot) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		for _, id := range data.Order {
+			e := data.Entries[id]
+			expired := e.Transfer.State == "claimed" && (e.Transfer.ClaimExpiresAt == nil || !e.Transfer.ClaimExpiresAt.After(time.Now()))
+			if e.Transfer.ClientID == clientID && (e.Transfer.State == "pending" || expired) {
+				e.Transfer.State = "claimed"
+				expires := time.Now().UTC().Add(s.lease)
+				e.Transfer.ClaimExpiresAt = &expires
+				data.Entries[id] = e
+				t = clone(e.Transfer)
+				return nil
+			}
+		}
+		return shopping.ErrNotFound
+	})
+	return t, err
+}
+
+func (s *Store) Complete(ctx context.Context, id, clientID string, receipt shopping.Receipt) (t shopping.Transfer, err error) {
+	receipt.Lines = slices.Clone(receipt.Lines)
+	slices.SortFunc(receipt.Lines, func(a, b shopping.LineResult) int { return strings.Compare(a.ProductID, b.ProductID) })
+	err = s.state.Update(func(data *snapshot) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		e, ok := data.Entries[id]
+		if !ok || e.Transfer.ClientID != clientID {
+			return shopping.ErrNotFound
+		}
+		if e.Transfer.Receipt != nil {
+			if !reflect.DeepEqual(*e.Transfer.Receipt, receipt) {
+				return shopping.ErrConflict
+			}
+			t = clone(e.Transfer)
+			return nil
+		}
+		if e.Transfer.State != "claimed" {
+			return shopping.ErrConflict
+		}
+		state, err := receiptState(e.Transfer.Items, receipt)
+		if err != nil {
+			return err
+		}
+		e.Transfer.Receipt = &receipt
+		e.Transfer.State = state
+		data.Entries[id] = e
+		t = clone(e.Transfer)
+		return nil
+	})
+	return t, err
 }
 
 func receiptState(items []shopping.BasketItem, receipt shopping.Receipt) (string, error) {
@@ -169,6 +198,10 @@ func clone(t shopping.Transfer) shopping.Transfer {
 	t.Context.Memberships = append([]string(nil), t.Context.Memberships...)
 	if t.Receipt != nil {
 		t.Receipt = &shopping.Receipt{Lines: append([]shopping.LineResult(nil), t.Receipt.Lines...)}
+	}
+	if t.ClaimExpiresAt != nil {
+		expires := *t.ClaimExpiresAt
+		t.ClaimExpiresAt = &expires
 	}
 	return t
 }

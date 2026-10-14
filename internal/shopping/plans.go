@@ -1,0 +1,65 @@
+package shopping
+
+import (
+	"context"
+	"time"
+)
+
+type Item struct {
+	Label          string   `json:"label"`
+	Query          string   `json:"query"`
+	Amount         Pack     `json:"amount"`
+	RequiredTraits []string `json:"required_traits"`
+}
+
+type Interpretation struct {
+	Mode     string   `json:"mode"`
+	Items    []Item   `json:"items"`
+	Warnings []string `json:"warnings"`
+}
+
+type Interpreter interface {
+	Interpret(context.Context, string) (Interpretation, error)
+}
+
+type PlanRequest struct {
+	Text           string       `json:"text"`
+	RetailerID     string       `json:"retailer_id"`
+	Context        StoreContext `json:"context"`
+	RequiredTraits []string     `json:"required_traits,omitempty"`
+	BudgetMinor    int64        `json:"budget_minor,omitempty"`
+}
+
+type Candidate struct {
+	Product   Product  `json:"product"`
+	Quantity  int      `json:"target_quantity"`
+	UnitPrice Money    `json:"unit_price"`
+	Total     Money    `json:"total"`
+	Eligible  bool     `json:"eligible"`
+	Reasons   []string `json:"reasons"`
+}
+
+type PlanLine struct {
+	ID         string      `json:"id"`
+	Item       Item        `json:"item"`
+	Candidates []Candidate `json:"candidates"`
+	Selected   *Candidate  `json:"selected,omitempty"`
+	Skipped    bool        `json:"skipped"`
+	ObservedAt time.Time   `json:"observed_at,omitempty"`
+	Issue      string      `json:"issue,omitempty"`
+}
+
+type Plan struct {
+	ID       string `json:"id"`
+	Revision int    `json:"revision"`
+	PlanRequest
+	InterpreterMode string     `json:"interpreter_mode"`
+	Lines           []PlanLine `json:"lines"`
+	Warnings        []string   `json:"warnings"`
+	Status          string     `json:"status"`
+	Total           Money      `json:"total"`
+	Estimated       bool       `json:"estimated"`
+	OverBudget      bool       `json:"over_budget"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}

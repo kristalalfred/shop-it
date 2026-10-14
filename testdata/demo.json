@@ -114,6 +114,384 @@
             "organic": "unknown",
             "vegan": "yes"
           }
+        },
+        {
+          "id": "eggs",
+          "name": "Ägg frigående 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 2490,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "eggs-organic",
+          "name": "Ägg ekologiska 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 3490,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "bread",
+          "name": "Bröd fullkorn 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2690,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "bread-gluten-free",
+          "name": "Bröd glutenfritt 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "pasta",
+          "name": "Pasta penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1590,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-organic",
+          "name": "Pasta ekologisk penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2190,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-gluten-free",
+          "name": "Pasta glutenfri 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes",
+          "name": "Tomater cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1990,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes-organic",
+          "name": "Tomater ekologiska 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2790,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "rice",
+          "name": "Ris långkornigt 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2590,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "coffee",
+          "name": "Kaffe mellanrost 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "apples",
+          "name": "Äpplen cirka 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2490,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "potatoes",
+          "name": "Potatis 2 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 2000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "chicken",
+          "name": "Kycklingfilé 700 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 700,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 7990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "butter",
+          "name": "Smör 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5490,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "cheese",
+          "name": "Ost mild 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "unknown",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "yoghurt",
+          "name": "Yoghurt naturell 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2490,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "onions",
+          "name": "Lök gul 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1990,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
         }
       ],
       "observed_at": "2026-10-14T12:00:00Z",
@@ -232,6 +610,384 @@
           "traits": {
             "organic": "unknown",
             "vegan": "yes"
+          }
+        },
+        {
+          "id": "eggs",
+          "name": "Ägg frigående 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 2520,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "eggs-organic",
+          "name": "Ägg ekologiska 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 3520,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "bread",
+          "name": "Bröd fullkorn 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2720,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "bread-gluten-free",
+          "name": "Bröd glutenfritt 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 4020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "pasta",
+          "name": "Pasta penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1620,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-organic",
+          "name": "Pasta ekologisk penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2220,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-gluten-free",
+          "name": "Pasta glutenfri 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes",
+          "name": "Tomater cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2020,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes-organic",
+          "name": "Tomater ekologiska 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2820,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "rice",
+          "name": "Ris långkornigt 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2620,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "coffee",
+          "name": "Kaffe mellanrost 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "apples",
+          "name": "Äpplen cirka 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2520,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "potatoes",
+          "name": "Potatis 2 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 2000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "chicken",
+          "name": "Kycklingfilé 700 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 700,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 8020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "butter",
+          "name": "Smör 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5520,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "cheese",
+          "name": "Ost mild 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "unknown",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "yoghurt",
+          "name": "Yoghurt naturell 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2520,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "onions",
+          "name": "Lök gul 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2020,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
           }
         }
       ],
@@ -352,6 +1108,384 @@
             "organic": "unknown",
             "vegan": "yes"
           }
+        },
+        {
+          "id": "eggs",
+          "name": "Ägg frigående 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 2550,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "eggs-organic",
+          "name": "Ägg ekologiska 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 3550,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "bread",
+          "name": "Bröd fullkorn 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2750,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "bread-gluten-free",
+          "name": "Bröd glutenfritt 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 4050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "pasta",
+          "name": "Pasta penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1650,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-organic",
+          "name": "Pasta ekologisk penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2250,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-gluten-free",
+          "name": "Pasta glutenfri 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes",
+          "name": "Tomater cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2050,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes-organic",
+          "name": "Tomater ekologiska 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2850,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "rice",
+          "name": "Ris långkornigt 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2650,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "coffee",
+          "name": "Kaffe mellanrost 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "apples",
+          "name": "Äpplen cirka 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2550,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "potatoes",
+          "name": "Potatis 2 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 2000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "chicken",
+          "name": "Kycklingfilé 700 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 700,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 8050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "butter",
+          "name": "Smör 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5550,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "cheese",
+          "name": "Ost mild 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "unknown",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "yoghurt",
+          "name": "Yoghurt naturell 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2550,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "onions",
+          "name": "Lök gul 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2050,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
         }
       ],
       "observed_at": "2026-10-14T12:00:00Z",
@@ -470,6 +1604,384 @@
           "traits": {
             "organic": "unknown",
             "vegan": "yes"
+          }
+        },
+        {
+          "id": "eggs",
+          "name": "Ägg frigående 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 2580,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "eggs-organic",
+          "name": "Ägg ekologiska 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 3580,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "bread",
+          "name": "Bröd fullkorn 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2780,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "bread-gluten-free",
+          "name": "Bröd glutenfritt 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 4080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "pasta",
+          "name": "Pasta penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1680,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-organic",
+          "name": "Pasta ekologisk penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2280,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-gluten-free",
+          "name": "Pasta glutenfri 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes",
+          "name": "Tomater cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2080,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes-organic",
+          "name": "Tomater ekologiska 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2880,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "rice",
+          "name": "Ris långkornigt 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2680,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "coffee",
+          "name": "Kaffe mellanrost 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "apples",
+          "name": "Äpplen cirka 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2580,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "potatoes",
+          "name": "Potatis 2 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 2000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "chicken",
+          "name": "Kycklingfilé 700 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 700,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 8080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "butter",
+          "name": "Smör 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5580,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "cheese",
+          "name": "Ost mild 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "unknown",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "yoghurt",
+          "name": "Yoghurt naturell 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2580,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "onions",
+          "name": "Lök gul 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2080,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
           }
         }
       ],
@@ -590,6 +2102,384 @@
             "organic": "unknown",
             "vegan": "yes"
           }
+        },
+        {
+          "id": "eggs",
+          "name": "Ägg frigående 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 2610,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "eggs-organic",
+          "name": "Ägg ekologiska 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 3610,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "bread",
+          "name": "Bröd fullkorn 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2810,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "bread-gluten-free",
+          "name": "Bröd glutenfritt 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 4110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "pasta",
+          "name": "Pasta penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1710,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-organic",
+          "name": "Pasta ekologisk penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2310,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-gluten-free",
+          "name": "Pasta glutenfri 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes",
+          "name": "Tomater cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2110,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes-organic",
+          "name": "Tomater ekologiska 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2910,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "rice",
+          "name": "Ris långkornigt 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2710,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "coffee",
+          "name": "Kaffe mellanrost 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "apples",
+          "name": "Äpplen cirka 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2610,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "potatoes",
+          "name": "Potatis 2 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 2000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "chicken",
+          "name": "Kycklingfilé 700 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 700,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 8110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "butter",
+          "name": "Smör 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5610,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "cheese",
+          "name": "Ost mild 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "unknown",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "yoghurt",
+          "name": "Yoghurt naturell 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2610,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "onions",
+          "name": "Lök gul 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2110,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
         }
       ],
       "observed_at": "2026-10-14T12:00:00Z",
@@ -708,6 +2598,384 @@
           "traits": {
             "organic": "unknown",
             "vegan": "yes"
+          }
+        },
+        {
+          "id": "eggs",
+          "name": "Ägg frigående 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 2640,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "eggs-organic",
+          "name": "Ägg ekologiska 6 st",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 6,
+            "unit": "each"
+          },
+          "price": {
+            "amount_minor": 3640,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "bread",
+          "name": "Bröd fullkorn 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2840,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "bread-gluten-free",
+          "name": "Bröd glutenfritt 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 4140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "pasta",
+          "name": "Pasta penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1740,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-organic",
+          "name": "Pasta ekologisk penne 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2340,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "no"
+          }
+        },
+        {
+          "id": "pasta-gluten-free",
+          "name": "Pasta glutenfri 400 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 400,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes",
+          "name": "Tomater cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2140,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "tomatoes-organic",
+          "name": "Tomater ekologiska 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2940,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "rice",
+          "name": "Ris långkornigt 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2740,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "coffee",
+          "name": "Kaffe mellanrost 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "apples",
+          "name": "Äpplen cirka 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2640,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "potatoes",
+          "name": "Potatis 2 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 2000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 3140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "chicken",
+          "name": "Kycklingfilé 700 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 700,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 8140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "butter",
+          "name": "Smör 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 5640,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "cheese",
+          "name": "Ost mild 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 6140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "unknown",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "yoghurt",
+          "name": "Yoghurt naturell 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2640,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "no",
+            "lactose_free": "no",
+            "gluten_free": "yes"
+          }
+        },
+        {
+          "id": "onions",
+          "name": "Lök gul 1 kg",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 2140,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "vegan": "yes",
+            "lactose_free": "yes",
+            "gluten_free": "yes"
           }
         }
       ],

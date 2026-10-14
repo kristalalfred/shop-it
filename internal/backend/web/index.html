@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ship It · Grocery assistant</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a href="/" class="brand"><span class="brand-icon">↗</span> ship it<span class="brand-dot">.</span></a><span class="demo-tag">LOCAL DEMO</span></header>
+  <main>
+    <section class="intro"><p class="eyebrow">A LITTLE LESS LIFE ADMIN</p><h1>Your words.<br>Your groceries.</h1><p>A list, a thought, a plan for dinner. Turn it into a basket you can review.</p></section>
+    <div class="workspace">
+      <section class="input-panel">
+        <form id="connect-form" class="connection"><label for="token">Service token</label><div class="inline"><input id="token" type="password" value="local-demo-api-token" autocomplete="off"><button type="submit" class="small">Connect</button></div><p id="connection-status">Connect to start shopping.</p></form>
+        <form id="plan-form">
+          <label for="text" class="input-title">What do you need?</label>
+          <textarea id="text" maxlength="16000" required placeholder="We need 2 litres of organic milk, 12 eggs and 500 g bananas."></textarea>
+          <div class="examples"><button type="button" data-example="breakfast">Breakfast basics ↗</button><button type="button" data-example="dinner">Pasta night ↗</button><button type="button" data-example="diet">Dietary requirements ↗</button></div>
+          <div class="field-grid"><label>Shop<select id="retailer" required></select></label><label>Postal code<input id="postal" value="11122" inputmode="numeric" pattern="[0-9]{5}" required></label><label>Store ID<input id="store" value="ica-demo" required></label><label>Fulfillment<select id="fulfillment"><option value="delivery">Delivery</option><option value="pickup">Pickup</option></select></label></div>
+          <label class="check"><input id="member" type="checkbox" checked> Use demo membership offers</label>
+          <fieldset><legend>Requirements for every item</legend><div class="traits"><label><input type="checkbox" value="organic">Organic</label><label><input type="checkbox" value="vegan">Vegan</label><label><input type="checkbox" value="lactose_free">Lactose free</label><label><input type="checkbox" value="gluten_free">Gluten free</label></div></fieldset>
+          <label>Budget in SEK <span class="muted">optional</span><input id="budget" type="number" min="0" max="1000000" step="0.01" placeholder="e.g. 250"></label>
+          <button id="create" class="primary" type="submit" disabled>Find my groceries <span>↗</span></button>
+          <p class="footnote" id="mode-note">Demo catalogs and basket actions are simulated. No checkout or purchase happens here.</p>
+        </form>
+        <section class="history"><h2>Saved plans</h2><div id="history">Your plans will appear here.</div></section>
+      </section>
+      <section class="review-panel" aria-label="Shopping plan">
+        <div class="review-heading"><h2>Your shopping plan</h2><span id="plan-state" class="pill">Ready when you are</span></div>
+        <div id="message" role="status" aria-live="polite"></div>
+        <div id="empty"><div class="empty-icon">✳</div><h3>From “we need” to all set.</h3><p>Tell us what’s on your list.<br>We’ll find the products and do the pack-size maths.</p><div class="steps"><span>01 &nbsp; Tell us</span><span>02 &nbsp; Review</span><span>03 &nbsp; Fill basket</span></div></div>
+        <div id="plan" hidden><p id="plan-meta" class="muted"></p><div id="warnings"></div><div id="lines"></div><div class="total"><div><span>Product subtotal</span><p id="estimate" class="muted"></p></div><strong id="total"></strong></div><label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions and warnings.</label><label id="over-wrap" class="check"><input type="checkbox" id="over">Use this plan even though it exceeds my budget.</label><label>Basket client<select id="client"></select></label><div class="actions"><button id="refresh" class="secondary" type="button">Refresh products</button><button id="transfer" class="primary" type="button">Send to demo basket ↗</button></div><div id="receipt" aria-live="polite"></div></div>
+      </section>
+    </div>
+  </main>
+  <footer>Groceries, with a little help. <span>Built for the everyday.</span></footer>
+</body>
+</html>

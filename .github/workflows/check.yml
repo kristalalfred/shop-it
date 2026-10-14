@@ -30,5 +30,6 @@ jobs:
       - run: test -z "$(gofmt -l cmd internal tests)"
       - run: hurlfmt --check tests/api/*.hurl
       - run: go vet ./...
+      - run: node --check internal/backend/web/app.js
       - run: go build -o bin/ ./cmd/...
       - run: ./bin/test-harness
