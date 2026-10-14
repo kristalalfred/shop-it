@@ -1,0 +1,105 @@
+package interpret
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
+
+	"github.com/kristalalfred/ship-it/internal/shopping"
+)
+
+type Codex struct {
+	Binary string
+	Model  string
+}
+
+func NewCodex(model string) (*Codex, error) {
+	binary, err := exec.LookPath("codex")
+	if err != nil {
+		return nil, fmt.Errorf("codex interpreter requires the Codex CLI: %w", err)
+	}
+	return &Codex{Binary: binary, Model: model}, nil
+}
+
+func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationRequest) (shopping.Interpretation, error) {
+	data, err := c.generate(ctx, groceryInstructions, req, grocerySchema())
+	if err != nil {
+		return shopping.Interpretation{}, err
+	}
+	var result shopping.Interpretation
+	if decodeResult(data, &result) != nil || result.Items == nil || result.Warnings == nil {
+		return shopping.Interpretation{}, shopping.ErrUpstream
+	}
+	result.Mode = "codex"
+	return result, Validate(result)
+}
+
+func (c *Codex) generate(ctx context.Context, instructions string, request any, schemaObject map[string]any) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	dir, err := os.MkdirTemp("", "ship-it-interpret-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	schema, err := json.Marshal(schemaObject)
+	if err != nil {
+		return nil, err
+	}
+	schemaPath, outputPath := filepath.Join(dir, "schema.json"), filepath.Join(dir, "result.json")
+	if err := os.WriteFile(schemaPath, schema, 0600); err != nil {
+		return nil, err
+	}
+	input, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	encodedInstructions, _ := json.Marshal(instructions)
+	args := []string{
+		"exec", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
+		"--disable", "shell_tool", "--disable", "apps", "--disable", "plugins", "--disable", "hooks", "--disable", "multi_agent",
+		"--disable", "browser_use", "--disable", "computer_use",
+		"-c", `web_search="disabled"`, "-c", `approval_policy="never"`, "-c", "project_doc_max_bytes=0",
+		"-c", "developer_instructions=" + string(encodedInstructions),
+		"--output-schema", schemaPath, "--output-last-message", outputPath,
+	}
+	if c.Model != "" {
+		args = append(args, "--model", c.Model)
+	}
+	args = append(args, "-")
+	cmd := exec.CommandContext(ctx, c.Binary, args...)
+	cmd.Dir = dir
+	cmd.Stdin = bytes.NewReader(input)
+	cmd.WaitDelay = time.Second
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil, providerError(ctx.Err())
+		}
+		return nil, fmt.Errorf("%w: Codex interpretation failed; check codex login status", shopping.ErrUpstream)
+	}
+	file, err := os.Open(outputPath)
+	if err != nil {
+		return nil, shopping.ErrUpstream
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
+	if err != nil || len(data) > 1<<20 {
+		return nil, shopping.ErrUpstream
+	}
+	return data, nil
+}
+
+func decodeResult(data []byte, result any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(result) != nil || decoder.Decode(new(any)) != io.EOF {
+		return shopping.ErrUpstream
+	}
+	return nil
+}

@@ -10,14 +10,14 @@
 <body>
   <header><a href="/" class="brand"><span class="brand-icon">↗</span> ship it<span class="brand-dot">.</span></a><details id="connection-settings" class="connection"><summary>Browser connection</summary><div class="connection-panel"><input id="token" type="hidden" value="{{.APIToken}}"><p id="connection-status" role="status">Connecting…</p><button id="reconnect" type="button" class="small" hidden>Try again</button><div id="extension-setup" hidden><button id="pair-extension" type="button" class="secondary">Connect browser extension</button><p id="extension-status">Install the extension, then reload this page.</p><details id="extension-install"><summary>Install extension</summary><p>For Zen or Firefox, open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select <strong>bin/extension/firefox/manifest.json</strong>.</p><p>For Chromium, open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, and load <strong>bin/extension/chromium</strong>.</p><p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p></details><p>Open your shop in this browser and choose delivery or pickup there. Sign in before filling your basket.</p></div><label>Preferred shop<select id="retailer"><option value="">Automatic</option></select></label><p class="muted">Automatic uses a shop already open in your connected browser.</p></div></details></header>
   <main>
-    <section class="intro"><p class="eyebrow">A LITTLE LESS LIFE ADMIN</p><h1>Your words.<br>Your groceries.</h1><p>Tell us what you need. Review the products and fill your grocery basket.</p></section>
+    <section class="intro"><p class="eyebrow">A LITTLE LESS LIFE ADMIN</p><h1>Your words.<br>Your groceries.</h1><p>Tell us what you want to cook and for how many people, or paste your grocery list. Review the ingredients and fill your basket.</p></section>
     <div class="workspace">
       <section class="input-panel">
 
         <form id="plan-form">
           <label for="text" class="input-title">What do you need?</label>
-          <textarea id="text" maxlength="16000" required placeholder="We need 2 litres of organic milk, 12 eggs and 500 g bananas."></textarea>
-          <div class="examples"><button type="button" data-example="breakfast">Breakfast basics ↗</button><button type="button" data-example="dinner">Pasta night ↗</button><button type="button" data-example="diet">Dietary requirements ↗</button></div>
+          <textarea id="text" maxlength="16000" required placeholder="Korvstroganoff för 5 personer och grillmiddag för 7 på fredag. Vi har redan salt och peppar."></textarea>
+          <div class="examples"><button type="button" data-example="breakfast">Breakfast basics ↗</button><button type="button" data-example="dinner">Dinner for five ↗</button><button type="button" data-example="diet">Dietary requirements ↗</button></div>
           <fieldset><legend>Preferences</legend><div class="traits"><label><input type="checkbox" value="organic">Organic</label><label><input type="checkbox" value="vegan">Vegan</label><label><input type="checkbox" value="lactose_free">Lactose free</label><label><input type="checkbox" value="gluten_free">Gluten free</label></div><p class="muted">Apply to every item. You can also mention preferences in your list.</p></fieldset>
           <label>Budget in SEK <span class="muted">optional</span><input id="budget" type="number" min="0" max="1000000" step="0.01" placeholder="e.g. 250"></label>
           <p id="shop-status" class="muted" role="status">Connecting…</p>
@@ -29,7 +29,7 @@
       <section class="review-panel" aria-label="Shopping plan">
         <div class="review-heading"><h2>Your shopping plan</h2><span id="plan-state" class="pill">Ready when you are</span></div>
         <div id="message" role="status" aria-live="polite"></div>
-        <div id="empty"><div class="empty-icon">✳</div><h3>From “we need” to all set.</h3><p>Tell us what’s on your list.<br>We’ll find the products and do the pack-size maths.</p><div class="steps"><span>01 &nbsp; Tell us</span><span>02 &nbsp; Review</span><span>03 &nbsp; Fill basket</span></div></div>
+        <div id="empty"><div class="empty-icon">✳</div><h3>From “we need” to all set.</h3><p>Tell us what you want to cook.<br>We’ll plan the ingredients, find products and calculate pack sizes.</p><div class="steps"><span>01 &nbsp; Tell us</span><span>02 &nbsp; Review</span><span>03 &nbsp; Fill basket</span></div></div>
         <div id="plan" hidden><p id="plan-meta" class="muted"></p><div id="warnings"></div><div id="lines"></div><div class="total"><div><span>Product subtotal</span><p id="estimate" class="muted"></p></div><strong id="total"></strong></div><label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions and warnings.</label><label id="over-wrap" class="check"><input type="checkbox" id="over">Use this plan even though it exceeds my budget.</label><div class="actions"><button id="refresh" class="secondary" type="button">Refresh products</button><button id="transfer" class="primary" type="button">Fill basket ↗</button></div><div id="receipt" aria-live="polite"></div></div>
       </section>
     </div>

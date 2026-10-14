@@ -67,8 +67,8 @@ func (c Config) Validate() error {
 	if len(c.Retailers) == 0 || len(c.Clients) == 0 {
 		return fmt.Errorf("at least one retailer and client are required")
 	}
-	if c.Interpreter.Mode != "" && c.Interpreter.Mode != "builtin" && c.Interpreter.Mode != "openai" {
-		return fmt.Errorf("interpreter mode must be builtin or openai")
+	if c.Interpreter.Mode != "" && c.Interpreter.Mode != "builtin" && c.Interpreter.Mode != "openai" && c.Interpreter.Mode != "codex" {
+		return fmt.Errorf("interpreter mode must be builtin, openai or codex")
 	}
 	if c.Interpreter.Mode == "openai" && strings.TrimSpace(c.Interpreter.Model) == "" {
 		return fmt.Errorf("openai interpreter requires a model")

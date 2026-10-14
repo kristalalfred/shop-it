@@ -41,11 +41,12 @@ var aliases = map[string]string{
 	"yogurt": "yoghurt", "yoghurt": "yoghurt", "onions": "lök", "onion": "lök", "lök": "lök",
 }
 
-func (Builtin) Interpret(ctx context.Context, text string) (shopping.Interpretation, error) {
+func (Builtin) Interpret(ctx context.Context, req shopping.InterpretationRequest) (shopping.Interpretation, error) {
 	if err := ctx.Err(); err != nil {
 		return shopping.Interpretation{}, err
 	}
 	result := shopping.Interpretation{Mode: "builtin", Items: []shopping.Item{}, Warnings: []string{}}
+	text := req.Text
 	var parts []string
 	if strings.HasPrefix(strings.TrimSpace(text), "[") {
 		if err := json.Unmarshal([]byte(text), &parts); err != nil {
@@ -58,7 +59,7 @@ func (Builtin) Interpret(ctx context.Context, text string) (shopping.Interpretat
 		text = sentences.ReplaceAllString(text, "$1\n")
 		parts = separators.Split(text, -1)
 	}
-	global := []string{}
+	global := slices.Clone(req.RequiredTraits)
 	for _, part := range parts {
 		if len(result.Items) >= 100 {
 			return result, shopping.ErrInvalid

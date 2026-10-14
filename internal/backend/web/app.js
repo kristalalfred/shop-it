@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false;
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false, interpreterMode = '';
 let preferredShop = localStorage.getItem('ship-it-shop') || '';
 const contextEqual = (a, b) => ['store_id', 'postal_code', 'fulfillment', 'delivery_slot_id', 'session_id'].every((key) => (a[key] || '') === (b[key] || '')) && JSON.stringify(a.memberships || []) === JSON.stringify(b.memberships || []);
 function shoppingTarget() {
@@ -18,7 +18,7 @@ function planClient() {
 }
 const examples = {
   breakfast: 'We need 2 litres of organic milk, 12 eggs and 500 g bananas.',
-  dinner: '500 g pasta\n500 g tomatoes\n1 pack cheese',
+  dinner: 'Korvstroganoff för 5 personer. Vi har redan salt och peppar.',
   diet: '2 litres lactose-free milk\n1 pack gluten-free bread\n500 g bananas',
 };
 
@@ -29,7 +29,7 @@ async function api(path, body, method = 'POST', key) {
   const response = await fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body)});
   const result = await response.json();
   if (!response.ok) {
-    const messages = {400: 'Check your input, quantity and selected product.', 401: 'The connection expired. Reload this page to reconnect.', 409: 'The plan changed or still needs review. Reopen it, resolve all lines, and review the warnings.', 502: 'We could not reach your shop. Keep its browser tab open and try again.', 504: 'The interpreter or catalog took too long. Please try again.'};
+    const messages = {400: 'Check your input, quantity and selected product.', 401: 'The connection expired. Reload this page to reconnect.', 409: 'The plan changed or still needs review. Reopen it, resolve all lines, and review the warnings.', 502: 'The AI or shop connection failed. Check your AI login and keep the shop tab open, then try again.', 504: 'Planning ingredients or searching the shop took too long. Please try again.'};
     throw new Error(messages[response.status] || result.error || 'The request failed.');
   }
   return result;
@@ -74,7 +74,7 @@ function showPlan(value) {
     $('warnings').append(box);
   }
   if (plan.over_budget) $('warnings').append(el('p', `This plan exceeds your ${money({amount_minor: plan.budget_minor, currency: 'SEK'})} budget.`, 'notice'));
-  if (!plan.lines.length) $('warnings').append(el('p', 'No grocery items were understood. Try a list with one item per line.', 'notice'));
+  if (!plan.lines.length) $('warnings').append(el('p', 'No grocery items were understood. Describe a dish and how many people it should serve, or enter your grocery list.', 'notice'));
   $('ack-wrap').hidden = !plan.warnings.length; $('over-wrap').hidden = !plan.over_budget;
   $('total').textContent = money(plan.total);
   $('estimate').textContent = `${plan.estimated ? 'Estimated weight-based price. ' : ''}Excludes delivery fees. ${simulated ? 'Synthetic demo prices.' : 'Prices may change before checkout.'}`;
@@ -89,7 +89,7 @@ function renderLine(line) {
   const skip = el('button', line.skipped ? 'Restore' : 'Skip'); skip.type = 'button';
   skip.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: !line.skipped})); await history(); }));
   top.append(name, skip); node.append(top);
-  if (line.search_limited) node.append(el('p', 'Compared the first 500 matching products. Use a more specific search to narrow the options.', 'muted'));
+  if (line.search_limited) node.append(el('p', `Compared the first ${line.search_limit || 500} search results. Use a more specific search to narrow the options.`, 'muted'));
   if (line.selected && !line.skipped) {
     const selected = line.selected;
     const row = el('div', null, 'line-top');
@@ -147,7 +147,11 @@ async function connect() {
     const live = retailers.some((retailer) => retailer.mode === 'browser');
     $('connection-status').textContent = live ? 'Ready to connect your browser.' : 'Demo shopping is ready.';
     $('mode-note').textContent = live ? 'You review your basket at the shop before checkout.' : 'Demo products and basket actions are simulated.';
-    if (health.interpreter === 'builtin') $('text').placeholder = '2 litres milk, 12 eggs and 500 g bananas';
+    interpreterMode = health.interpreter;
+    if (interpreterMode === 'builtin') {
+      $('text').placeholder = '2 litres milk, 12 eggs and 500 g bananas';
+      examples.dinner = '500 g pasta\n500 g tomatoes\n1 pack cheese';
+    }
     $('extension-setup').hidden = !live;
     $('reconnect').hidden = true;
     await refreshSessions();
@@ -214,7 +218,7 @@ $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); a
     }
     return;
   }
-  message('Finding products and checking pack sizes…');
+  message(interpreterMode === 'builtin' ? 'Finding products and checking pack sizes…' : 'Planning ingredients for your meals and finding products. This may take a minute…');
   const {retailer, context} = target;
   const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
   const result = await api('/v1/shopping-plans', {text: $('text').value, retailer_id: retailer.id, context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)});

@@ -55,3 +55,33 @@ func TestRepeatedCursorStillFails(t *testing.T) {
 		t.Fatalf("repeated cursor was accepted: %v", err)
 	}
 }
+
+func TestProductIdentityBeforePrice(t *testing.T) {
+	pages := catalogPages{{Products: []shopping.Product{catalogProduct("rice-flour", 1000), catalogProduct("basmati", 3000)}, ObservedAt: time.Now()}}
+	line, err := Search(context.Background(), pages, shopping.PlanRequest{}, shopping.Item{Query: "ris", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}}, "rice", 40)
+	if err != nil || line.Selected != nil {
+		t.Fatalf("search selected before matching: %+v, %v", line, err)
+	}
+	ApplyMatches(&line, []string{"basmati"})
+	if line.Selected == nil || line.Selected.Product.ID != "basmati" || line.Candidates[1].Eligible {
+		t.Fatalf("cheaper unrelated product selected: %+v", line)
+	}
+	ApplyMatches(&line, []string{})
+	if line.Selected != nil || line.Issue == "" {
+		t.Fatalf("unmatched ingredient selected: %+v", line)
+	}
+}
+
+func TestProductMatchCannotOverrideRequirements(t *testing.T) {
+	product := catalogProduct("milk", 1000)
+	pages := catalogPages{{Products: []shopping.Product{product}, ObservedAt: time.Now()}}
+	item := shopping.Item{Query: "mjölk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}, RequiredTraits: []string{"lactose_free"}}
+	line, err := Search(context.Background(), pages, shopping.PlanRequest{}, item, "milk", 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ApplyMatches(&line, []string{"milk"})
+	if line.Selected != nil || line.Candidates[0].Eligible {
+		t.Fatalf("AI identity match bypassed dietary evidence: %+v", line)
+	}
+}

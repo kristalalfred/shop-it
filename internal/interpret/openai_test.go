@@ -16,7 +16,7 @@ func TestStructuredInterpretationContract(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Error(err)
 		}
-		if r.Header.Get("Authorization") != "Bearer test-key" || req["model"] != "test-model" || req["store"] != false || req["input"] != "breakfast for two" {
+		if r.Header.Get("Authorization") != "Bearer test-key" || req["model"] != "test-model" || req["store"] != false || req["input"] != `{"text":"breakfast for two","required_traits":["organic"]}` {
 			t.Errorf("wrong interpreter request: %v", req)
 		}
 		format := req["text"].(map[string]any)["format"].(map[string]any)
@@ -29,7 +29,7 @@ func TestStructuredInterpretationContract(t *testing.T) {
 	defer server.Close()
 	provider := NewOpenAI("test-key", "test-model")
 	provider.URL = server.URL
-	result, err := provider.Interpret(context.Background(), "breakfast for two")
+	result, err := provider.Interpret(context.Background(), shopping.InterpretationRequest{Text: "breakfast for two", RequiredTraits: []string{"organic"}})
 	if err != nil || result.Mode != "openai" || len(result.Items) != 1 || result.Items[0].Amount.Quantity != 1000 || len(result.Warnings) != 1 {
 		t.Fatalf("result: %+v, %v", result, err)
 	}
@@ -45,7 +45,7 @@ func TestProviderFailureIsNotAListFallback(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) }))
 		provider := NewOpenAI("test-key", "test-model")
 		provider.URL = server.URL
-		_, err := provider.Interpret(context.Background(), "milk")
+		_, err := provider.Interpret(context.Background(), shopping.InterpretationRequest{Text: "milk"})
 		server.Close()
 		if err == nil || !errors.Is(err, shopping.ErrUpstream) {
 			t.Fatalf("invalid provider response accepted: %s, %v", body, err)

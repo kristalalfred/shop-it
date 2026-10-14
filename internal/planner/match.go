@@ -11,7 +11,15 @@ import (
 )
 
 func Match(ctx context.Context, catalog shopping.Catalog, req shopping.PlanRequest, item shopping.Item, id string) (shopping.PlanLine, error) {
-	line := shopping.PlanLine{ID: id, Item: item, Candidates: []shopping.Candidate{}}
+	line, err := Search(ctx, catalog, req, item, id, 500)
+	if err == nil {
+		Select(&line)
+	}
+	return line, err
+}
+
+func Search(ctx context.Context, catalog shopping.Catalog, req shopping.PlanRequest, item shopping.Item, id string, limit int) (shopping.PlanLine, error) {
+	line := shopping.PlanLine{ID: id, Item: item, Candidates: []shopping.Candidate{}, SearchLimit: limit}
 	search := shopping.SearchRequest{RetailerID: req.RetailerID, Context: req.Context, Query: item.Query}
 	cursors, ids := map[string]bool{}, map[string]bool{}
 pages:
@@ -31,7 +39,7 @@ pages:
 			if ids[product.ID] {
 				continue
 			}
-			if len(line.Candidates) >= 500 {
+			if len(line.Candidates) >= limit {
 				line.SearchLimited = true
 				break pages
 			}
@@ -41,12 +49,18 @@ pages:
 		if result.NextCursor == "" {
 			break
 		}
-		if len(line.Candidates) >= 500 {
+		if len(line.Candidates) >= limit {
 			line.SearchLimited = true
 			break
 		}
 		search.Cursor = result.NextCursor
 	}
+	return line, nil
+}
+
+func Select(line *shopping.PlanLine) {
+	line.Selected = nil
+	line.Issue = ""
 	slices.SortStableFunc(line.Candidates, func(a, b shopping.Candidate) int {
 		if a.Eligible != b.Eligible {
 			if a.Eligible {
@@ -74,7 +88,20 @@ pages:
 	} else if line.Selected == nil {
 		line.Issue = "No product has verified availability, requirements and a compatible pack size."
 	}
-	return line, nil
+}
+
+func ApplyMatches(line *shopping.PlanLine, ids []string) {
+	for i := range line.Candidates {
+		candidate := &line.Candidates[i]
+		if !slices.Contains(ids, candidate.Product.ID) {
+			if candidate.Eligible {
+				candidate.Reasons = []string{}
+			}
+			candidate.Eligible = false
+			candidate.Reasons = append(candidate.Reasons, "This product does not match the requested ingredient.")
+		}
+	}
+	Select(line)
 }
 
 func candidate(product shopping.Product, item shopping.Item, memberships []string) shopping.Candidate {

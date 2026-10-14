@@ -24,6 +24,7 @@ type Server struct {
 	transfers       shopping.TransferStore
 	plans           *planner.Store
 	interpreter     shopping.Interpreter
+	productMatcher  shopping.ProductMatcher
 	interpreterMode string
 	bridge          *retailer.Bridge
 }
@@ -43,12 +44,21 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 		return nil, err
 	}
 	s.interpreter, s.interpreterMode = interpret.Builtin{}, "builtin"
+	if config.Interpreter.Mode == "codex" {
+		provider, err := interpret.NewCodex(config.Interpreter.Model)
+		if err != nil {
+			return nil, err
+		}
+		s.interpreter, s.productMatcher = provider, provider
+		s.interpreterMode = "codex"
+	}
 	if config.Interpreter.Mode == "openai" {
 		key := os.Getenv("OPENAI_API_KEY")
 		if strings.TrimSpace(key) == "" {
 			return nil, errors.New("OPENAI_API_KEY is required for the openai interpreter")
 		}
-		s.interpreter = interpret.NewOpenAI(key, config.Interpreter.Model)
+		provider := interpret.NewOpenAI(key, config.Interpreter.Model)
+		s.interpreter, s.productMatcher = provider, provider
 		s.interpreterMode = "openai"
 	}
 	for _, r := range config.Retailers {

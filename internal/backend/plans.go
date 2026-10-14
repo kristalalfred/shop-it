@@ -38,20 +38,21 @@ func validText(text string) bool {
 }
 
 func (s *Server) interpretText(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Text string `json:"text"`
-	}
+	var req shopping.InterpretationRequest
 	if !decode(w, r, &req) {
 		return
 	}
-	if !validText(req.Text) {
+	if !validText(req.Text) || !interpret.ValidTraits(req.RequiredTraits) {
 		fail(w, shopping.ErrInvalid)
 		return
 	}
-	result, err := s.interpreter.Interpret(r.Context(), req.Text)
+	result, err := s.interpreter.Interpret(r.Context(), req)
 	if err != nil {
 		fail(w, err)
 		return
+	}
+	for i := range result.Items {
+		result.Items[i].RequiredTraits = interpret.Unique(append(result.Items[i].RequiredTraits, req.RequiredTraits...))
 	}
 	respond(w, 200, result)
 }
@@ -69,9 +70,7 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 		fail(w, shopping.ErrNotFound)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	intent, err := s.interpreter.Interpret(ctx, req.Text)
+	intent, err := s.interpreter.Interpret(r.Context(), shopping.InterpretationRequest{Text: req.Text, RequiredTraits: req.RequiredTraits})
 	if err != nil {
 		fail(w, err)
 		return
@@ -81,12 +80,12 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 		item.RequiredTraits = interpret.Unique(append(item.RequiredTraits, req.RequiredTraits...))
 		plan.Lines[i] = shopping.PlanLine{ID: "line-" + rand.Text(), Item: item}
 	}
-	plan.Lines, err = s.matchLines(ctx, plan, false)
+	plan.Lines, err = s.matchLines(r.Context(), plan, false)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	plan, err = s.plans.Create(ctx, plan)
+	plan, err = s.plans.Create(r.Context(), plan)
 	if err != nil {
 		fail(w, err)
 		return
@@ -97,7 +96,7 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bool) ([]shopping.PlanLine, error) {
 	lines := make([]shopping.PlanLine, len(plan.Lines))
-	ctx, cancel := context.WithCancel(ctx)
+	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var wg sync.WaitGroup
 	var firstError error
@@ -107,7 +106,7 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 		wg.Go(func() {
 			select {
 			case limit <- struct{}{}:
-			case <-ctx.Done():
+			case <-searchCtx.Done():
 				return
 			}
 			defer func() { <-limit }()
@@ -115,7 +114,13 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 				lines[i] = old
 				return
 			}
-			line, err := planner.Match(ctx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID)
+			var line shopping.PlanLine
+			var err error
+			if s.productMatcher == nil {
+				line, err = planner.Match(searchCtx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID)
+			} else {
+				line, err = planner.Search(searchCtx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID, 40)
+			}
 			if err != nil {
 				mu.Lock()
 				if firstError == nil {
@@ -125,21 +130,6 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 				mu.Unlock()
 				return
 			}
-			if preserve {
-				line.Selected = nil
-				if old.Selected != nil {
-					for _, c := range line.Candidates {
-						if c.Eligible && c.Product.ID == old.Selected.Product.ID {
-							chosen := c
-							line.Selected = &chosen
-							break
-						}
-					}
-				}
-				if line.Selected == nil {
-					line.Issue = "Review this line after refreshing the catalog."
-				}
-			}
 			lines[i] = line
 		})
 	}
@@ -147,11 +137,58 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 	if firstError != nil {
 		return nil, firstError
 	}
-	if err := ctx.Err(); err != nil {
+	if err := searchCtx.Err(); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, shopping.ErrTimeout
 		}
 		return nil, err
+	}
+	if s.productMatcher != nil {
+		requests := []shopping.ProductMatchRequest{}
+		for _, line := range lines {
+			if line.Skipped || len(line.Candidates) == 0 {
+				continue
+			}
+			products := make([]shopping.ProductOption, len(line.Candidates))
+			for i, candidate := range line.Candidates {
+				products[i] = shopping.ProductOption{ID: candidate.Product.ID, Name: candidate.Product.Name, Brand: candidate.Product.Brand}
+			}
+			requests = append(requests, shopping.ProductMatchRequest{ID: line.ID, Item: line.Item, Products: products})
+		}
+		matches, err := s.productMatcher.MatchProducts(ctx, requests)
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[string][]string, len(matches))
+		for _, match := range matches {
+			byID[match.ID] = match.ProductIDs
+		}
+		for i := range lines {
+			if !lines[i].Skipped {
+				planner.ApplyMatches(&lines[i], byID[lines[i].ID])
+			}
+		}
+	}
+	if preserve {
+		for i := range lines {
+			line, old := &lines[i], plan.Lines[i]
+			if old.Skipped {
+				continue
+			}
+			line.Selected = nil
+			if old.Selected != nil {
+				for _, candidate := range line.Candidates {
+					if candidate.Eligible && candidate.Product.ID == old.Selected.Product.ID {
+						chosen := candidate
+						line.Selected = &chosen
+						break
+					}
+				}
+			}
+			if line.Selected == nil {
+				line.Issue = "Review this line after refreshing the catalog."
+			}
+		}
 	}
 	return lines, nil
 }
@@ -210,11 +247,15 @@ func (s *Server) updateLine(w http.ResponseWriter, r *http.Request) {
 		}
 		item := *req.Item
 		item.RequiredTraits = interpret.Unique(append(item.RequiredTraits, plan.RequiredTraits...))
-		line, err = planner.Match(r.Context(), s.catalogs[plan.RetailerID], plan.PlanRequest, item, line.ID)
+		updated := plan
+		updated.Lines = []shopping.PlanLine{{ID: line.ID, Item: item}}
+		var lines []shopping.PlanLine
+		lines, err = s.matchLines(r.Context(), updated, false)
 		if err != nil {
 			fail(w, err)
 			return
 		}
+		line = lines[0]
 	}
 	if req.ProductID != nil {
 		line.Selected = nil
@@ -260,14 +301,12 @@ func (s *Server) refreshPlan(w http.ResponseWriter, r *http.Request) {
 		fail(w, shopping.ErrConflict)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	lines, err := s.matchLines(ctx, plan, true)
+	lines, err := s.matchLines(r.Context(), plan, true)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	plan, err = s.plans.Update(ctx, plan.ID, req.Revision, func(p *shopping.Plan) error { p.Lines = lines; return nil })
+	plan, err = s.plans.Update(r.Context(), plan.ID, req.Revision, func(p *shopping.Plan) error { p.Lines = lines; return nil })
 	if err != nil {
 		fail(w, err)
 		return

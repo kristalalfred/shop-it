@@ -18,8 +18,34 @@ type Interpretation struct {
 	Warnings []string `json:"warnings"`
 }
 
+type InterpretationRequest struct {
+	Text           string   `json:"text"`
+	RequiredTraits []string `json:"required_traits,omitempty"`
+}
+
 type Interpreter interface {
-	Interpret(context.Context, string) (Interpretation, error)
+	Interpret(context.Context, InterpretationRequest) (Interpretation, error)
+}
+
+type ProductOption struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Brand string `json:"brand"`
+}
+
+type ProductMatchRequest struct {
+	ID       string          `json:"id"`
+	Item     Item            `json:"item"`
+	Products []ProductOption `json:"products"`
+}
+
+type ProductMatch struct {
+	ID         string   `json:"id"`
+	ProductIDs []string `json:"product_ids"`
+}
+
+type ProductMatcher interface {
+	MatchProducts(context.Context, []ProductMatchRequest) ([]ProductMatch, error)
 }
 
 type PlanRequest struct {
@@ -48,6 +74,7 @@ type PlanLine struct {
 	ObservedAt    time.Time   `json:"observed_at,omitempty"`
 	Issue         string      `json:"issue,omitempty"`
 	SearchLimited bool        `json:"search_limited,omitempty"`
+	SearchLimit   int         `json:"search_limit,omitempty"`
 }
 
 type Plan struct {
