@@ -41,7 +41,7 @@ function message(text, error = false) {
 }
 
 function buttons() {
-  $('create').disabled = busy || !token || !shoppingTarget();
+  $('create').disabled = busy;
   $('pair-extension').disabled = busy || !token || !extensionReady;
   $('refresh').disabled = busy || !plan;
   $('transfer').disabled = busy || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
@@ -195,9 +195,25 @@ for (const button of document.querySelectorAll('[data-example]')) button.addEven
 $('ack').addEventListener('change', buttons); $('over').addEventListener('change', buttons);
 
 $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
-  message('Finding products and checking pack sizes…');
   const target = shoppingTarget();
-  if (!target) throw new Error('Connect your browser and open your shop first.');
+  if (!token || !target) {
+    const settings = $('connection-settings');
+    settings.open = true;
+    settings.scrollIntoView({block: 'start', behavior: 'smooth'});
+    settings.querySelector('summary').focus();
+    if (!token) {
+      message('The local service is disconnected. Use Try again under Browser connection.', true);
+    } else if (!extensionReady) {
+      message('Connect your browser once so we can get your shop’s products and prices. The setup steps are open above.');
+      $('extension-install').open = true;
+      $('extension-install').querySelector('summary').focus();
+    } else {
+      const shop = retailers.find((retailer) => retailer.id === preferredShop);
+      message(`Connect the extension, then open ${shop?.name || 'Mathem, Willys or Hemköp'} in this browser. Keep your grocery list here while you do that.`);
+    }
+    return;
+  }
+  message('Finding products and checking pack sizes…');
   const {retailer, context} = target;
   const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
   const result = await api('/v1/shopping-plans', {text: $('text').value, retailer_id: retailer.id, context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)});
