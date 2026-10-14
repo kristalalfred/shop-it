@@ -3,11 +3,19 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = '', plan = null, busy = false, retailers = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false;
-const liveRetailer = () => retailers.find((r) => r.id === $('retailer').value)?.mode === 'browser';
-const selectedSession = () => sessions.find((session) => `${session.client_id}:${session.context.session_id}` === $('session').value);
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false;
+let preferredShop = localStorage.getItem('ship-it-shop') || '';
 const contextEqual = (a, b) => ['store_id', 'postal_code', 'fulfillment', 'delivery_slot_id', 'session_id'].every((key) => (a[key] || '') === (b[key] || '')) && JSON.stringify(a.memberships || []) === JSON.stringify(b.memberships || []);
-const planSession = () => plan && sessions.find((session) => session.retailer_id === plan.retailer_id && session.client_id === $('client').value && session.logged_in && contextEqual(session.context, plan.context));
+function shoppingTarget() {
+  const shops = preferredShop ? retailers.filter((retailer) => retailer.id === preferredShop) : retailers;
+  const available = shops.flatMap((retailer) => retailer.mode === 'browser' ? sessions.filter((session) => session.retailer_id === retailer.id).map((session) => ({retailer, context: session.context, clientID: session.client_id, loggedIn: session.logged_in})) : [{retailer, context: {store_id: `${retailer.id}-demo`, postal_code: '11122', fulfillment: 'delivery', memberships: retailer.mode === 'mock' ? [`${retailer.id}-demo-member`] : []}, clientID: clients[0]?.id}]);
+  return available.find((target) => target.loggedIn) || available[0] || null;
+}
+function planClient() {
+  if (!plan) return null;
+  const retailer = retailers.find((retailer) => retailer.id === plan.retailer_id);
+  return retailer?.mode === 'browser' ? sessions.find((session) => session.retailer_id === plan.retailer_id && session.logged_in && contextEqual(session.context, plan.context))?.client_id : clients[0]?.id;
+}
 const examples = {
   breakfast: 'We need 2 litres of organic milk, 12 eggs and 500 g bananas.',
   dinner: '500 g pasta\n500 g tomatoes\n1 pack cheese',
@@ -21,7 +29,7 @@ async function api(path, body, method = 'POST', key) {
   const response = await fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body)});
   const result = await response.json();
   if (!response.ok) {
-    const messages = {400: 'Check your input, quantity and selected product.', 401: 'The service token is incorrect. Connect again.', 409: 'The plan changed or still needs review. Reopen it, resolve all lines, and review the warnings.', 502: 'The store session or interpreter is unavailable. Check the extension and store tab, then try again.', 504: 'The interpreter or catalog took too long. Please try again.'};
+    const messages = {400: 'Check your input, quantity and selected product.', 401: 'The connection expired. Reload this page to reconnect.', 409: 'The plan changed or still needs review. Reopen it, resolve all lines, and review the warnings.', 502: 'We could not reach your shop. Keep its browser tab open and try again.', 504: 'The interpreter or catalog took too long. Please try again.'};
     throw new Error(messages[response.status] || result.error || 'The request failed.');
   }
   return result;
@@ -33,11 +41,11 @@ function message(text, error = false) {
 }
 
 function buttons() {
-  $('create').disabled = busy || !token || (liveRetailer() && !selectedSession());
+  $('create').disabled = busy || !token || !shoppingTarget();
   $('pair-extension').disabled = busy || !token || !extensionReady;
   $('refresh').disabled = busy || !plan;
-  $('transfer').disabled = busy || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || (retailers.find((r) => r.id === plan?.retailer_id)?.mode === 'browser' && !planSession());
-  $('connect-form').querySelector('button').disabled = busy;
+  $('transfer').disabled = busy || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
+  $('reconnect').disabled = busy;
 }
 
 async function action(work) {
@@ -57,10 +65,8 @@ function showPlan(value) {
   $('plan-state').textContent = plan.status === 'ready' ? 'Ready to review' : 'Needs your input';
   const retailer = retailers.find((r) => r.id === plan.retailer_id);
   const simulated = retailer?.mode === 'mock';
-  const matchingSession = sessions.find((session) => session.retailer_id === plan.retailer_id && contextEqual(session.context, plan.context));
-  if (matchingSession) $('client').value = matchingSession.client_id;
-  $('transfer').textContent = simulated ? 'Send to demo basket ↗' : 'Fill store basket ↗';
-  $('plan-meta').textContent = `${retailer?.name || plan.retailer_id} · ${plan.context.store_id} · ${plan.context.postal_code === '00000' ? 'Store delivery settings' : plan.context.postal_code} · ${plan.context.fulfillment} · Revision ${plan.revision}`;
+  $('transfer').textContent = simulated ? 'Send to demo basket ↗' : 'Fill basket ↗';
+  $('plan-meta').textContent = `${retailer?.name || 'Your shop'} · ${plan.context.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}${simulated ? ' · Demo' : ''}`;
   $('warnings').replaceChildren();
   if (plan.warnings.length) {
     const box = el('div', null, 'notice'); box.append(el('strong', 'Check these assumptions'));
@@ -127,67 +133,59 @@ async function history() {
   }
 }
 
-$('connect-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
+async function connect() {
   token = $('token').value.trim();
   try {
-    const [shops, clients, health] = await Promise.all([api('/v1/retailers', undefined, 'GET'), api('/v1/clients', undefined, 'GET'), api('/healthz', undefined, 'GET')]);
-    retailers = shops.retailers; $('retailer').replaceChildren(); $('client').replaceChildren();
+    const [shops, browserClients, health] = await Promise.all([api('/v1/retailers', undefined, 'GET'), api('/v1/clients', undefined, 'GET'), api('/healthz', undefined, 'GET')]);
+    retailers = shops.retailers; clients = browserClients.clients;
+    if (!retailers.some((retailer) => retailer.id === preferredShop)) preferredShop = '';
+    $('retailer').replaceChildren();
+    const automatic = el('option', 'Automatic'); automatic.value = ''; $('retailer').append(automatic);
     for (const retailer of retailers) { const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : ''}`); option.value = retailer.id; $('retailer').append(option); }
-    for (const client of clients.clients) { const option = el('option', client.id); option.value = client.id; $('client').append(option); }
-    updateRetailer();
-    $('connection-status').textContent = `Connected · ${health.interpreter === 'builtin' ? 'Built-in list parser' : 'AI text interpreter'} · ${health.persistent ? 'Plans saved on disk' : 'Plans kept in memory'}`;
-    $('mode-note').textContent = `${health.interpreter === 'builtin' ? 'Built-in parser: lists and simple English or Swedish grocery requests. Meal planning needs the AI interpreter.' : 'AI interpretation may make assumptions. Review quantities and requirements.'} ${retailers.some((r) => r.mode === 'browser') ? 'Products and prices come from your store session. Review your basket at the store before checkout.' : 'Retailer data and basket actions in this demo are simulated.'}`;
-    $('extension-setup').hidden = !retailers.some((r) => r.mode === 'browser');
+    $('retailer').value = preferredShop;
+    const live = retailers.some((retailer) => retailer.mode === 'browser');
+    $('connection-status').textContent = live ? 'Ready to connect your browser.' : 'Demo shopping is ready.';
+    $('mode-note').textContent = live ? 'You review your basket at the shop before checkout.' : 'Demo products and basket actions are simulated.';
+    if (health.interpreter === 'builtin') $('text').placeholder = '2 litres milk, 12 eggs and 500 g bananas';
+    $('extension-setup').hidden = !live;
+    $('reconnect').hidden = true;
     await refreshSessions();
     if (sessionPoll) clearInterval(sessionPoll);
-    sessionPoll = setInterval(() => { if (token) refreshSessions().catch(() => { sessions = []; buttons(); }); }, 5000);
-    sessionStorage.setItem('ship-it-token', token); await history();
-  } catch (error) { token = ''; sessionStorage.removeItem('ship-it-token'); throw error; }
-}); });
-
-function updateRetailer() {
-  const live = liveRetailer();
-  $('session-wrap').hidden = !live;
-  $('member-wrap').hidden = live;
-  $('store').readOnly = live; $('postal').readOnly = live; $('fulfillment').disabled = live;
-  if (!live) { $('store').value = `${$('retailer').value}-demo`; if ($('postal').value === '00000') $('postal').value = '11122'; }
-  else applySession();
-  buttons();
+    sessionPoll = setInterval(() => { if (token) refreshSessions().catch(() => { sessions = []; updateConnection(); }); }, 5000);
+    await history();
+  } catch (error) { token = ''; $('reconnect').hidden = false; throw error; }
 }
-function applySession() {
-  const session = selectedSession();
-  if (session) {
-    $('store').value = session.context.store_id;
-    $('postal').value = session.context.postal_code;
-    $('fulfillment').value = session.context.fulfillment;
-    $('client').value = session.client_id;
-  } else { $('store').value = ''; }
+function updateConnection() {
+  const target = shoppingTarget();
+  if (target) {
+    $('shop-status').textContent = `Shopping at ${target.retailer.name}${target.retailer.mode === 'mock' ? ' · Demo' : ''}.`;
+    if (target.retailer.mode === 'browser') {
+      $('connection-status').textContent = `${target.retailer.name} connected${target.loggedIn ? '.' : '. Sign in at the shop before filling your basket.'}`;
+    }
+  } else {
+    const shop = retailers.find((retailer) => retailer.id === preferredShop);
+    const instruction = extensionReady ? `Open ${shop?.name || 'Mathem, Willys or Hemköp'} in your connected browser to start shopping.` : 'Connect your browser to start shopping.';
+    $('shop-status').textContent = instruction;
+    $('connection-status').textContent = instruction;
+  }
   buttons();
 }
 async function refreshSessions() {
   const result = await api('/v1/browser-sessions', undefined, 'GET');
   sessions = result.sessions;
-  const previous = $('session').value;
-  $('session').replaceChildren();
-  const available = sessions.filter((session) => session.retailer_id === $('retailer').value);
-  for (const session of available) {
-    const option = el('option', `${session.name} · ${session.logged_in ? 'signed in' : 'sign in to fill basket'}`);
-    option.value = `${session.client_id}:${session.context.session_id}`; $('session').append(option);
-  }
-  if (!available.length) $('session').append(el('option', 'Open this store in your connected browser'));
-  if (available.some((session) => `${session.client_id}:${session.context.session_id}` === previous)) $('session').value = previous;
-  if (liveRetailer()) applySession();
-  if (extensionReady && available.length) $('extension-status').textContent = 'Store session connected. Sign in at the store before filling its basket.';
-  buttons();
+  updateConnection();
 }
-$('retailer').addEventListener('change', () => { updateRetailer(); refreshSessions().catch((error) => message(error.message, true)); });
-$('session').addEventListener('change', applySession);
-$('client').addEventListener('change', buttons);
-document.addEventListener('ship-it-extension-ready', () => { extensionReady = true; $('extension-status').textContent = 'Extension detected. Connect it to receive grocery plans.'; buttons(); });
+$('retailer').addEventListener('change', () => {
+  preferredShop = $('retailer').value;
+  localStorage.setItem('ship-it-shop', preferredShop);
+  updateConnection();
+});
+$('reconnect').addEventListener('click', () => action(connect));
+document.addEventListener('ship-it-extension-ready', () => { extensionReady = true; $('extension-status').textContent = 'Extension installed. Connect it to start shopping.'; updateConnection(); });
 document.addEventListener('ship-it-paired', (event) => {
   try {
     const result = JSON.parse(event.detail);
-    $('extension-status').textContent = result.error || `Connected as ${result.client_id}. Open your store tab to start.`;
+    $('extension-status').textContent = result.error || 'Browser connected. Open your shop to start shopping.';
     refreshSessions().catch(() => {});
   } catch { $('extension-status').textContent = 'Pairing failed. Reload the page and try again.'; }
 });
@@ -198,11 +196,11 @@ $('ack').addEventListener('change', buttons); $('over').addEventListener('change
 
 $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
   message('Finding products and checking pack sizes…');
-  const retailer = $('retailer').value;
-  const context = liveRetailer() ? selectedSession()?.context : {store_id: $('store').value.trim(), postal_code: $('postal').value.trim(), fulfillment: $('fulfillment').value, memberships: $('member').checked ? [`${retailer}-demo-member`] : []};
-  if (!context) throw new Error('Connect a store session in the extension first.');
+  const target = shoppingTarget();
+  if (!target) throw new Error('Connect your browser and open your shop first.');
+  const {retailer, context} = target;
   const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
-  const result = await api('/v1/shopping-plans', {text: $('text').value, retailer_id: retailer, context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)});
+  const result = await api('/v1/shopping-plans', {text: $('text').value, retailer_id: retailer.id, context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)});
   showPlan(result); message(''); await history();
 }); });
 
@@ -210,16 +208,23 @@ $('refresh').addEventListener('click', () => action(async () => { showPlan(await
 
 function showReceipt(transfer) {
   const simulated = retailers.find((r) => r.id === transfer.retailer_id)?.mode === 'mock';
-  $('receipt').replaceChildren(el('p', `${simulated ? 'Demo basket' : 'Basket transfer'}: ${transfer.state.replaceAll('_', ' ')}`, 'notice'));
-  if (transfer.receipt) for (const line of transfer.receipt.lines) $('receipt').append(el('p', `${line.product_id}: ${line.status.replaceAll('_', ' ')}${line.confirmed_quantity ? ` · ${line.confirmed_quantity} packs confirmed` : ''}${line.message ? ` · ${line.message}` : ''}`));
+  const states = {pending: 'Sent to your browser. Keep your shop tab open.', claimed: 'Filling your basket…', completed: 'Your basket is ready to review.', partial: 'Some items need your review.', login_required: 'Sign in at your shop before filling the basket.', uncertain: 'Review these items in your shop basket.', failed: 'The basket could not be updated.'};
+  $('receipt').replaceChildren(el('p', `${simulated ? 'Demo: ' : ''}${states[transfer.state] || 'Checking your basket…'}`, 'notice'));
+  const labels = {applied: 'Added', unavailable: 'Unavailable', failed: 'Could not add', login_required: 'Sign in at your shop', uncertain: 'Check at your shop'};
+  if (transfer.receipt) for (const line of transfer.receipt.lines) {
+    const name = plan?.lines.find((item) => item.selected?.product.id === line.product_id)?.selected.product.name || 'Item';
+    $('receipt').append(el('p', `${name}: ${labels[line.status] || 'Needs review'}${line.confirmed_quantity ? ` · ${line.confirmed_quantity} packs` : ''}${line.message ? ` · ${line.message}` : ''}`));
+  }
   if (!simulated) { const link = el('a', 'Review basket at the store ↗'); link.href = transfer.basket_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('receipt').append(link); }
-  $('receipt').append(el('p', simulated ? 'This is a simulated result. No real retailer basket was changed.' : 'Your browser client reports this result. Review your retailer basket before checkout.', 'muted'));
+  $('receipt').append(el('p', simulated ? 'This is a simulated result. No real retailer basket was changed.' : 'Review your basket at the shop before checkout.', 'muted'));
 }
 
 $('transfer').addEventListener('click', () => action(async () => {
-  const scope = `ship-it-transfer:${plan.id}:${plan.revision}:${$('client').value}`;
+  const clientID = planClient();
+  if (!clientID) throw new Error('Open your shop and sign in before filling your basket.');
+  const scope = `ship-it-transfer:${plan.id}:${plan.revision}:${clientID}`;
   let key = sessionStorage.getItem(scope); if (!key) { key = crypto.randomUUID(); sessionStorage.setItem(scope, key); }
-  const result = await api(`/v1/shopping-plans/${plan.id}/transfer`, {revision: plan.revision, client_id: $('client').value, acknowledge_warnings: $('ack').checked, allow_over_budget: $('over').checked}, 'POST', key);
+  const result = await api(`/v1/shopping-plans/${plan.id}/transfer`, {revision: plan.revision, client_id: clientID, acknowledge_warnings: $('ack').checked, allow_over_budget: $('over').checked}, 'POST', key);
   showReceipt(result);
   stopPoll();
   const check = async () => {
@@ -233,4 +238,10 @@ $('transfer').addEventListener('click', () => action(async () => {
 }));
 
 window.addEventListener('pagehide', () => { stopPoll(); if (sessionPoll) clearInterval(sessionPoll); });
-if ($('token').value) $('connect-form').requestSubmit();
+let savedPreferences = [];
+try { savedPreferences = JSON.parse(localStorage.getItem('ship-it-preferences') || '[]'); } catch { localStorage.removeItem('ship-it-preferences'); }
+for (const input of document.querySelectorAll('.traits input')) {
+  input.checked = Array.isArray(savedPreferences) && savedPreferences.includes(input.value);
+  input.addEventListener('change', () => localStorage.setItem('ship-it-preferences', JSON.stringify(Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value))));
+}
+action(connect);
