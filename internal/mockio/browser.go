@@ -75,7 +75,11 @@ func (b *Browser) Basket(retailerID string, ctx shopping.StoreContext) map[strin
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	result := map[string]int{}
-	for id, quantity := range b.baskets[basketKey(retailerID, ctx)] {
+	basket := b.baskets[basketKey(retailerID, ctx)]
+	if basket == nil {
+		basket = b.scenario.Existing
+	}
+	for id, quantity := range basket {
 		result[id] = quantity
 	}
 	return result

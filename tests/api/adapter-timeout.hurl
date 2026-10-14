@@ -1,6 +1,9 @@
+POST {{base_url}}/v1/catalog/search
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
 {
   "retailer_id": "ica",
-  "client_id": "demo-browser",
   "context": {
     "store_id": "ica-demo",
     "postal_code": "11122",
@@ -10,14 +13,8 @@
       "ica-demo-member"
     ]
   },
-  "items": [
-    {
-      "product_id": "milk-basic",
-      "target_quantity": 2
-    },
-    {
-      "product_id": "milk-lactose-free",
-      "target_quantity": 1
-    }
-  ]
+  "query": "mjölk"
 }
+HTTP 504
+[Asserts]
+jsonpath "$.error" == "adapter timeout"

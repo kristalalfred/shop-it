@@ -1,3 +1,7 @@
+POST {{base_url}}/v1/catalog/search
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
 {
   "retailer_id": "ica",
   "context": {
@@ -11,3 +15,7 @@
   },
   "query": "mjölk"
 }
+HTTP 502
+[Asserts]
+jsonpath "$.error" == "adapter unavailable"
+body not contains "private upstream error"

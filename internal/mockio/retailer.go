@@ -17,6 +17,7 @@ type Fault struct {
 	DelayMS     int    `json:"delay_ms,omitempty"`
 	BodyDelayMS int    `json:"body_delay_ms,omitempty"`
 	Body        string `json:"body,omitempty"`
+	BodyRepeat  int    `json:"body_repeat,omitempty"`
 }
 
 type CatalogFixture struct {
@@ -86,7 +87,11 @@ func RetailerHandler(scenario Scenario) http.Handler {
 				case <-timer.C:
 				}
 			}
-			_, _ = w.Write([]byte(fixture.Fault.Body))
+			body := fixture.Fault.Body
+			if fixture.Fault.BodyRepeat > 0 && fixture.Fault.BodyRepeat <= 2<<20 {
+				body = strings.Repeat(body, fixture.Fault.BodyRepeat)
+			}
+			_, _ = w.Write([]byte(body))
 			return
 		}
 		var req shopping.SearchRequest

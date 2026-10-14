@@ -1,0 +1,280 @@
+[
+  {
+    "name": "retailers",
+    "file": "retailers.hurl"
+  },
+  {
+    "name": "catalog-ica",
+    "file": "catalog.hurl",
+    "variables": {
+      "retailer": "ica",
+      "price": "1290"
+    }
+  },
+  {
+    "name": "catalog-mathem",
+    "file": "catalog.hurl",
+    "variables": {
+      "retailer": "mathem",
+      "price": "1340"
+    }
+  },
+  {
+    "name": "catalog-willys",
+    "file": "catalog.hurl",
+    "variables": {
+      "retailer": "willys",
+      "price": "1390"
+    }
+  },
+  {
+    "name": "catalog-coop",
+    "file": "catalog.hurl",
+    "variables": {
+      "retailer": "coop",
+      "price": "1440"
+    }
+  },
+  {
+    "name": "catalog-hemkop",
+    "file": "catalog.hurl",
+    "variables": {
+      "retailer": "hemkop",
+      "price": "1490"
+    }
+  },
+  {
+    "name": "catalog-citygross",
+    "file": "catalog.hurl",
+    "variables": {
+      "retailer": "citygross",
+      "price": "1540"
+    }
+  },
+  {
+    "name": "catalog-pagination",
+    "file": "catalog-pagination.hurl"
+  },
+  {
+    "name": "adapter-unavailable",
+    "file": "adapter-failure.hurl",
+    "catalog_faults": {
+      "ica": {
+        "status": 503,
+        "body": "private upstream error"
+      }
+    }
+  },
+  {
+    "name": "adapter-malformed",
+    "file": "adapter-failure.hurl",
+    "catalog_faults": {
+      "ica": {
+        "body": "{broken"
+      }
+    }
+  },
+  {
+    "name": "adapter-redirect",
+    "file": "adapter-failure.hurl",
+    "catalog_faults": {
+      "ica": {
+        "status": 302
+      }
+    }
+  },
+  {
+    "name": "adapter-oversized",
+    "file": "adapter-failure.hurl",
+    "catalog_faults": {
+      "ica": {
+        "body": "x",
+        "body_repeat": 1048577
+      }
+    }
+  },
+  {
+    "name": "adapter-wrong-context",
+    "file": "adapter-failure.hurl",
+    "catalog_faults": {
+      "ica": {
+        "body": "{\"retailer_id\": \"ica\", \"context\": {}, \"observed_at\": \"2026-10-14T12:00:00Z\", \"products\": []}"
+      }
+    }
+  },
+  {
+    "name": "adapter-timeout",
+    "file": "adapter-timeout.hurl",
+    "catalog_faults": {
+      "ica": {
+        "delay_ms": 1000
+      }
+    }
+  },
+  {
+    "name": "adapter-body-timeout",
+    "file": "adapter-timeout.hurl",
+    "catalog_faults": {
+      "ica": {
+        "body_delay_ms": 1000,
+        "body": "{}"
+      }
+    }
+  },
+  {
+    "name": "invalid-requests",
+    "file": "invalid-requests.hurl"
+  },
+  {
+    "name": "basket-partial",
+    "file": "basket-partial.hurl"
+  },
+  {
+    "name": "basket-complete",
+    "file": "basket-outcome.hurl",
+    "browser": {},
+    "variables": {
+      "state": "completed",
+      "line_status": "applied",
+      "basket_count": "2"
+    }
+  },
+  {
+    "name": "basket-login-required",
+    "file": "basket-outcome.hurl",
+    "browser": {
+      "login_required": true
+    },
+    "variables": {
+      "state": "login_required",
+      "line_status": "login_required",
+      "basket_count": "0"
+    }
+  },
+  {
+    "name": "basket-unavailable",
+    "file": "basket-outcome.hurl",
+    "browser": {
+      "unavailable": [
+        "milk-basic",
+        "milk-lactose-free"
+      ]
+    },
+    "variables": {
+      "state": "failed",
+      "line_status": "unavailable",
+      "basket_count": "0"
+    }
+  },
+  {
+    "name": "basket-uncertain",
+    "file": "basket-outcome.hurl",
+    "browser": {
+      "uncertain": [
+        "milk-basic"
+      ]
+    },
+    "variables": {
+      "state": "uncertain",
+      "line_status": "uncertain",
+      "basket_count": "2"
+    }
+  },
+  {
+    "name": "client-isolation",
+    "file": "client-isolation.hurl"
+  },
+  {
+    "name": "receipt-validation",
+    "file": "receipt-validation.hurl"
+  },
+  {
+    "name": "invalid-transfers",
+    "file": "invalid-transfers.hurl"
+  },
+  {
+    "name": "seeded-state",
+    "file": "seeded-state.hurl",
+    "seeds": [
+      {
+        "name": "pending",
+        "key": "seed-pending",
+        "request": {
+          "retailer_id": "ica",
+          "client_id": "demo-browser",
+          "context": {
+            "store_id": "ica-demo",
+            "postal_code": "11122",
+            "fulfillment": "delivery",
+            "delivery_slot_id": "demo-slot",
+            "memberships": [
+              "ica-demo-member"
+            ]
+          },
+          "items": [
+            {
+              "product_id": "milk-basic",
+              "target_quantity": 2
+            }
+          ]
+        }
+      },
+      {
+        "name": "claimed",
+        "key": "seed-claimed",
+        "request": {
+          "retailer_id": "ica",
+          "client_id": "demo-browser",
+          "context": {
+            "store_id": "ica-demo",
+            "postal_code": "11122",
+            "fulfillment": "delivery",
+            "delivery_slot_id": "demo-slot",
+            "memberships": [
+              "ica-demo-member"
+            ]
+          },
+          "items": [
+            {
+              "product_id": "milk-basic",
+              "target_quantity": 3
+            }
+          ]
+        },
+        "claimed": true
+      },
+      {
+        "name": "completed",
+        "key": "seed-completed",
+        "request": {
+          "retailer_id": "ica",
+          "client_id": "demo-browser",
+          "context": {
+            "store_id": "ica-demo",
+            "postal_code": "11122",
+            "fulfillment": "delivery",
+            "delivery_slot_id": "demo-slot",
+            "memberships": [
+              "ica-demo-member"
+            ]
+          },
+          "items": [
+            {
+              "product_id": "milk-basic",
+              "target_quantity": 1
+            }
+          ]
+        },
+        "receipt": {
+          "lines": [
+            {
+              "product_id": "milk-basic",
+              "status": "applied",
+              "confirmed_quantity": 1
+            }
+          ]
+        }
+      }
+    ]
+  }
+]
