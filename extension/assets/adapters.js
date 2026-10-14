@@ -79,7 +79,7 @@
     async function search(job) {
       await check(job.context);
       const page = job.cursor === undefined || job.cursor === '' ? 0 : Number(job.cursor);
-      if (!Number.isInteger(page) || page < 0 || page > 12) throw new Error('Invalid search cursor.');
+      if (!Number.isInteger(page) || page < 0 || page > 24) throw new Error('Invalid search cursor.');
       const query = new URLSearchParams(id === 'mathem' ? {q: job.query, page: String(page + 1)} : {q: job.query, page: String(page), size: '40'});
       const path = id === 'mathem' ? `/api/v1/search/?${query}` : id === 'willys' ? `${base}/search?${query}` : `/search/asutype?${query}`;
       const data = await request(path);

@@ -89,6 +89,7 @@ function renderLine(line) {
   const skip = el('button', line.skipped ? 'Restore' : 'Skip'); skip.type = 'button';
   skip.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: !line.skipped})); await history(); }));
   top.append(name, skip); node.append(top);
+  if (line.search_limited) node.append(el('p', 'Compared the first 500 matching products. Use a more specific search to narrow the options.', 'muted'));
   if (line.selected && !line.skipped) {
     const selected = line.selected;
     const row = el('div', null, 'line-top');

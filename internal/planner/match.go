@@ -14,6 +14,7 @@ func Match(ctx context.Context, catalog shopping.Catalog, req shopping.PlanReque
 	line := shopping.PlanLine{ID: id, Item: item, Candidates: []shopping.Candidate{}}
 	search := shopping.SearchRequest{RetailerID: req.RetailerID, Context: req.Context, Query: item.Query}
 	cursors, ids := map[string]bool{}, map[string]bool{}
+pages:
 	for page := 0; ; page++ {
 		if page >= 25 || cursors[search.Cursor] {
 			return line, shopping.ErrUpstream
@@ -27,13 +28,21 @@ func Match(ctx context.Context, catalog shopping.Catalog, req shopping.PlanReque
 			line.ObservedAt = result.ObservedAt
 		}
 		for _, product := range result.Products {
-			if ids[product.ID] || len(line.Candidates) >= 500 {
-				return line, shopping.ErrUpstream
+			if ids[product.ID] {
+				continue
+			}
+			if len(line.Candidates) >= 500 {
+				line.SearchLimited = true
+				break pages
 			}
 			ids[product.ID] = true
 			line.Candidates = append(line.Candidates, candidate(product, item, req.Context.Memberships))
 		}
 		if result.NextCursor == "" {
+			break
+		}
+		if len(line.Candidates) >= 500 {
+			line.SearchLimited = true
 			break
 		}
 		search.Cursor = result.NextCursor

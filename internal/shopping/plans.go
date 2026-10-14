@@ -40,13 +40,14 @@ type Candidate struct {
 }
 
 type PlanLine struct {
-	ID         string      `json:"id"`
-	Item       Item        `json:"item"`
-	Candidates []Candidate `json:"candidates"`
-	Selected   *Candidate  `json:"selected,omitempty"`
-	Skipped    bool        `json:"skipped"`
-	ObservedAt time.Time   `json:"observed_at,omitempty"`
-	Issue      string      `json:"issue,omitempty"`
+	ID            string      `json:"id"`
+	Item          Item        `json:"item"`
+	Candidates    []Candidate `json:"candidates"`
+	Selected      *Candidate  `json:"selected,omitempty"`
+	Skipped       bool        `json:"skipped"`
+	ObservedAt    time.Time   `json:"observed_at,omitempty"`
+	Issue         string      `json:"issue,omitempty"`
+	SearchLimited bool        `json:"search_limited,omitempty"`
 }
 
 type Plan struct {
