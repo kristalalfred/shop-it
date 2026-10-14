@@ -15,27 +15,33 @@ class Element {
   append(...nodes) { this.children.push(...nodes); }
   replaceChildren(...nodes) { this.text = ''; this.children = nodes; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
+  querySelector() { return this; }
+  scrollIntoView() {}
+  focus() { this.focused = true; }
 }
 
-async function app(mode = 'browser') {
+async function app(mode = 'browser', {shops, sessions, preferredShop} = {}) {
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], new Element()]));
   elements.get('token').value = 'test-user';
-  const events = new Map(), timers = new Map(), navigation = [];
+  const events = new Map(), documentEvents = new Map(), timers = new Map(), navigation = [], requests = [];
   let now = 0, nextID = 1;
   const responses = {
-    '/v1/retailers': {retailers: [{id: 'mathem', name: 'Mathem', mode}]},
+    '/v1/retailers': {retailers: shops || [{id: 'mathem', name: 'Mathem', mode}]},
     '/v1/clients': {clients: [{id: 'browser'}]},
     '/healthz': {interpreter: 'codex'},
-    '/v1/browser-sessions': {sessions: [{retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true}]},
+    '/v1/browser-sessions': {sessions: sessions || [{retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true}]},
     '/v1/shopping-plans': {plans: []},
   };
-  const storage = {getItem: () => null, setItem() {}, removeItem() {}};
+  const values = new Map(preferredShop ? [['ship-it-shop', preferredShop]] : []);
+  const storage = {getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key)};
+  const emit = (type, detail) => documentEvents.get(type)?.({detail: JSON.stringify(detail)});
   const context = createContext({
-    document: {getElementById: (id) => elements.get(id), createElement: () => new Element(), querySelectorAll: () => [], addEventListener() {}, dispatchEvent() {}},
+    document: {getElementById: (id) => elements.get(id), createElement: () => new Element(), querySelectorAll: () => [], addEventListener: (type, callback) => documentEvents.set(type, callback), dispatchEvent: (event) => documentEvents.get(event.type)?.(event)},
     window: {location: {assign: (url) => navigation.push(url)}, addEventListener: (event, callback) => events.set(event, callback)},
-    localStorage: storage, sessionStorage: storage, CustomEvent: class {},
-    fetch: async (path) => {
+    localStorage: storage, sessionStorage: storage, CustomEvent: class { constructor(type) { this.type = type; } },
+    fetch: async (path, options) => {
       assert.ok(responses[path], `Unexpected request ${path}`);
+      requests.push({path, ...options, body: options.body ? JSON.parse(options.body) : undefined});
       return {ok: true, json: async () => responses[path]};
     },
     setTimeout: (callback, delay) => { const id = nextID++; timers.set(id, {callback, time: now + delay}); return id; },
@@ -43,7 +49,8 @@ async function app(mode = 'browser') {
   });
   await runInContext(source, context);
   return {
-    elements, navigation, events,
+    elements, navigation, events, emit, requests, storage, responses,
+    refresh: () => runInContext('refreshSessions()', context),
     receipt: (state, id = 'transfer') => runInContext(`showReceipt(${JSON.stringify({id, state, retailer_id: 'mathem', basket_url: basketURL, receipt: {lines: []}})})`, context),
     plan: (value) => runInContext(`showPlan(${JSON.stringify(value)})`, context),
     advance: (duration) => {
@@ -72,6 +79,96 @@ test('missing groceries are visible and do not disable the remaining basket', as
   assert.match(ui.elements.get('missing').textContent, /Not included in the basket.*Sallad/);
   assert.equal(ui.elements.get('transfer').disabled, false);
   assert.match(ui.elements.get('plan-state').textContent, /Ready/);
+});
+
+const shops = [
+  {id: 'mathem', name: 'Mathem', mode: 'browser', basket_url: basketURL},
+  {id: 'willys', name: 'Willys', mode: 'browser', basket_url: 'https://www.willys.se/'},
+  {id: 'hemkop', name: 'Hemköp', mode: 'browser', basket_url: 'https://www.hemkop.se/'},
+];
+const mathem = {retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true};
+const willys = {retailer_id: 'willys', client_id: 'browser', context: {...store, store_id: 'willys'}, logged_in: true};
+
+test('shop picker lists connected shops and requires an explicit choice', async () => {
+  const ui = await app('browser', {shops, sessions: [mathem, willys]});
+  const picker = ui.elements.get('retailer');
+  assert.deepEqual(picker.children.map((option) => option.textContent), ['Choose a shop', 'Mathem', 'Willys']);
+  assert.equal(picker.value, '');
+  assert.equal(ui.elements.get('connection-summary').textContent, 'Choose shop');
+  assert.equal(ui.elements.get('add-shop').textContent, 'Connect another shop');
+  assert.equal(ui.elements.get('extension-setup').hidden, true);
+  assert.deepEqual(ui.elements.get('retailer-links').children.map((link) => link.textContent), ['Hemköp']);
+  ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
+  assert.equal(ui.requests.some((request) => request.path === '/v1/shopping-plans' && request.method === 'POST'), false);
+  assert.equal(picker.focused, true);
+});
+
+test('chosen shop is remembered and used for the grocery request', async () => {
+  const ui = await app('browser', {shops, sessions: [mathem, willys]});
+  const picker = ui.elements.get('retailer');
+  picker.value = 'willys'; picker.listeners.change();
+  assert.equal(ui.storage.getItem('ship-it-shop'), 'willys');
+  assert.equal(ui.elements.get('connection-summary').textContent, 'Willys');
+  assert.equal(ui.elements.get('connection-status').hidden, true);
+  ui.responses['/v1/shopping-plans'] = {...shoppingPlan(), retailer_id: 'willys', plans: []};
+  ui.elements.get('text').value = 'milk';
+  ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
+  const request = ui.requests.find((request) => request.path === '/v1/shopping-plans' && request.method === 'POST');
+  assert.equal(request.body.retailer_id, 'willys');
+  assert.deepEqual(request.body.context, willys.context);
+  const reloaded = await app('browser', {shops, sessions: [mathem, willys], preferredShop: ui.storage.getItem('ship-it-shop')});
+  assert.equal(reloaded.elements.get('retailer').value, 'willys');
+});
+
+test('losing the selected shop never switches to another connected retailer', async () => {
+  const ui = await app('browser', {shops, sessions: [mathem, willys], preferredShop: 'willys'});
+  const originalOptions = ui.elements.get('retailer').children;
+  await ui.refresh();
+  assert.equal(ui.elements.get('retailer').children, originalOptions);
+  ui.responses['/v1/browser-sessions'] = {sessions: [mathem]};
+  await ui.refresh();
+  assert.equal(ui.elements.get('retailer').value, '');
+  assert.match(ui.elements.get('shop-status').textContent, /Willys disconnected/);
+  ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
+  assert.equal(ui.requests.some((request) => request.path === '/v1/shopping-plans' && request.method === 'POST'), false);
+  ui.responses['/v1/browser-sessions'] = {sessions: [mathem, willys]};
+  await ui.refresh();
+  assert.equal(ui.elements.get('retailer').value, 'willys');
+});
+
+test('paired extension hides setup even without an open shop', async () => {
+  const ui = await app('browser', {shops, sessions: []});
+  assert.equal(ui.elements.get('shop-picker').hidden, true);
+  assert.equal(ui.elements.get('shop-setup').open, true);
+  ui.emit('ship-it-extension-ready', {connected: true});
+  assert.equal(ui.elements.get('extension-setup').hidden, true);
+  assert.equal(ui.elements.get('shop-links').hidden, false);
+  assert.deepEqual(ui.elements.get('retailer-links').children.map((link) => link.href), shops.map((shop) => shop.basket_url));
+  assert.equal(ui.elements.get('add-shop').textContent, 'Connect a shop');
+});
+
+test('extension pairing distinguishes installed, failed and connected states', async () => {
+  const ui = await app('browser', {shops, sessions: []});
+  assert.equal(ui.elements.get('pair-extension').disabled, true);
+  ui.emit('ship-it-extension-ready', {connected: false});
+  assert.equal(ui.elements.get('pair-extension').disabled, false);
+  assert.equal(ui.elements.get('extension-install').hidden, true);
+  ui.elements.get('pair-extension').listeners.click();
+  assert.equal(ui.elements.get('pair-extension').disabled, true);
+  ui.emit('ship-it-paired', {error: 'Pairing failed'});
+  assert.equal(ui.elements.get('extension-setup').hidden, false);
+  assert.equal(ui.elements.get('pair-extension').disabled, false);
+  assert.match(ui.elements.get('extension-status').textContent, /Pairing failed/);
+  ui.emit('ship-it-paired', {client_id: 'browser'});
+  assert.equal(ui.elements.get('extension-setup').hidden, true);
+  assert.equal(ui.elements.get('shop-links').hidden, false);
+});
+
+test('demo shops remain selectable without extension setup', async () => {
+  const ui = await app('mock');
+  assert.equal(ui.elements.get('shop-picker').hidden, false);
+  assert.equal(ui.elements.get('shop-setup').hidden, true);
+  assert.deepEqual(ui.elements.get('retailer').children.map((option) => option.textContent), ['Choose a shop', 'Mathem · demo']);
 });
 
 test('completed live basket opens in the same page after three seconds', async () => {

@@ -104,9 +104,15 @@ async function tick() {
   finally { running = false; }
 }
 
+function pageOrigin(sender) {
+  const url = new URL(sender.url);
+  if (url.pathname !== '/') throw new Error('Connect from the Ship It page.');
+  return localURL(url.origin);
+}
+
 async function pair(message, sender) {
   const url = localURL(message.url);
-  if (new URL(sender.url).origin !== url || new URL(sender.url).pathname !== '/') throw new Error('Pair from the Ship It page.');
+  if (pageOrigin(sender) !== url) throw new Error('Pair from the Ship It page.');
   const credentials = {url, token: message.token};
   const {clients} = await api(credentials, '/v1/clients', 'GET');
   const client = clients.find((client) => client.id === 'browser') || clients[0];
@@ -124,6 +130,12 @@ extension.runtime.onMessage.addListener((message, sender, respond) => {
   const fromExtension = sender.url?.startsWith(extension.runtime.getURL(''));
   if (message.type === 'pair' && sender.tab) {
     pair(message, sender).then(respond, (error) => respond({error: error.message}));
+    return true;
+  }
+  if (message.type === 'connection' && sender.tab) {
+    let url;
+    try { url = pageOrigin(sender); } catch { return false; }
+    storage.get('settings').then(({settings}) => respond({connected: Boolean(settings?.enabled && settings.url === url)}));
     return true;
   }
   if (!fromExtension) return false;

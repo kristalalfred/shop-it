@@ -5,7 +5,10 @@
   globalThis.shipItBridgeLoaded = true;
   const extension = globalThis.browser || globalThis.chrome;
   if (location.hostname !== '127.0.0.1' || location.protocol !== 'http:' || location.pathname !== '/') return;
-  const announce = () => document.dispatchEvent(new CustomEvent('ship-it-extension-ready'));
+  const announce = () => extension.runtime.sendMessage({type: 'connection'}).then(
+    (result) => document.dispatchEvent(new CustomEvent('ship-it-extension-ready', {detail: JSON.stringify({connected: Boolean(result?.connected)})})),
+    () => document.dispatchEvent(new CustomEvent('ship-it-extension-ready', {detail: JSON.stringify({connected: false})})),
+  );
   document.addEventListener('ship-it-pair', () => {
     const token = document.getElementById('token')?.value;
     if (!token) return;

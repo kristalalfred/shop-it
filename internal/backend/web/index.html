@@ -19,21 +19,27 @@
         <summary id="connection-summary">Shop</summary>
         <div class="menu-panel">
           <input id="token" type="hidden" value="{{.APIToken}}">
-          <p id="connection-status" role="status">Connecting…</p>
+          <p id="connection-status" class="muted" role="status">Checking shops…</p>
           <button id="reconnect" type="button" hidden>Reconnect</button>
-          <div id="extension-setup" hidden>
-            <button id="pair-extension" type="button">Connect extension</button>
-            <p id="extension-status">Install the extension, then reload.</p>
-            <details id="extension-install">
-              <summary>Install extension</summary>
-              <p>Firefox / Zen: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select <strong>bin/extension/firefox/manifest.json</strong>.</p>
-              <p>Chromium: open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, and load <strong>bin/extension/chromium</strong>.</p>
-              <p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p>
-            </details>
-            <p>Open your shop, choose delivery or pickup, and sign in.</p>
-          </div>
-          <label>Shop<select id="retailer"><option value="">Automatic</option></select></label>
-          <p class="muted">Automatic uses a shop open in your connected browser.</p>
+          <label id="shop-picker" hidden>Choose shop<select id="retailer" disabled><option value="">Choose a shop</option></select></label>
+          <details id="shop-setup" hidden>
+            <summary id="add-shop">Connect a shop</summary>
+            <div id="extension-setup" hidden>
+              <button id="pair-extension" type="button">Connect extension</button>
+              <p id="extension-status" class="muted" role="status">Install the extension, then reload this page.</p>
+              <details id="extension-install">
+                <summary>Install extension</summary>
+                <p>Firefox / Zen: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select <strong>bin/extension/firefox/manifest.json</strong>.</p>
+                <p>Chromium: open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, and load <strong>bin/extension/chromium</strong>.</p>
+                <p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p>
+              </details>
+            </div>
+            <div id="shop-links" hidden>
+              <p>Open a shop, choose delivery or pickup, and sign in.</p>
+              <div id="retailer-links" class="shop-links"></div>
+              <p class="muted">Keep its tab open. Then choose it from your connected shops above.</p>
+            </div>
+          </details>
         </div>
       </details>
     </nav>

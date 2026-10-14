@@ -3,14 +3,19 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, extensionReady = false, interpreterMode = '', basketRedirect = null, redirectTransfer = null;
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, interpreterMode = '', basketRedirect = null, redirectTransfer = null;
+let extensionReady = false, extensionConnected = false, pairing = false, extensionError = '', shopOptions = '', shopLinks = '';
 let preferredShop = localStorage.getItem('ship-it-shop') || '';
 const contextEqual = (a, b) => ['store_id', 'postal_code', 'fulfillment', 'delivery_slot_id', 'session_id'].every((key) => (a[key] || '') === (b[key] || '')) && JSON.stringify(a.memberships || []) === JSON.stringify(b.memberships || []);
 function shoppingTarget() {
-  const shops = preferredShop ? retailers.filter((retailer) => retailer.id === preferredShop) : retailers;
-  const available = shops.flatMap((retailer) => retailer.mode === 'browser' ? sessions.filter((session) => session.retailer_id === retailer.id).map((session) => ({retailer, context: session.context, clientID: session.client_id, loggedIn: session.logged_in})) : [{retailer, context: {store_id: `${retailer.id}-demo`, postal_code: '11122', fulfillment: 'delivery', memberships: retailer.mode === 'mock' ? [`${retailer.id}-demo-member`] : []}, clientID: clients[0]?.id}]);
-  return available.find((target) => target.loggedIn) || available[0] || null;
+  const retailer = retailers.find((retailer) => retailer.id === preferredShop);
+  if (!retailer) return null;
+  if (retailer.mode !== 'browser') return {retailer, context: {store_id: `${retailer.id}-demo`, postal_code: '11122', fulfillment: 'delivery', memberships: retailer.mode === 'mock' ? [`${retailer.id}-demo-member`] : []}, clientID: clients[0]?.id};
+  const available = sessions.filter((session) => session.retailer_id === retailer.id);
+  const session = available.find((session) => session.logged_in) || available[0];
+  return session ? {retailer, context: session.context, clientID: session.client_id, loggedIn: session.logged_in} : null;
 }
+const connectedShops = () => retailers.filter((retailer) => retailer.mode !== 'browser' || sessions.some((session) => session.retailer_id === retailer.id));
 function planClient() {
   if (!plan) return null;
   const retailer = retailers.find((retailer) => retailer.id === plan.retailer_id);
@@ -42,7 +47,8 @@ function message(text, error = false) {
 
 function buttons() {
   $('create').disabled = busy;
-  $('pair-extension').disabled = busy || !token || !extensionReady;
+  $('pair-extension').disabled = busy || pairing || !token || !extensionReady;
+  $('retailer').disabled = busy || !connectedShops().length;
   $('refresh').disabled = busy || !plan;
   $('transfer').disabled = busy || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
   $('reconnect').disabled = busy;
@@ -159,13 +165,8 @@ async function connect() {
   try {
     const [shops, browserClients, health] = await Promise.all([api('/v1/retailers', undefined, 'GET'), api('/v1/clients', undefined, 'GET'), api('/healthz', undefined, 'GET')]);
     retailers = shops.retailers; clients = browserClients.clients;
-    if (!retailers.some((retailer) => retailer.id === preferredShop)) preferredShop = '';
-    $('retailer').replaceChildren();
-    const automatic = el('option', 'Automatic'); automatic.value = ''; $('retailer').append(automatic);
-    for (const retailer of retailers) { const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : ''}`); option.value = retailer.id; $('retailer').append(option); }
-    $('retailer').value = preferredShop;
+    if (!retailers.some((retailer) => retailer.id === preferredShop)) { preferredShop = ''; localStorage.removeItem('ship-it-shop'); }
     const live = retailers.some((retailer) => retailer.mode === 'browser');
-    $('connection-status').textContent = live ? 'Connect a shop.' : 'Demo connected.';
     $('mode-note').textContent = 'Demo products and basket actions are simulated.';
     $('mode-note').hidden = live;
     interpreterMode = health.interpreter;
@@ -173,51 +174,89 @@ async function connect() {
       $('text').placeholder = '2 litres milk, 12 eggs and 500 g bananas';
       examples.dinner = '500 g pasta\n500 g tomatoes\n1 pack cheese';
     }
-    $('extension-setup').hidden = !live;
     $('reconnect').hidden = true;
     await refreshSessions();
+    $('shop-setup').open = !connectedShops().length;
     if (sessionPoll) clearInterval(sessionPoll);
     sessionPoll = setInterval(() => { if (token) refreshSessions().catch(() => { sessions = []; updateConnection(); }); }, 5000);
     await history();
-  } catch (error) { token = ''; $('reconnect').hidden = false; throw error; }
+  } catch (error) { token = ''; $('reconnect').hidden = false; updateConnection(); throw error; }
 }
 function updateConnection() {
-  const target = shoppingTarget();
+  const shops = connectedShops(), target = shoppingTarget();
+  const options = JSON.stringify(shops.map(({id, name, mode}) => ({id, name, mode})));
+  if (options !== shopOptions) {
+    shopOptions = options;
+    const placeholder = el('option', 'Choose a shop'); placeholder.value = ''; placeholder.disabled = true;
+    $('retailer').replaceChildren(placeholder);
+    for (const retailer of shops) {
+      const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : ''}`); option.value = retailer.id; $('retailer').append(option);
+    }
+  }
+  $('retailer').value = target ? preferredShop : '';
+  $('shop-picker').hidden = !shops.length;
+  const paired = extensionConnected || sessions.length > 0;
+  const unconnected = retailers.filter((retailer) => retailer.mode === 'browser' && !shops.includes(retailer));
+  $('shop-setup').hidden = !unconnected.length;
+  $('add-shop').textContent = shops.length ? 'Connect another shop' : 'Connect a shop';
+  $('extension-setup').hidden = paired;
+  $('extension-install').hidden = extensionReady;
+  $('extension-status').textContent = pairing ? 'Connecting…' : extensionError || (extensionReady ? 'Connect the extension to see your shops.' : 'Install the extension, then reload this page.');
+  $('shop-links').hidden = !paired;
+  const links = JSON.stringify(unconnected.map(({id, name, basket_url}) => ({id, name, basket_url})));
+  if (links !== shopLinks) {
+    shopLinks = links;
+    $('retailer-links').replaceChildren();
+    for (const retailer of unconnected) {
+      const link = el('a', retailer.name); link.href = retailer.basket_url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      $('retailer-links').append(link);
+    }
+  }
+  $('connection-status').hidden = false;
   if (target) {
     $('shop-status').textContent = `${target.retailer.name}${target.retailer.mode === 'mock' ? ' · Demo' : ''}`;
     $('connection-summary').textContent = target.retailer.name;
-    if (target.retailer.mode === 'browser') {
-      $('connection-status').textContent = `${target.retailer.name} connected${target.loggedIn ? '.' : '. Sign in at the shop before filling your basket.'}`;
-    }
+    $('connection-status').hidden = target.retailer.mode !== 'browser' || target.loggedIn;
+    $('connection-status').textContent = `Sign in at ${target.retailer.name} before filling your basket.`;
   } else {
     const shop = retailers.find((retailer) => retailer.id === preferredShop);
-    const instruction = extensionReady ? `Open ${shop?.name || 'Mathem, Willys or Hemköp'} in your connected browser.` : 'Connect a shop to continue.';
-    $('connection-summary').textContent = 'Connect shop';
+    const instruction = shop ? `${shop.name} disconnected. Reopen its tab or choose another shop.` : shops.length ? 'Choose a shop to find groceries.' : 'Connect a shop to find groceries.';
+    $('connection-summary').textContent = shops.length ? 'Choose shop' : 'Connect shop';
     $('shop-status').textContent = instruction;
-    $('connection-status').textContent = instruction;
+    $('connection-status').textContent = shop ? instruction : shops.length ? 'Choose from your connected shops.' : 'No shops connected yet.';
   }
+  if (!token) { $('shop-status').textContent = 'Service disconnected. Reconnect from the shop menu.'; $('connection-status').hidden = false; $('connection-status').textContent = 'Service disconnected.'; }
   buttons();
 }
 async function refreshSessions() {
   const result = await api('/v1/browser-sessions', undefined, 'GET');
   sessions = result.sessions;
   updateConnection();
+  document.dispatchEvent(new CustomEvent('ship-it-extension-probe'));
 }
 $('retailer').addEventListener('change', () => {
   preferredShop = $('retailer').value;
   localStorage.setItem('ship-it-shop', preferredShop);
   updateConnection();
+  $('connection-settings').open = false;
 });
 $('reconnect').addEventListener('click', () => action(connect));
-document.addEventListener('ship-it-extension-ready', () => { extensionReady = true; $('extension-status').textContent = 'Extension installed.'; updateConnection(); });
+document.addEventListener('ship-it-extension-ready', (event) => {
+  extensionReady = true;
+  try { extensionConnected = JSON.parse(event.detail || '{}').connected === true; } catch { extensionConnected = false; }
+  updateConnection();
+});
 document.addEventListener('ship-it-paired', (event) => {
+  pairing = false;
   try {
     const result = JSON.parse(event.detail);
-    $('extension-status').textContent = result.error || 'Connected. Open your shop.';
+    extensionError = result.error || '';
+    extensionConnected = !result.error;
     refreshSessions().catch(() => {});
-  } catch { $('extension-status').textContent = 'Pairing failed. Reload the page and try again.'; }
+  } catch { extensionError = 'Pairing failed. Reload the page and try again.'; }
+  updateConnection();
 });
-$('pair-extension').addEventListener('click', () => { $('extension-status').textContent = 'Connecting…'; document.dispatchEvent(new CustomEvent('ship-it-pair')); });
+$('pair-extension').addEventListener('click', () => { pairing = true; extensionError = ''; updateConnection(); document.dispatchEvent(new CustomEvent('ship-it-pair')); });
 document.dispatchEvent(new CustomEvent('ship-it-extension-probe'));
 for (const button of document.querySelectorAll('[data-example]')) button.addEventListener('click', () => { $('text').value = examples[button.dataset.example]; $('text').focus(); });
 $('ack').addEventListener('change', buttons); $('over').addEventListener('change', buttons);
@@ -231,13 +270,13 @@ $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); a
     settings.querySelector('summary').focus();
     if (!token) {
       message('Service disconnected. Open shop settings and select Reconnect.', true);
-    } else if (!extensionReady) {
-      message('Install and connect the extension to search your shop.');
-      $('extension-install').open = true;
-      $('extension-install').querySelector('summary').focus();
     } else {
-      const shop = retailers.find((retailer) => retailer.id === preferredShop);
-      message(`Connect the extension and open ${shop?.name || 'Mathem, Willys or Hemköp'} in this browser.`);
+      message($('shop-status').textContent);
+      if (connectedShops().length) $('retailer').focus();
+      else {
+        $('shop-setup').open = true;
+        if (!extensionReady) $('extension-install').open = true;
+      }
     }
     return;
   }
