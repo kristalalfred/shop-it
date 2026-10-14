@@ -60,16 +60,16 @@ function stopPoll() { if (poll !== null) clearTimeout(poll); poll = null; }
 function showPlan(value) {
   stopPoll(); plan = value;
   $('ack').checked = false; $('over').checked = false;
-  $('empty').hidden = true; $('plan').hidden = false;
+  $('review').hidden = false; $('plan').hidden = false;
   $('receipt').replaceChildren();
-  $('plan-state').textContent = plan.status === 'ready' ? 'Ready to review' : 'Needs your input';
+  $('plan-state').textContent = plan.status === 'ready' ? 'Ready' : 'Needs review';
   const retailer = retailers.find((r) => r.id === plan.retailer_id);
   const simulated = retailer?.mode === 'mock';
-  $('transfer').textContent = simulated ? 'Send to demo basket ↗' : 'Fill basket ↗';
+  $('transfer').textContent = simulated ? 'Fill demo basket' : 'Fill basket';
   $('plan-meta').textContent = `${retailer?.name || 'Your shop'} · ${plan.context.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}${simulated ? ' · Demo' : ''}`;
   $('warnings').replaceChildren();
   if (plan.warnings.length) {
-    const box = el('div', null, 'notice'); box.append(el('strong', 'Check these assumptions'));
+    const box = el('div', null, 'notice'); box.append(el('strong', 'Assumptions'));
     for (const warning of plan.warnings) box.append(el('p', warning));
     $('warnings').append(box);
   }
@@ -77,7 +77,7 @@ function showPlan(value) {
   if (!plan.lines.length) $('warnings').append(el('p', 'No grocery items were understood. Describe a dish and how many people it should serve, or enter your grocery list.', 'notice'));
   $('ack-wrap').hidden = !plan.warnings.length; $('over-wrap').hidden = !plan.over_budget;
   $('total').textContent = money(plan.total);
-  $('estimate').textContent = `${plan.estimated ? 'Estimated weight-based price. ' : ''}Excludes delivery fees. ${simulated ? 'Synthetic demo prices.' : 'Prices may change before checkout.'}`;
+  $('estimate').textContent = `${plan.estimated ? 'Estimated by weight. ' : ''}Delivery excluded. ${simulated ? 'Demo prices.' : 'Confirm prices at checkout.'}`;
   $('lines').replaceChildren(...plan.lines.map(renderLine));
   buttons();
 }
@@ -89,15 +89,15 @@ function renderLine(line) {
   const skip = el('button', line.skipped ? 'Restore' : 'Skip'); skip.type = 'button';
   skip.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: !line.skipped})); await history(); }));
   top.append(name, skip); node.append(top);
-  if (line.search_limited) node.append(el('p', `Compared the first ${line.search_limit || 500} search results. Use a more specific search to narrow the options.`, 'muted'));
   if (line.selected && !line.skipped) {
     const selected = line.selected;
     const row = el('div', null, 'line-top');
     row.append(el('p', `${selected.target_quantity} × ${selected.product.name}`, 'product'), el('p', money(selected.total), 'line-price'));
-    node.append(row, el('p', `${selected.product.brand} · ${selected.product.pack.quantity} ${selected.product.pack.unit} per pack · ${money(selected.unit_price)} per pack`, 'muted'));
+    node.append(row, el('p', `${selected.product.pack.quantity} ${selected.product.pack.unit} / pack · ${money(selected.unit_price)} / pack`, 'muted'));
   } else if (!line.skipped) node.append(el('p', line.issue || 'Choose a product or skip this line.', 'notice'));
   if (line.skipped) return node;
-  const details = el('details'); details.append(el('summary', 'Edit request or choose another product'));
+  const details = el('details'); details.append(el('summary', 'Edit or change product'));
+  if (line.search_limited) details.append(el('p', `First ${line.search_limit || 500} results checked. Narrow the search for more options.`, 'muted'));
   const form = el('form');
   const grid = el('div', null, 'edit-grid');
   const queryLabel = el('label', 'Search query'), query = el('input'); query.value = line.item.query; query.required = true; query.maxLength = 200; queryLabel.append(query);
@@ -110,7 +110,7 @@ function renderLine(line) {
     const item = {...line.item, query: query.value.trim(), amount: {quantity: Number(qty.value), unit: unit.value}};
     showPlan(await patchLine(line, {item})); await history();
   }); }); details.append(form);
-  if (line.observed_at) details.append(el('p', `Catalog observed ${new Date(line.observed_at).toLocaleString()}`, 'muted'));
+  if (line.observed_at) details.append(el('p', `Prices checked ${new Date(line.observed_at).toLocaleString()}`, 'muted'));
   for (const candidate of line.candidates) {
     const row = el('div', null, 'candidate'), description = el('div');
     description.append(el('strong', candidate.product.name), el('p', `${candidate.target_quantity || '?'} packs · ${money(candidate.total)} · ${candidate.reasons.join(' ')}`, 'muted'));
@@ -126,10 +126,14 @@ function patchLine(line, body) { return api(`/v1/shopping-plans/${plan.id}/lines
 async function history() {
   const result = await api('/v1/shopping-plans', undefined, 'GET');
   $('history').replaceChildren();
-  if (!result.plans.length) $('history').textContent = 'Your plans will appear here.';
+  if (!result.plans.length) $('history').textContent = 'No saved lists.';
   for (const saved of result.plans.slice(0, 8)) {
     const button = el('button', `${saved.text.slice(0, 55)}${saved.text.length > 55 ? '…' : ''} · ${money(saved.total)}`); button.type = 'button';
-    button.addEventListener('click', () => action(async () => showPlan(await api(`/v1/shopping-plans/${saved.id}`, undefined, 'GET'))));
+    button.addEventListener('click', () => action(async () => {
+      showPlan(await api(`/v1/shopping-plans/${saved.id}`, undefined, 'GET'));
+      $('saved-lists').open = false;
+      $('review').scrollIntoView({block: 'start', behavior: 'smooth'});
+    }));
     $('history').append(button);
   }
 }
@@ -145,8 +149,9 @@ async function connect() {
     for (const retailer of retailers) { const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : ''}`); option.value = retailer.id; $('retailer').append(option); }
     $('retailer').value = preferredShop;
     const live = retailers.some((retailer) => retailer.mode === 'browser');
-    $('connection-status').textContent = live ? 'Ready to connect your browser.' : 'Demo shopping is ready.';
-    $('mode-note').textContent = live ? 'You review your basket at the shop before checkout.' : 'Demo products and basket actions are simulated.';
+    $('connection-status').textContent = live ? 'Connect a shop.' : 'Demo connected.';
+    $('mode-note').textContent = 'Demo products and basket actions are simulated.';
+    $('mode-note').hidden = live;
     interpreterMode = health.interpreter;
     if (interpreterMode === 'builtin') {
       $('text').placeholder = '2 litres milk, 12 eggs and 500 g bananas';
@@ -163,13 +168,15 @@ async function connect() {
 function updateConnection() {
   const target = shoppingTarget();
   if (target) {
-    $('shop-status').textContent = `Shopping at ${target.retailer.name}${target.retailer.mode === 'mock' ? ' · Demo' : ''}.`;
+    $('shop-status').textContent = `${target.retailer.name}${target.retailer.mode === 'mock' ? ' · Demo' : ''}`;
+    $('connection-summary').textContent = target.retailer.name;
     if (target.retailer.mode === 'browser') {
       $('connection-status').textContent = `${target.retailer.name} connected${target.loggedIn ? '.' : '. Sign in at the shop before filling your basket.'}`;
     }
   } else {
     const shop = retailers.find((retailer) => retailer.id === preferredShop);
-    const instruction = extensionReady ? `Open ${shop?.name || 'Mathem, Willys or Hemköp'} in your connected browser to start shopping.` : 'Connect your browser to start shopping.';
+    const instruction = extensionReady ? `Open ${shop?.name || 'Mathem, Willys or Hemköp'} in your connected browser.` : 'Connect a shop to continue.';
+    $('connection-summary').textContent = 'Connect shop';
     $('shop-status').textContent = instruction;
     $('connection-status').textContent = instruction;
   }
@@ -186,11 +193,11 @@ $('retailer').addEventListener('change', () => {
   updateConnection();
 });
 $('reconnect').addEventListener('click', () => action(connect));
-document.addEventListener('ship-it-extension-ready', () => { extensionReady = true; $('extension-status').textContent = 'Extension installed. Connect it to start shopping.'; updateConnection(); });
+document.addEventListener('ship-it-extension-ready', () => { extensionReady = true; $('extension-status').textContent = 'Extension installed.'; updateConnection(); });
 document.addEventListener('ship-it-paired', (event) => {
   try {
     const result = JSON.parse(event.detail);
-    $('extension-status').textContent = result.error || 'Browser connected. Open your shop to start shopping.';
+    $('extension-status').textContent = result.error || 'Connected. Open your shop.';
     refreshSessions().catch(() => {});
   } catch { $('extension-status').textContent = 'Pairing failed. Reload the page and try again.'; }
 });
@@ -207,22 +214,23 @@ $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); a
     settings.scrollIntoView({block: 'start', behavior: 'smooth'});
     settings.querySelector('summary').focus();
     if (!token) {
-      message('The local service is disconnected. Use Try again under Browser connection.', true);
+      message('Service disconnected. Open shop settings and select Reconnect.', true);
     } else if (!extensionReady) {
-      message('Connect your browser once so we can get your shop’s products and prices. The setup steps are open above.');
+      message('Install and connect the extension to search your shop.');
       $('extension-install').open = true;
       $('extension-install').querySelector('summary').focus();
     } else {
       const shop = retailers.find((retailer) => retailer.id === preferredShop);
-      message(`Connect the extension, then open ${shop?.name || 'Mathem, Willys or Hemköp'} in this browser. Keep your grocery list here while you do that.`);
+      message(`Connect the extension and open ${shop?.name || 'Mathem, Willys or Hemköp'} in this browser.`);
     }
     return;
   }
-  message(interpreterMode === 'builtin' ? 'Finding products and checking pack sizes…' : 'Planning ingredients for your meals and finding products. This may take a minute…');
+  message(interpreterMode === 'builtin' ? 'Finding products…' : 'Planning ingredients and finding products. Allow about a minute.');
   const {retailer, context} = target;
   const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
   const result = await api('/v1/shopping-plans', {text: $('text').value, retailer_id: retailer.id, context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)});
   showPlan(result); message(''); await history();
+  $('review').scrollIntoView({block: 'start', behavior: 'smooth'});
 }); });
 
 $('refresh').addEventListener('click', () => action(async () => { showPlan(await api(`/v1/shopping-plans/${plan.id}/refresh`, {revision: plan.revision})); await history(); }));
@@ -236,8 +244,8 @@ function showReceipt(transfer) {
     const name = plan?.lines.find((item) => item.selected?.product.id === line.product_id)?.selected.product.name || 'Item';
     $('receipt').append(el('p', `${name}: ${labels[line.status] || 'Needs review'}${line.confirmed_quantity ? ` · ${line.confirmed_quantity} packs` : ''}${line.message ? ` · ${line.message}` : ''}`));
   }
-  if (!simulated) { const link = el('a', 'Review basket at the store ↗'); link.href = transfer.basket_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('receipt').append(link); }
-  $('receipt').append(el('p', simulated ? 'This is a simulated result. No real retailer basket was changed.' : 'Review your basket at the shop before checkout.', 'muted'));
+  if (!simulated) { const link = el('a', 'Open shop basket ↗'); link.href = transfer.basket_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('receipt').append(link); }
+  $('receipt').append(el('p', simulated ? 'Simulation only.' : 'Review the basket before checkout.', 'muted'));
 }
 
 $('transfer').addEventListener('click', () => action(async () => {
@@ -261,8 +269,18 @@ $('transfer').addEventListener('click', () => action(async () => {
 window.addEventListener('pagehide', () => { stopPoll(); if (sessionPoll) clearInterval(sessionPoll); });
 let savedPreferences = [];
 try { savedPreferences = JSON.parse(localStorage.getItem('ship-it-preferences') || '[]'); } catch { localStorage.removeItem('ship-it-preferences'); }
+function updateOptions() {
+  const preferences = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.parentElement.textContent.trim());
+  if (Number($('budget').value) > 0) preferences.push(`${$('budget').value} SEK`);
+  $('options-summary').textContent = preferences.length ? `Options · ${preferences.join(', ')}` : 'Options';
+}
 for (const input of document.querySelectorAll('.traits input')) {
   input.checked = Array.isArray(savedPreferences) && savedPreferences.includes(input.value);
-  input.addEventListener('change', () => localStorage.setItem('ship-it-preferences', JSON.stringify(Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value))));
+  input.addEventListener('change', () => {
+    localStorage.setItem('ship-it-preferences', JSON.stringify(Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value)));
+    updateOptions();
+  });
 }
+$('budget').addEventListener('input', updateOptions);
+updateOptions();
 action(connect);

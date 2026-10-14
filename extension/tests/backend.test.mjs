@@ -95,7 +95,7 @@ test('real adapter protocol carries a reviewed plan through the backend and veri
   assert.equal(await new Promise((resolve, reject) => { const req = get(url, {headers: {Host: 'evil.example'}}, (response) => { response.resume(); resolve(response.statusCode); }); req.on('error', reject); }), 403);
   const html = await (await fetch(url)).text();
   assert.ok(html.includes('value="test-user"'));
-  assert.ok(html.includes('Connect browser extension'));
+  assert.ok(html.includes('Connect extension'));
   assert.equal((await fetch(url + '/extension/firefox.zip')).status, 200);
   await api('/v1/client/sessions', clientToken, 'POST', {sessions: []});
   const offline = await fetch(url + '/v1/catalog/search', {method: 'POST', headers: {Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify({retailer_id: 'willys', context: session.context, query: 'milk'})});
