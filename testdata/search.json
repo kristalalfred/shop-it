@@ -1,0 +1,13 @@
+{
+  "retailer_id": "ica",
+  "context": {
+    "store_id": "ica-demo",
+    "postal_code": "11122",
+    "fulfillment": "delivery",
+    "delivery_slot_id": "demo-slot",
+    "memberships": [
+      "ica-demo-member"
+    ]
+  },
+  "query": "mjölk"
+}

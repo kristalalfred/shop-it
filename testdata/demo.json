@@ -1,0 +1,726 @@
+{
+  "retailers": {
+    "ica": {
+      "products": [
+        {
+          "id": "milk-basic",
+          "name": "Mjölk standard 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1290,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-organic",
+          "name": "Mjölk ekologisk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1890,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          },
+          "offers": [
+            {
+              "price": {
+                "amount_minor": 1590,
+                "currency": "SEK"
+              },
+              "min_quantity": 2,
+              "membership": "ica-demo-member"
+            }
+          ]
+        },
+        {
+          "id": "milk-lactose-free",
+          "name": "Mjölk laktosfri 1,5 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1500,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2290,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "out_of_stock",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-oat",
+          "name": "Havredryck alternativ till mjölk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1790,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "unknown",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "yes",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "bananas",
+          "name": "Bananer lösvikt cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1490,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "unknown",
+            "vegan": "yes"
+          }
+        }
+      ],
+      "observed_at": "2026-10-14T12:00:00Z",
+      "page_size": 2
+    },
+    "mathem": {
+      "products": [
+        {
+          "id": "milk-basic",
+          "name": "Mjölk standard 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1340,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-organic",
+          "name": "Mjölk ekologisk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1920,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          },
+          "offers": [
+            {
+              "price": {
+                "amount_minor": 1590,
+                "currency": "SEK"
+              },
+              "min_quantity": 2,
+              "membership": "mathem-demo-member"
+            }
+          ]
+        },
+        {
+          "id": "milk-lactose-free",
+          "name": "Mjölk laktosfri 1,5 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1500,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2330,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "out_of_stock",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-oat",
+          "name": "Havredryck alternativ till mjölk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1810,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "unknown",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "yes",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "bananas",
+          "name": "Bananer lösvikt cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1500,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "unknown",
+            "vegan": "yes"
+          }
+        }
+      ],
+      "observed_at": "2026-10-14T12:00:00Z",
+      "page_size": 2
+    },
+    "willys": {
+      "products": [
+        {
+          "id": "milk-basic",
+          "name": "Mjölk standard 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1390,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-organic",
+          "name": "Mjölk ekologisk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1950,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          },
+          "offers": [
+            {
+              "price": {
+                "amount_minor": 1590,
+                "currency": "SEK"
+              },
+              "min_quantity": 2,
+              "membership": "willys-demo-member"
+            }
+          ]
+        },
+        {
+          "id": "milk-lactose-free",
+          "name": "Mjölk laktosfri 1,5 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1500,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2370,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "out_of_stock",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-oat",
+          "name": "Havredryck alternativ till mjölk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1830,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "unknown",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "yes",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "bananas",
+          "name": "Bananer lösvikt cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1510,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "unknown",
+            "vegan": "yes"
+          }
+        }
+      ],
+      "observed_at": "2026-10-14T12:00:00Z",
+      "page_size": 2
+    },
+    "coop": {
+      "products": [
+        {
+          "id": "milk-basic",
+          "name": "Mjölk standard 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1440,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-organic",
+          "name": "Mjölk ekologisk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1980,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          },
+          "offers": [
+            {
+              "price": {
+                "amount_minor": 1590,
+                "currency": "SEK"
+              },
+              "min_quantity": 2,
+              "membership": "coop-demo-member"
+            }
+          ]
+        },
+        {
+          "id": "milk-lactose-free",
+          "name": "Mjölk laktosfri 1,5 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1500,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2410,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "out_of_stock",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-oat",
+          "name": "Havredryck alternativ till mjölk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1850,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "unknown",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "yes",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "bananas",
+          "name": "Bananer lösvikt cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1520,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "unknown",
+            "vegan": "yes"
+          }
+        }
+      ],
+      "observed_at": "2026-10-14T12:00:00Z",
+      "page_size": 2
+    },
+    "hemkop": {
+      "products": [
+        {
+          "id": "milk-basic",
+          "name": "Mjölk standard 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1490,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-organic",
+          "name": "Mjölk ekologisk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2010,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          },
+          "offers": [
+            {
+              "price": {
+                "amount_minor": 1590,
+                "currency": "SEK"
+              },
+              "min_quantity": 2,
+              "membership": "hemkop-demo-member"
+            }
+          ]
+        },
+        {
+          "id": "milk-lactose-free",
+          "name": "Mjölk laktosfri 1,5 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1500,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2450,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "out_of_stock",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-oat",
+          "name": "Havredryck alternativ till mjölk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1870,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "unknown",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "yes",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "bananas",
+          "name": "Bananer lösvikt cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1530,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "unknown",
+            "vegan": "yes"
+          }
+        }
+      ],
+      "observed_at": "2026-10-14T12:00:00Z",
+      "page_size": 2
+    },
+    "citygross": {
+      "products": [
+        {
+          "id": "milk-basic",
+          "name": "Mjölk standard 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1540,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "no",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-organic",
+          "name": "Mjölk ekologisk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2040,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "yes",
+            "lactose_free": "no",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          },
+          "offers": [
+            {
+              "price": {
+                "amount_minor": 1590,
+                "currency": "SEK"
+              },
+              "min_quantity": 2,
+              "membership": "citygross-demo-member"
+            }
+          ]
+        },
+        {
+          "id": "milk-lactose-free",
+          "name": "Mjölk laktosfri 1,5 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1500,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 2490,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "out_of_stock",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "no",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "milk-oat",
+          "name": "Havredryck alternativ till mjölk 1 l",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 1000,
+            "unit": "ml"
+          },
+          "price": {
+            "amount_minor": 1890,
+            "currency": "SEK"
+          },
+          "price_kind": "fixed",
+          "availability": "unknown",
+          "traits": {
+            "organic": "unknown",
+            "lactose_free": "yes",
+            "vegan": "yes",
+            "gluten_free": "unknown"
+          }
+        },
+        {
+          "id": "bananas",
+          "name": "Bananer lösvikt cirka 500 g",
+          "brand": "Synthetic fixture",
+          "pack": {
+            "quantity": 500,
+            "unit": "g"
+          },
+          "price": {
+            "amount_minor": 1540,
+            "currency": "SEK"
+          },
+          "price_kind": "estimated",
+          "availability": "in_stock",
+          "traits": {
+            "organic": "unknown",
+            "vegan": "yes"
+          }
+        }
+      ],
+      "observed_at": "2026-10-14T12:00:00Z",
+      "page_size": 2
+    }
+  },
+  "browser": {
+    "unavailable": [
+      "milk-lactose-free"
+    ],
+    "existing": {
+      "bananas": 3
+    }
+  }
+}

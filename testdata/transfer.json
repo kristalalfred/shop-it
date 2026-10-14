@@ -1,0 +1,23 @@
+{
+  "retailer_id": "ica",
+  "client_id": "demo-browser",
+  "context": {
+    "store_id": "ica-demo",
+    "postal_code": "11122",
+    "fulfillment": "delivery",
+    "delivery_slot_id": "demo-slot",
+    "memberships": [
+      "ica-demo-member"
+    ]
+  },
+  "items": [
+    {
+      "product_id": "milk-basic",
+      "target_quantity": 2
+    },
+    {
+      "product_id": "milk-lactose-free",
+      "target_quantity": 1
+    }
+  ]
+}
