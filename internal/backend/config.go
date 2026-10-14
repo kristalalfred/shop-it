@@ -13,7 +13,7 @@ import (
 type RetailerConfig struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
-	GatewayURL string `json:"gateway_url"`
+	GatewayURL string `json:"gateway_url,omitempty"`
 	BasketURL  string `json:"basket_url"`
 	Mode       string `json:"mode"`
 }
@@ -75,11 +75,17 @@ func (c Config) Validate() error {
 	}
 	ids, tokens := map[string]bool{}, map[string]bool{c.APIToken: true}
 	for _, r := range c.Retailers {
-		if !validID(r.ID) || ids[r.ID] || strings.TrimSpace(r.Name) == "" || (r.Mode != "mock" && r.Mode != "gateway") {
-			return fmt.Errorf("retailer IDs must be unique, named, and use mock or gateway mode")
+		if !validID(r.ID) || ids[r.ID] || strings.TrimSpace(r.Name) == "" || (r.Mode != "mock" && r.Mode != "gateway" && r.Mode != "browser") {
+			return fmt.Errorf("retailer IDs must be unique, named, and use mock, gateway or browser mode")
 		}
-		if !validURL(r.GatewayURL) || !validURL(r.BasketURL) {
+		if !validURL(r.BasketURL) || r.Mode != "browser" && !validURL(r.GatewayURL) {
 			return fmt.Errorf("retailer %s requires absolute HTTP gateway and basket URLs", r.ID)
+		}
+		if r.Mode == "browser" {
+			origins := map[string]string{"willys": "https://www.willys.se/", "hemkop": "https://www.hemkop.se/", "mathem": "https://www.mathem.se/se/cart/"}
+			if origins[r.ID] != r.BasketURL || r.GatewayURL != "" {
+				return fmt.Errorf("retailer %s has no supported browser adapter or an incorrect basket URL", r.ID)
+			}
 		}
 		ids[r.ID] = true
 	}

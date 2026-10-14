@@ -114,6 +114,27 @@ func (s *Store) Claim(ctx context.Context, clientID string) (t shopping.Transfer
 	return t, err
 }
 
+func (s *Store) Renew(ctx context.Context, id, clientID string) (t shopping.Transfer, err error) {
+	err = s.state.Update(func(data *snapshot) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		e, ok := data.Entries[id]
+		if !ok || e.Transfer.ClientID != clientID {
+			return shopping.ErrNotFound
+		}
+		if e.Transfer.State != "claimed" || e.Transfer.ClaimExpiresAt == nil || !e.Transfer.ClaimExpiresAt.After(time.Now()) {
+			return shopping.ErrConflict
+		}
+		expires := time.Now().UTC().Add(s.lease)
+		e.Transfer.ClaimExpiresAt = &expires
+		data.Entries[id] = e
+		t = clone(e.Transfer)
+		return nil
+	})
+	return t, err
+}
+
 func (s *Store) Complete(ctx context.Context, id, clientID string, receipt shopping.Receipt) (t shopping.Transfer, err error) {
 	receipt.Lines = slices.Clone(receipt.Lines)
 	slices.SortFunc(receipt.Lines, func(a, b shopping.LineResult) int { return strings.Compare(a.ProductID, b.ProductID) })
@@ -158,6 +179,9 @@ func receiptState(items []shopping.BasketItem, receipt shopping.Receipt) (string
 	}
 	applied, loginRequired, uncertain := 0, false, false
 	for _, line := range receipt.Lines {
+		if len(line.Message) > 500 {
+			return "", shopping.ErrInvalid
+		}
 		quantity, ok := expected[line.ProductID]
 		if !ok {
 			return "", shopping.ErrInvalid

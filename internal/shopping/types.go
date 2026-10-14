@@ -15,6 +15,7 @@ var (
 )
 
 type StoreContext struct {
+	SessionID      string   `json:"session_id,omitempty"`
 	StoreID        string   `json:"store_id"`
 	PostalCode     string   `json:"postal_code"`
 	Fulfillment    string   `json:"fulfillment"`
@@ -85,6 +86,7 @@ type LineResult struct {
 	ProductID string `json:"product_id"`
 	Status    string `json:"status"`
 	Quantity  int    `json:"confirmed_quantity"`
+	Message   string `json:"message,omitempty"`
 }
 
 type Receipt struct {
@@ -105,5 +107,6 @@ type TransferStore interface {
 	Create(context.Context, TransferRequest, string, string) (Transfer, bool, error)
 	Get(context.Context, string) (Transfer, error)
 	Claim(context.Context, string) (Transfer, error)
+	Renew(context.Context, string, string) (Transfer, error)
 	Complete(context.Context, string, string, Receipt) (Transfer, error)
 }

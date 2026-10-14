@@ -7,22 +7,26 @@ default:
 
 build:
     go build -o bin/ ./cmd/...
+    ./bin/ship-it -extension-dir bin/extension
 
 test case="all": build
+    if [ {{quote(case)}} = all ]; then node --test extension/tests/*.test.mjs; fi
     ./bin/test-harness -case {{quote(case)}}
 
-check:
-    test -z "$(gofmt -l cmd internal tests)"
+check: build
+    test -z "$(gofmt -l cmd internal tests extension)"
     go vet ./...
-    node --check internal/backend/web/app.js
+    for script in internal/backend/web/app.js extension/assets/*.js; do node --check "$script"; done
+    node --test extension/tests/*.test.mjs
     hurlfmt --check tests/api/*.hurl
-    just test
+    ./bin/test-harness
 
-run mode="demo" config="config/dev.json": build
+run mode="backend" config="": build
     #!/usr/bin/env bash
     set -euo pipefail
+    SHIP_IT_CONFIG={{quote(config)}}
     case {{quote(mode)}} in
-      demo) exec ./bin/test-harness -mode demo -config {{quote(config)}} ;;
-      backend) exec ./bin/ship-it -config {{quote(config)}} ;;
+      demo) exec ./bin/test-harness -mode demo -config "${SHIP_IT_CONFIG:-config/dev.json}" ;;
+      backend) exec ./bin/ship-it -config "${SHIP_IT_CONFIG:-.data/local.json}" ;;
       *) exit 2 ;;
     esac

@@ -8,19 +8,19 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <header><a href="/" class="brand"><span class="brand-icon">↗</span> ship it<span class="brand-dot">.</span></a><span class="demo-tag">LOCAL DEMO</span></header>
+  <header><a href="/" class="brand"><span class="brand-icon">↗</span> ship it<span class="brand-dot">.</span></a><span class="demo-tag">LOCAL SERVICE</span></header>
   <main>
     <section class="intro"><p class="eyebrow">A LITTLE LESS LIFE ADMIN</p><h1>Your words.<br>Your groceries.</h1><p>A list, a thought, a plan for dinner. Turn it into a basket you can review.</p></section>
     <div class="workspace">
       <section class="input-panel">
-        <form id="connect-form" class="connection"><label for="token">Service token</label><div class="inline"><input id="token" type="password" value="local-demo-api-token" autocomplete="off"><button type="submit" class="small">Connect</button></div><p id="connection-status">Connect to start shopping.</p></form>
+        <form id="connect-form" class="connection"><label for="token">Service token</label><div class="inline"><input id="token" type="password" value="{{.APIToken}}" autocomplete="off"><button type="submit" class="small">Connect</button></div><p id="connection-status">Connect to start shopping.</p><div id="extension-setup" hidden><button id="pair-extension" type="button" class="secondary">Connect browser extension</button><p id="extension-status">Install the extension, then reload this page.</p><details><summary>Install browser extension</summary><p>Load <strong>bin/extension/firefox/manifest.json</strong> in Zen or Firefox using <strong>about:debugging#/runtime/this-firefox</strong> → Load Temporary Add-on. For Chromium, load <strong>bin/extension/chromium</strong> using <strong>chrome://extensions</strong> → Developer mode → Load unpacked.</p><p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p><p>Open a supported store, sign in, and choose delivery or pickup there. Keep the store tab open.</p></details></div></form>
         <form id="plan-form">
           <label for="text" class="input-title">What do you need?</label>
           <textarea id="text" maxlength="16000" required placeholder="We need 2 litres of organic milk, 12 eggs and 500 g bananas."></textarea>
           <div class="examples"><button type="button" data-example="breakfast">Breakfast basics ↗</button><button type="button" data-example="dinner">Pasta night ↗</button><button type="button" data-example="diet">Dietary requirements ↗</button></div>
-          <div class="field-grid"><label>Shop<select id="retailer" required></select></label><label>Postal code<input id="postal" value="11122" inputmode="numeric" pattern="[0-9]{5}" required></label><label>Store ID<input id="store" value="ica-demo" required></label><label>Fulfillment<select id="fulfillment"><option value="delivery">Delivery</option><option value="pickup">Pickup</option></select></label></div>
-          <label class="check"><input id="member" type="checkbox" checked> Use demo membership offers</label>
-          <fieldset><legend>Requirements for every item</legend><div class="traits"><label><input type="checkbox" value="organic">Organic</label><label><input type="checkbox" value="vegan">Vegan</label><label><input type="checkbox" value="lactose_free">Lactose free</label><label><input type="checkbox" value="gluten_free">Gluten free</label></div></fieldset>
+          <div class="field-grid"><label>Shop<select id="retailer" required></select></label><label>Postal code<input id="postal" value="11122" inputmode="numeric" pattern="[0-9]{5}" required></label><label>Store session<input id="store" value="" required></label><label>Fulfillment<select id="fulfillment"><option value="delivery">Delivery</option><option value="pickup">Pickup</option></select></label></div>
+          <label id="member-wrap" class="check"><input id="member" type="checkbox" checked> Use demo membership offers</label>
+          <label id="session-wrap" hidden>Connected store<select id="session"></select></label><fieldset><legend>Requirements for every item</legend><div class="traits"><label><input type="checkbox" value="organic">Organic</label><label><input type="checkbox" value="vegan">Vegan</label><label><input type="checkbox" value="lactose_free">Lactose free</label><label><input type="checkbox" value="gluten_free">Gluten free</label></div></fieldset>
           <label>Budget in SEK <span class="muted">optional</span><input id="budget" type="number" min="0" max="1000000" step="0.01" placeholder="e.g. 250"></label>
           <button id="create" class="primary" type="submit" disabled>Find my groceries <span>↗</span></button>
           <p class="footnote" id="mode-note">Demo catalogs and basket actions are simulated. No checkout or purchase happens here.</p>

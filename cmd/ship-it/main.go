@@ -5,6 +5,8 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/kristalalfred/ship-it/extension"
+
 	"github.com/kristalalfred/ship-it/internal/backend"
 	"github.com/kristalalfred/ship-it/internal/localserver"
 	"github.com/kristalalfred/ship-it/internal/persistence"
@@ -12,8 +14,20 @@ import (
 )
 
 func main() {
-	path := flag.String("config", "config/dev.json", "service configuration file")
+	path := flag.String("config", ".data/local.json", "service configuration file")
+	extensionDir := flag.String("extension-dir", "", "write Chromium and Firefox extension bundles and exit")
 	flag.Parse()
+	if *extensionDir != "" {
+		if err := extension.Build(*extensionDir); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *path == ".data/local.json" {
+		if err := backend.InitLocal(*path); err != nil {
+			log.Fatal(err)
+		}
+	}
 	config, err := backend.LoadConfig(*path)
 	if err != nil {
 		log.Fatal(err)

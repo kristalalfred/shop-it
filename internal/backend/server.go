@@ -25,6 +25,7 @@ type Server struct {
 	plans           *planner.Store
 	interpreter     shopping.Interpreter
 	interpreterMode string
+	bridge          *retailer.Bridge
 }
 
 func New(config Config, transfers shopping.TransferStore) (http.Handler, error) {
@@ -51,7 +52,14 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 		s.interpreterMode = "openai"
 	}
 	for _, r := range config.Retailers {
-		s.catalogs[r.ID] = retailer.NewHTTP(r.GatewayURL, time.Duration(config.AdapterTimeoutMS)*time.Millisecond)
+		if r.Mode == "browser" {
+			if s.bridge == nil {
+				s.bridge = retailer.NewBridge(time.Duration(config.AdapterTimeoutMS) * time.Millisecond)
+			}
+			s.catalogs[r.ID] = s.bridge
+		} else {
+			s.catalogs[r.ID] = retailer.NewHTTP(r.GatewayURL, time.Duration(config.AdapterTimeoutMS)*time.Millisecond)
+		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +67,7 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 	})
 	s.registerPlans(mux)
 	s.registerWeb(mux)
+	s.registerBrowser(mux)
 	mux.HandleFunc("GET /v1/retailers", s.user(s.listRetailers))
 	mux.HandleFunc("POST /v1/catalog/search", s.user(s.search))
 	mux.HandleFunc("POST /v1/basket-transfers", s.user(s.createTransfer))
@@ -158,6 +167,10 @@ func (s *Server) createTransfer(w http.ResponseWriter, r *http.Request) {
 		fail(w, shopping.ErrNotFound)
 		return
 	}
+	if !s.transferSession(req.RetailerID, req.ClientID, req.Context) {
+		fail(w, shopping.ErrConflict)
+		return
+	}
 	t, created, err := s.transfers.Create(r.Context(), req, key, basketURL)
 	if err != nil {
 		fail(w, err)
@@ -216,7 +229,7 @@ func (s *Server) complete(w http.ResponseWriter, r *http.Request, clientID strin
 }
 
 func validContext(c shopping.StoreContext) bool {
-	if strings.TrimSpace(c.StoreID) == "" || len(c.StoreID) > 256 || len(c.PostalCode) != 5 || len(c.DeliverySlotID) > 256 || len(c.Memberships) > 20 || (c.Fulfillment != "delivery" && c.Fulfillment != "pickup") {
+	if strings.TrimSpace(c.StoreID) == "" || len(c.StoreID) > 256 || len(c.SessionID) > 128 || len(c.PostalCode) != 5 || len(c.DeliverySlotID) > 256 || len(c.Memberships) > 20 || (c.Fulfillment != "delivery" && c.Fulfillment != "pickup") {
 		return false
 	}
 	for _, r := range c.PostalCode {

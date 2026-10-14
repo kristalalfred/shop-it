@@ -296,6 +296,9 @@ func (s *Server) transferPlan(w http.ResponseWriter, r *http.Request) {
 		if len(plan.Warnings) > 0 && !req.AcknowledgeWarnings || plan.OverBudget && !req.AllowOverBudget {
 			return shopping.ErrConflict
 		}
+		if !s.transferSession(plan.RetailerID, req.ClientID, plan.Context) {
+			return shopping.ErrConflict
+		}
 		items, err := planner.BasketItems(plan)
 		if err != nil {
 			return err

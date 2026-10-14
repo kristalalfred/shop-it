@@ -1,0 +1,275 @@
+{
+  "willys": {
+    "source": "https://www.willys.se/axfood/rest/v2/search",
+    "results": [
+      {
+        "code": "101233933_ST",
+        "name": "Mellanmjölk Längre Hållbarhet 1,5%",
+        "manufacturer": "Garant",
+        "displayVolume": "1,5l",
+        "priceValue": 16.9,
+        "priceUnit": "kr/st",
+        "averageWeight": null,
+        "labels": [
+          "swedish_flag",
+          "from_sweden"
+        ],
+        "online": true,
+        "outOfStock": false,
+        "addToCartDisabled": false,
+        "productBasketType": {
+          "code": "ST",
+          "type": "ProductBasketTypeEnum"
+        }
+      },
+      {
+        "code": "101476218_ST",
+        "name": "Mellanmjölk Längre Hållbarhet 1,5%",
+        "manufacturer": "Garant",
+        "displayVolume": "1l",
+        "priceValue": 11.9,
+        "priceUnit": "kr/st",
+        "averageWeight": null,
+        "labels": [
+          "swedish_flag",
+          "from_sweden"
+        ],
+        "online": true,
+        "outOfStock": false,
+        "addToCartDisabled": false,
+        "productBasketType": {
+          "code": "ST",
+          "type": "ProductBasketTypeEnum"
+        }
+      },
+      {
+        "code": "101205823_ST",
+        "name": "Mellanmjölk 1,5%",
+        "manufacturer": "Garant",
+        "displayVolume": "1l",
+        "priceValue": 11.5,
+        "priceUnit": "kr/st",
+        "averageWeight": null,
+        "labels": [
+          "swedish_flag",
+          "from_sweden"
+        ],
+        "online": true,
+        "outOfStock": false,
+        "addToCartDisabled": false,
+        "productBasketType": {
+          "code": "ST",
+          "type": "ProductBasketTypeEnum"
+        }
+      }
+    ],
+    "pagination": {
+      "currentPage": 0,
+      "numberOfPages": 1
+    }
+  },
+  "hemkop": {
+    "source": "https://www.hemkop.se/search/asutype",
+    "results": [
+      {
+        "code": "101233933_ST",
+        "name": "Mellanmjölk Längre Hållbarhet 1,5%",
+        "manufacturer": "Garant",
+        "displayVolume": "1,5l",
+        "priceValue": 17.45,
+        "priceUnit": "kr/st",
+        "averageWeight": null,
+        "labels": [
+          "swedish_flag",
+          "from_sweden"
+        ],
+        "online": true,
+        "outOfStock": false,
+        "addToCartDisabled": false,
+        "productBasketType": {
+          "code": "ST",
+          "type": "ProductBasketTypeEnum"
+        }
+      },
+      {
+        "code": "101205823_ST",
+        "name": "Mellanmjölk 1,5%",
+        "manufacturer": "Garant",
+        "displayVolume": "1l",
+        "priceValue": 12.55,
+        "priceUnit": "kr/st",
+        "averageWeight": null,
+        "labels": [
+          "swedish_flag",
+          "from_sweden"
+        ],
+        "online": true,
+        "outOfStock": false,
+        "addToCartDisabled": false,
+        "productBasketType": {
+          "code": "ST",
+          "type": "ProductBasketTypeEnum"
+        }
+      },
+      {
+        "code": "101266069_ST",
+        "name": "Mellanmjölk Längre Hållbarhet Ekologisk 1,5%",
+        "manufacturer": "Garant Eko",
+        "displayVolume": "1,5l",
+        "priceValue": 22.24,
+        "priceUnit": "kr/st",
+        "averageWeight": null,
+        "labels": [
+          "ecological",
+          "krav",
+          "swedish_flag",
+          "from_sweden",
+          "milk_from_sweden",
+          "eu_ecological"
+        ],
+        "online": true,
+        "outOfStock": false,
+        "addToCartDisabled": false,
+        "productBasketType": {
+          "code": "ST",
+          "type": "ProductBasketTypeEnum"
+        }
+      }
+    ],
+    "pagination": {
+      "currentPage": 0,
+      "numberOfPages": 1
+    }
+  },
+  "weighted": [
+    {
+      "code": "100254920_KG",
+      "name": "Banan Klass 1",
+      "manufacturer": null,
+      "displayVolume": "ca: 180g",
+      "priceValue": 19.9,
+      "priceUnit": "kr/kg",
+      "averageWeight": 0.18,
+      "labels": [
+        "rainforest_alliance",
+        "keyhole",
+        "environmental_facet"
+      ],
+      "online": true,
+      "outOfStock": false,
+      "addToCartDisabled": false,
+      "productBasketType": {
+        "code": "ST",
+        "type": "ProductBasketTypeEnum"
+      }
+    }
+  ],
+  "mathem": {
+    "source": "https://www.mathem.se/api/v1/search/",
+    "products": [
+      {
+        "id": 2183,
+        "full_name": "Garant Mellanmjölk Längre Hållbarhet 1,5%",
+        "brand": "Garant",
+        "name_extra": "1,5 l",
+        "gross_price": "16.95",
+        "currency": "SEK",
+        "availability": {
+          "is_available": true,
+          "description": "",
+          "description_short": "",
+          "code": "available"
+        },
+        "client_classifiers": [
+          {
+            "name": "Färskvarugaranti i 6 dagar"
+          },
+          {
+            "name": "Mjölk från Sverige"
+          },
+          {
+            "name": "Från Sverige"
+          },
+          {
+            "name": "FSC Forest Steward Council Mix"
+          }
+        ]
+      },
+      {
+        "id": 3681,
+        "full_name": "Arla Ko® Färsk Mellanmjölk 1,5%",
+        "brand": "Arla Ko®",
+        "name_extra": "1,5 l",
+        "gross_price": "16.95",
+        "currency": "SEK",
+        "availability": {
+          "is_available": true,
+          "description": "",
+          "description_short": "",
+          "code": "available"
+        },
+        "client_classifiers": [
+          {
+            "name": "Färskvarugaranti i 4 dagar"
+          },
+          {
+            "name": "FSC Forest Steward Council Mix"
+          }
+        ]
+      },
+      {
+        "id": 5288,
+        "full_name": "Arla Ko® Mellanmjölk Laktosfri 1,5%",
+        "brand": "Arla Ko®",
+        "name_extra": "1,5 l",
+        "gross_price": "19.50",
+        "currency": "SEK",
+        "availability": {
+          "is_available": true,
+          "description": "",
+          "description_short": "",
+          "code": "available"
+        },
+        "client_classifiers": [
+          {
+            "name": "Färskvarugaranti i 6 dagar"
+          },
+          {
+            "name": "Mjölk från Sverige"
+          },
+          {
+            "name": "FSC Forest Steward Council Mix"
+          },
+          {
+            "name": "Lactose free"
+          }
+        ]
+      },
+      {
+        "id": 4664,
+        "full_name": "Arla Ko® Färsk Standardmjölk 3%",
+        "brand": "Arla Ko®",
+        "name_extra": "1,5 l",
+        "gross_price": "16.95",
+        "currency": "SEK",
+        "availability": {
+          "is_available": true,
+          "description": "",
+          "description_short": "",
+          "code": "available"
+        },
+        "client_classifiers": [
+          {
+            "name": "Färskvarugaranti i 4 dagar"
+          },
+          {
+            "name": "FSC Forest Steward Council Mix"
+          }
+        ]
+      }
+    ],
+    "attributes": {
+      "total_hits": 4
+    }
+  }
+}

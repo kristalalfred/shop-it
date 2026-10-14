@@ -27,9 +27,11 @@ jobs:
           curl --fail --location --output "$RUNNER_TEMP/hurl.tar.gz" "https://github.com/Orange-OpenSource/hurl/releases/download/$HURL_VERSION/hurl-$HURL_VERSION-x86_64-unknown-linux-gnu.tar.gz"
           tar -xzf "$RUNNER_TEMP/hurl.tar.gz" -C "$RUNNER_TEMP"
           printf '%s\n' "$RUNNER_TEMP/hurl-$HURL_VERSION-x86_64-unknown-linux-gnu/bin" >> "$GITHUB_PATH"
-      - run: test -z "$(gofmt -l cmd internal tests)"
+      - run: test -z "$(gofmt -l cmd internal tests extension)"
       - run: hurlfmt --check tests/api/*.hurl
       - run: go vet ./...
-      - run: node --check internal/backend/web/app.js
+      - run: for script in internal/backend/web/app.js extension/assets/*.js; do node --check "$script"; done
       - run: go build -o bin/ ./cmd/...
+      - run: ./bin/ship-it -extension-dir bin/extension
+      - run: node --test extension/tests/*.test.mjs
       - run: ./bin/test-harness
