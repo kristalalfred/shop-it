@@ -48,16 +48,24 @@ async function transfer(settings, input) {
     await api(settings, `/v1/client/transfers/${input.id}/renew`);
   };
   const heartbeat = setInterval(() => renew().catch((error) => { leaseError = error; }), 10000);
+  const name = ShipItAdapters.names[input.retailer_id], total = input.items.length;
   let tabID, openError, receipt;
+  const overlay = (state) => tabID === undefined ? Promise.resolve() : storeCall(tabID, input.retailer_id, 'overlay', {state}).catch(() => {});
   try {
     try { tabID = await openShop(input); } catch (error) { openError = error; }
     const call = (operation, body) => openError ? Promise.reject(openError) : storeCall(tabID, input.retailer_id, operation, body);
-    receipt = await applyTransfer(input, {read: () => call('read'), set: (item, before) => call('set', {item, before})}, journal(settings), renew);
+    const progress = (index) => overlay({title: `Filling your ${name} basket`, detail: `Adding ${input.items[index].name || 'item'}`, progress: index / total, count: `Item ${index + 1} of ${total}`});
+    receipt = await applyTransfer(input, {read: () => call('read'), set: (item, before) => call('set', {item, before})}, journal(settings), renew, progress);
   } finally { clearInterval(heartbeat); }
+  const added = receipt.lines.filter((line) => line.status === 'applied').length;
+  await overlay({title: added === total ? 'Your basket is filled' : 'Some items need review', detail: added === total ? `All ${total} items are in your ${name} basket.` : 'Ship It lists the items that were not added.', progress: added / total, count: `${added} of ${total} added`, finished: true});
   await api(settings, `/v1/client/transfers/${input.id}/result`, 'PUT', receipt);
   await storage.remove(activeKey);
-  if (tabID !== undefined) await extension.tabs.reload(tabID).catch(() => {});
-  basket = `Last basket: ${receipt.lines.every((line) => line.status === 'applied') ? 'all items added' : 'some items need review'}.`;
+  if (tabID !== undefined) {
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    await extension.tabs.reload(tabID).catch(() => overlay(null));
+  }
+  basket = `Last basket: ${added === total ? 'all items added' : 'some items need review'}.`;
 }
 
 async function tick() {

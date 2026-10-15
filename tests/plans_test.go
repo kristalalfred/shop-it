@@ -64,6 +64,11 @@ func TestShoppingPlanToBasket(t *testing.T) {
 	if err != nil || claim.status != 200 || claim.data["id"] != created.data["id"] {
 		t.Fatalf("claim: %+v, %v", claim, err)
 	}
+	for i, item := range claim.data["items"].([]any) {
+		if name := item.(map[string]any)["name"]; name != plan.Lines[i].Selected.Product.Name {
+			t.Fatalf("claimed item %d is named %v, want %q", i, name, plan.Lines[i].Selected.Product.Name)
+		}
+	}
 	receipt := shopping.Receipt{Lines: []shopping.LineResult{{ProductID: "milk-organic", Status: "applied", Quantity: 2}, {ProductID: "eggs", Status: "applied", Quantity: 2}, {ProductID: "bananas", Status: "applied", Quantity: 1}}}
 	completed, err := s.request("PUT", "/v1/client/transfers/"+fmt.Sprint(created.data["id"])+"/result", receipt, clientToken, "")
 	if err != nil || completed.status != 200 || completed.data["state"] != "completed" {

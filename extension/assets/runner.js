@@ -1,11 +1,12 @@
-export async function applyTransfer(transfer, adapter, journal, renew) {
+export async function applyTransfer(transfer, adapter, journal, renew, progress = async () => {}) {
   const fingerprint = JSON.stringify({retailer_id: transfer.retailer_id, context: transfer.context, items: transfer.items});
   let record = await journal.load(transfer.id);
   if (record && record.fingerprint !== fingerprint) throw new Error('Transfer payload changed.');
   record ||= {fingerprint, lines: {}};
   if (record.receipt) return record.receipt;
   const save = () => journal.save(transfer.id, structuredClone(record));
-  for (const item of transfer.items) {
+  for (const [index, item] of transfer.items.entries()) {
+    await progress(index);
     let line = record.lines[item.product_id];
     if (line?.result) continue;
     let started = line?.phase === 'started';

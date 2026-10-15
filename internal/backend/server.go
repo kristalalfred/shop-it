@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/kristalalfred/ship-it/internal/interpret"
 	"github.com/kristalalfred/ship-it/internal/planner"
@@ -163,7 +164,7 @@ func (s *Server) createTransfer(w http.ResponseWriter, r *http.Request) {
 	}
 	ids := map[string]bool{}
 	for _, item := range req.Items {
-		if strings.TrimSpace(item.ProductID) == "" || len(item.ProductID) > 256 || item.Quantity < 1 || item.Quantity > 1000 || ids[item.ProductID] {
+		if strings.TrimSpace(item.ProductID) == "" || len(item.ProductID) > 256 || len(item.Name) > 500 || !utf8.ValidString(item.Name) || item.Quantity < 1 || item.Quantity > 1000 || ids[item.ProductID] {
 			fail(w, shopping.ErrInvalid)
 			return
 		}

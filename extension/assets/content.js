@@ -34,7 +34,7 @@
   const adapter = ShipItAdapters.create(id, {request});
   extension.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== extension.runtime.id || message?.type !== 'store-operation' || message.retailer_id !== id) return false;
-    const methods = {ready: () => true, read: () => adapter.read(), set: () => adapter.set(message.item, message.before)};
+    const methods = {ready: () => true, read: () => adapter.read(), set: () => adapter.set(message.item, message.before), overlay: () => message.state ? ShipItOverlay.show(message.state) : ShipItOverlay.remove()};
     if (!Object.hasOwn(methods, message.operation)) return false;
     Promise.resolve().then(methods[message.operation]).then((result) => respond({result}), (error) => respond({error: error.message, status: error.status || 'failed'}));
     return true;

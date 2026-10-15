@@ -8,7 +8,7 @@
   "background": {"service_worker": "background.js", "type": "module"},
   "action": {"default_popup": "popup.html"},
   "content_scripts": [
-    {"matches": ["https://www.mathem.se/*", "https://www.willys.se/*", "https://www.hemkop.se/*"], "js": ["adapters.js", "content.js"]},
+    {"matches": ["https://www.mathem.se/*", "https://www.willys.se/*", "https://www.hemkop.se/*"], "js": ["adapters.js", "overlay.js", "content.js"]},
     {"matches": ["http://127.0.0.1/*"], "js": ["bridge.js"]}
   ]
 }

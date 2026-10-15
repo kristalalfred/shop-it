@@ -61,6 +61,14 @@ test('products the shopper store does not sell are reported as unavailable', asy
   assert.deepEqual(receipt.lines, [{product_id: '101543074_ST', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Willys store.'}]);
 });
 
+test('the transfer reports progress before each item', async () => {
+  const seen = [];
+  const items = [{product_id: '2183', target_quantity: 2}, {product_id: '3681', target_quantity: 1}];
+  const adapter = {read: async () => Object.fromEntries(items.map((item) => [item.product_id, item.target_quantity]))};
+  await applyTransfer({...input, items}, adapter, memoryJournal(), async () => {}, async (index) => { seen.push(index); });
+  assert.deepEqual(seen, [0, 1]);
+});
+
 test('receipt replay never mutates the basket again', async () => {
   let quantity = 5, writes = 0;
   const journal = memoryJournal();

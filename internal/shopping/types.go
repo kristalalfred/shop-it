@@ -72,6 +72,7 @@ type Catalog interface {
 
 type BasketItem struct {
 	ProductID string `json:"product_id"`
+	Name      string `json:"name,omitempty"`
 	Quantity  int    `json:"target_quantity"`
 }
 

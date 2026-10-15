@@ -206,7 +206,7 @@ func BasketItems(plan shopping.Plan) ([]shopping.BasketItem, error) {
 		if !exists {
 			index = len(items)
 			indices[id] = index
-			items = append(items, shopping.BasketItem{ProductID: id})
+			items = append(items, shopping.BasketItem{ProductID: id, Name: line.Selected.Product.Name})
 		}
 		items[index].Quantity += line.Selected.Quantity
 		if items[index].Quantity > 1000 {
