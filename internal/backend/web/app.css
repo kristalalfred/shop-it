@@ -51,8 +51,6 @@ summary { cursor: pointer; font-weight: 700; }
 .menu-panel p:first-child { margin-top: 0; }
 .menu-panel details { margin: 18px 0; }
 .menu-panel button { width: 100%; }
-.menu-panel label { margin-top: 18px; }
-.connection .menu-panel > label:first-of-type { margin-top: 0; }
 .connection .menu-panel > details:last-child { margin-bottom: 0; }
 #extension-setup { margin-top: 18px; }
 .shop-links { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 13px; font-weight: 700; }
@@ -68,6 +66,7 @@ h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 900; line-height: 1.05; let
 label { display: block; font-size: 13px; font-weight: 700; }
 input, select, textarea { border: var(--border); border-radius: 0; background: #fff; padding: 11px; width: 100%; min-width: 0; margin-top: 8px; }
 textarea { min-height: 170px; resize: vertical; line-height: 1.6; font-size: 16px; }
+.shop-field { margin-bottom: 22px; }
 textarea::placeholder, input::placeholder { color: #686868; opacity: 1; }
 button { border: var(--border); border-radius: 0; background: #fff; cursor: pointer; font-weight: 700; padding: 11px 16px; }
 button:hover:not(:disabled) { background: #ededeb; }

@@ -20,7 +20,7 @@ class Element {
   focus() { this.focused = true; }
 }
 
-async function app(mode = 'browser', {shops, sessions, preferredShop} = {}) {
+async function app(mode = 'browser', {shops, sessions} = {}) {
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], new Element()]));
   elements.get('token').value = 'test-user';
   const events = new Map(), documentEvents = new Map(), timers = new Map(), navigation = [], requests = [];
@@ -32,7 +32,7 @@ async function app(mode = 'browser', {shops, sessions, preferredShop} = {}) {
     '/v1/browser-sessions': {sessions: sessions || [{retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true}]},
     '/v1/shopping-plans': {plans: []},
   };
-  const values = new Map(preferredShop ? [['ship-it-shop', preferredShop]] : []);
+  const values = new Map();
   const storage = {getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key)};
   const emit = (type, detail) => documentEvents.get(type)?.({detail: JSON.stringify(detail)});
   const context = createContext({
@@ -89,12 +89,20 @@ const shops = [
 const mathem = {retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true};
 const willys = {retailer_id: 'willys', client_id: 'browser', context: {...store, store_id: 'willys'}, logged_in: true};
 
-test('shop picker lists connected shops and requires an explicit choice', async () => {
+function choose(ui, shop) {
+  const picker = ui.elements.get('retailer');
+  picker.value = shop; picker.listeners.change();
+}
+
+test('shop picker lists every shop and requires a choice before finding groceries', async () => {
   const ui = await app('browser', {shops, sessions: [mathem, willys]});
   const picker = ui.elements.get('retailer');
-  assert.deepEqual(picker.children.map((option) => option.textContent), ['Choose a shop', 'Mathem', 'Willys']);
+  assert.deepEqual(picker.children.map((option) => option.textContent), ['Choose a shop', 'Mathem', 'Willys', 'Hemköp · not connected']);
+  assert.deepEqual(picker.children.map((option) => Boolean(option.disabled)), [true, false, false, true]);
   assert.equal(picker.value, '');
-  assert.equal(ui.elements.get('connection-summary').textContent, 'Choose shop');
+  assert.equal(ui.elements.get('create').disabled, true);
+  assert.match(ui.elements.get('shop-status').textContent, /Choose a shop/);
+  assert.equal(ui.elements.get('connection-summary').textContent, 'Shops');
   assert.equal(ui.elements.get('add-shop').textContent, 'Connect another shop');
   assert.equal(ui.elements.get('extension-setup').hidden, true);
   assert.deepEqual(ui.elements.get('retailer-links').children.map((link) => link.textContent), ['Hemköp']);
@@ -103,42 +111,49 @@ test('shop picker lists connected shops and requires an explicit choice', async 
   assert.equal(picker.focused, true);
 });
 
-test('chosen shop is remembered and used for the grocery request', async () => {
+test('chosen shop is used for the grocery request and not carried over to the next visit', async () => {
   const ui = await app('browser', {shops, sessions: [mathem, willys]});
-  const picker = ui.elements.get('retailer');
-  picker.value = 'willys'; picker.listeners.change();
-  assert.equal(ui.storage.getItem('ship-it-shop'), 'willys');
-  assert.equal(ui.elements.get('connection-summary').textContent, 'Willys');
-  assert.equal(ui.elements.get('connection-status').hidden, true);
+  choose(ui, 'willys');
+  assert.equal(ui.elements.get('create').disabled, false);
+  assert.equal(ui.elements.get('shop-status').textContent, '');
   ui.responses['/v1/shopping-plans'] = {...shoppingPlan(), retailer_id: 'willys', plans: []};
   ui.elements.get('text').value = 'milk';
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
   const request = ui.requests.find((request) => request.path === '/v1/shopping-plans' && request.method === 'POST');
   assert.equal(request.body.retailer_id, 'willys');
   assert.deepEqual(request.body.context, willys.context);
-  const reloaded = await app('browser', {shops, sessions: [mathem, willys], preferredShop: ui.storage.getItem('ship-it-shop')});
-  assert.equal(reloaded.elements.get('retailer').value, 'willys');
+  const reloaded = await app('browser', {shops, sessions: [mathem, willys]});
+  assert.equal(reloaded.elements.get('retailer').value, '');
+  assert.equal(reloaded.elements.get('create').disabled, true);
+  const anonymous = await app('browser', {shops, sessions: [{...willys, logged_in: false}]});
+  choose(anonymous, 'willys');
+  assert.equal(anonymous.elements.get('create').disabled, false);
+  assert.match(anonymous.elements.get('shop-status').textContent, /Sign in at Willys before filling/);
 });
 
 test('losing the selected shop never switches to another connected retailer', async () => {
-  const ui = await app('browser', {shops, sessions: [mathem, willys], preferredShop: 'willys'});
+  const ui = await app('browser', {shops, sessions: [mathem, willys]});
+  choose(ui, 'willys');
   const originalOptions = ui.elements.get('retailer').children;
   await ui.refresh();
   assert.equal(ui.elements.get('retailer').children, originalOptions);
   ui.responses['/v1/browser-sessions'] = {sessions: [mathem]};
   await ui.refresh();
   assert.equal(ui.elements.get('retailer').value, '');
+  assert.equal(ui.elements.get('create').disabled, true);
   assert.match(ui.elements.get('shop-status').textContent, /Willys disconnected/);
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
   assert.equal(ui.requests.some((request) => request.path === '/v1/shopping-plans' && request.method === 'POST'), false);
   ui.responses['/v1/browser-sessions'] = {sessions: [mathem, willys]};
   await ui.refresh();
   assert.equal(ui.elements.get('retailer').value, 'willys');
+  assert.equal(ui.elements.get('create').disabled, false);
 });
 
 test('paired extension hides setup even without an open shop', async () => {
   const ui = await app('browser', {shops, sessions: []});
-  assert.equal(ui.elements.get('shop-picker').hidden, true);
+  assert.equal(ui.elements.get('create').disabled, true);
+  assert.match(ui.elements.get('shop-status').textContent, /Connect a shop/);
   assert.equal(ui.elements.get('shop-setup').open, true);
   ui.emit('ship-it-extension-ready', {connected: true});
   assert.equal(ui.elements.get('extension-setup').hidden, true);
@@ -166,9 +181,10 @@ test('extension pairing distinguishes installed, failed and connected states', a
 
 test('demo shops remain selectable without extension setup', async () => {
   const ui = await app('mock');
-  assert.equal(ui.elements.get('shop-picker').hidden, false);
   assert.equal(ui.elements.get('shop-setup').hidden, true);
   assert.deepEqual(ui.elements.get('retailer').children.map((option) => option.textContent), ['Choose a shop', 'Mathem · demo']);
+  choose(ui, 'mathem');
+  assert.equal(ui.elements.get('create').disabled, false);
 });
 
 test('completed live basket opens in the same page after three seconds', async () => {

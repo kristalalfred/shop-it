@@ -5,10 +5,10 @@ const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
 let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, interpreterMode = '', basketRedirect = null, redirectTransfer = null;
 let extensionReady = false, extensionConnected = false, pairing = false, extensionError = '', shopOptions = '', shopLinks = '';
-let preferredShop = localStorage.getItem('ship-it-shop') || '';
+let selectedShop = '';
 const contextEqual = (a, b) => ['store_id', 'postal_code', 'fulfillment', 'delivery_slot_id', 'session_id'].every((key) => (a[key] || '') === (b[key] || '')) && JSON.stringify(a.memberships || []) === JSON.stringify(b.memberships || []);
 function shoppingTarget() {
-  const retailer = retailers.find((retailer) => retailer.id === preferredShop);
+  const retailer = retailers.find((retailer) => retailer.id === selectedShop);
   if (!retailer) return null;
   if (retailer.mode !== 'browser') return {retailer, context: {store_id: `${retailer.id}-demo`, postal_code: '11122', fulfillment: 'delivery', memberships: retailer.mode === 'mock' ? [`${retailer.id}-demo-member`] : []}, clientID: clients[0]?.id};
   const available = sessions.filter((session) => session.retailer_id === retailer.id);
@@ -46,7 +46,7 @@ function message(text, error = false) {
 }
 
 function buttons() {
-  $('create').disabled = busy;
+  $('create').disabled = busy || !token || !shoppingTarget();
   $('pair-extension').disabled = busy || pairing || !token || !extensionReady;
   $('retailer').disabled = busy || !connectedShops().length;
   $('refresh').disabled = busy || !plan;
@@ -165,7 +165,6 @@ async function connect() {
   try {
     const [shops, browserClients, health] = await Promise.all([api('/v1/retailers', undefined, 'GET'), api('/v1/clients', undefined, 'GET'), api('/healthz', undefined, 'GET')]);
     retailers = shops.retailers; clients = browserClients.clients;
-    if (!retailers.some((retailer) => retailer.id === preferredShop)) { preferredShop = ''; localStorage.removeItem('ship-it-shop'); }
     const live = retailers.some((retailer) => retailer.mode === 'browser');
     $('mode-note').textContent = 'Demo products and basket actions are simulated.';
     $('mode-note').hidden = live;
@@ -184,17 +183,17 @@ async function connect() {
 }
 function updateConnection() {
   const shops = connectedShops(), target = shoppingTarget();
-  const options = JSON.stringify(shops.map(({id, name, mode}) => ({id, name, mode})));
+  const options = JSON.stringify(retailers.map(({id, name, mode}) => ({id, name, mode, connected: shops.some((shop) => shop.id === id)})));
   if (options !== shopOptions) {
     shopOptions = options;
     const placeholder = el('option', 'Choose a shop'); placeholder.value = ''; placeholder.disabled = true;
     $('retailer').replaceChildren(placeholder);
-    for (const retailer of shops) {
-      const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : ''}`); option.value = retailer.id; $('retailer').append(option);
+    for (const retailer of retailers) {
+      const connected = shops.includes(retailer);
+      const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : connected ? '' : ' · not connected'}`); option.value = retailer.id; option.disabled = !connected; $('retailer').append(option);
     }
   }
-  $('retailer').value = target ? preferredShop : '';
-  $('shop-picker').hidden = !shops.length;
+  $('retailer').value = target ? selectedShop : '';
   const paired = extensionConnected || sessions.length > 0;
   const unconnected = retailers.filter((retailer) => retailer.mode === 'browser' && !shops.includes(retailer));
   $('shop-setup').hidden = !unconnected.length;
@@ -212,20 +211,17 @@ function updateConnection() {
       $('retailer-links').append(link);
     }
   }
-  $('connection-status').hidden = false;
-  if (target) {
-    $('shop-status').textContent = `${target.retailer.name}${target.retailer.mode === 'mock' ? ' · Demo' : ''}`;
-    $('connection-summary').textContent = target.retailer.name;
-    $('connection-status').hidden = target.retailer.mode !== 'browser' || target.loggedIn;
-    $('connection-status').textContent = `Sign in at ${target.retailer.name} before filling your basket.`;
+  $('connection-summary').textContent = shops.length ? 'Shops' : 'Connect shop';
+  $('connection-status').textContent = shops.length ? `Connected: ${shops.map((shop) => shop.name).join(', ')}.` : 'No shops connected yet.';
+  const shop = retailers.find((retailer) => retailer.id === selectedShop);
+  if (!token) {
+    $('shop-status').textContent = 'Service disconnected. Reconnect from the Shops menu.';
+    $('connection-status').textContent = 'Service disconnected.';
+  } else if (target) {
+    $('shop-status').textContent = target.retailer.mode === 'browser' && !target.loggedIn ? `Sign in at ${target.retailer.name} before filling your basket.` : '';
   } else {
-    const shop = retailers.find((retailer) => retailer.id === preferredShop);
-    const instruction = shop ? `${shop.name} disconnected. Reopen its tab or choose another shop.` : shops.length ? 'Choose a shop to find groceries.' : 'Connect a shop to find groceries.';
-    $('connection-summary').textContent = shops.length ? 'Choose shop' : 'Connect shop';
-    $('shop-status').textContent = instruction;
-    $('connection-status').textContent = shop ? instruction : shops.length ? 'Choose from your connected shops.' : 'No shops connected yet.';
+    $('shop-status').textContent = shop ? `${shop.name} disconnected. Reopen its tab or choose another shop.` : shops.length ? 'Choose a shop to start.' : 'Connect a shop from the Shops menu to start.';
   }
-  if (!token) { $('shop-status').textContent = 'Service disconnected. Reconnect from the shop menu.'; $('connection-status').hidden = false; $('connection-status').textContent = 'Service disconnected.'; }
   buttons();
 }
 async function refreshSessions() {
@@ -235,10 +231,8 @@ async function refreshSessions() {
   document.dispatchEvent(new CustomEvent('ship-it-extension-probe'));
 }
 $('retailer').addEventListener('change', () => {
-  preferredShop = $('retailer').value;
-  localStorage.setItem('ship-it-shop', preferredShop);
+  selectedShop = $('retailer').value;
   updateConnection();
-  $('connection-settings').open = false;
 });
 $('reconnect').addEventListener('click', () => action(connect));
 document.addEventListener('ship-it-extension-ready', (event) => {
@@ -264,19 +258,14 @@ $('ack').addEventListener('change', buttons); $('over').addEventListener('change
 $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
   const target = shoppingTarget();
   if (!token || !target) {
+    if (token && connectedShops().length) { $('retailer').focus(); return; }
     const settings = $('connection-settings');
     settings.open = true;
     settings.scrollIntoView({block: 'start', behavior: 'smooth'});
     settings.querySelector('summary').focus();
-    if (!token) {
-      message('Service disconnected. Open shop settings and select Reconnect.', true);
-    } else {
-      message($('shop-status').textContent);
-      if (connectedShops().length) $('retailer').focus();
-      else {
-        $('shop-setup').open = true;
-        if (!extensionReady) $('extension-install').open = true;
-      }
+    if (token) {
+      $('shop-setup').open = true;
+      if (!extensionReady) $('extension-install').open = true;
     }
     return;
   }

@@ -16,12 +16,11 @@
         <div class="menu-panel" id="history">No saved lists.</div>
       </details>
       <details id="connection-settings" class="menu connection">
-        <summary id="connection-summary">Shop</summary>
+        <summary id="connection-summary">Shops</summary>
         <div class="menu-panel">
           <input id="token" type="hidden" value="{{.APIToken}}">
           <p id="connection-status" class="muted" role="status">Checking shops…</p>
           <button id="reconnect" type="button" hidden>Reconnect</button>
-          <label id="shop-picker" hidden>Choose shop<select id="retailer" disabled><option value="">Choose a shop</option></select></label>
           <details id="shop-setup" hidden>
             <summary id="add-shop">Connect a shop</summary>
             <div id="extension-setup" hidden>
@@ -37,7 +36,7 @@
             <div id="shop-links" hidden>
               <p>Open a shop and choose delivery or pickup. You can find groceries without signing in.</p>
               <div id="retailer-links" class="shop-links"></div>
-              <p class="muted">Keep its tab open. Then choose it from your connected shops above.</p>
+              <p class="muted">Keep its tab open. Then choose it in the Shop field.</p>
             </div>
           </details>
         </div>
@@ -46,9 +45,10 @@
   </header>
   <main>
     <h1>Make a grocery list.</h1>
-    <p class="instruction">Enter a meal and portions, or a grocery list.</p>
+    <p class="instruction">Choose a shop, then enter a meal and portions, or a grocery list.</p>
     <section class="input-panel" aria-label="Grocery request">
       <form id="plan-form">
+        <label class="shop-field">Shop<select id="retailer" required disabled><option value="">Choose a shop</option></select></label>
         <label for="text">What do you need?</label>
         <textarea id="text" maxlength="16000" required placeholder="Korvstroganoff för 5 personer. Vi har redan salt och peppar."></textarea>
         <div class="examples" aria-label="Example requests"><span>Try:</span><button type="button" data-example="dinner">Dinner for 5</button><button type="button" data-example="breakfast">Grocery list</button><button type="button" data-example="diet">Dietary needs</button></div>
