@@ -1,4 +1,4 @@
-import {api, applyTransfer, localURL} from './runner.js';
+import {api, applyTransfer, discoverSessions, localURL} from './runner.js';
 import './adapters.js';
 
 const extension = globalThis.browser || globalThis.chrome;
@@ -11,27 +11,20 @@ const storage = extension.storage.local;
 if (storage.setAccessLevel) storage.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
 
 async function storeCall(tabID, retailerID, operation, body = {}) {
-  const reply = await extension.tabs.sendMessage(tabID, {type: 'store-operation', retailer_id: retailerID, operation, ...body});
-  if (!reply || reply.error) throw Object.assign(new Error(reply?.error || 'Reload your store tab to connect it.'), {status: reply?.status});
+  const unreachable = () => Object.assign(new Error(`Reload your ${ShipItAdapters.names[retailerID]} tab to connect it.`), {unreachable: true});
+  const reply = await extension.tabs.sendMessage(tabID, {type: 'store-operation', retailer_id: retailerID, operation, ...body}).catch(() => { throw unreachable(); });
+  if (!reply) throw unreachable();
+  if (reply.error) throw Object.assign(new Error(reply.error), {status: reply.status});
   return reply.result;
 }
 
 async function discover(settings) {
-  const found = [];
-  const issues = [];
   const tabs = await extension.tabs.query({url: Object.values(origins).map((origin) => origin + '/*')});
-  for (const [id, origin] of Object.entries(origins)) {
-    const tab = tabs.find((tab) => { try { return new URL(tab.url).origin === origin; } catch { return false; } });
-    if (!tab) continue;
-    try {
-      const session = await storeCall(tab.id, id, 'session');
-      found.push({...session, tabID: tab.id});
-    } catch (error) { issues.push(error.message); }
-  }
-  await api(settings, '/v1/client/sessions', 'POST', {sessions: found.map(({tabID, ...session}) => session)});
+  const {found, issues} = await discoverSessions(origins, tabs, (tabID, id) => storeCall(tabID, id, 'session'));
+  await api(settings, '/v1/client/sessions', 'POST', {sessions: found.map(({tabID, ...session}) => session), issues});
   sessions = found;
   sessionTime = Date.now();
-  status = issues.join(' ') || (sessions.length ? `${sessions.length} store session${sessions.length === 1 ? '' : 's'} connected.` : 'Open Mathem, Willys or Hemköp and choose your store.');
+  status = issues.map((issue) => issue.message).join(' ') || (sessions.length ? `${sessions.length} store session${sessions.length === 1 ? '' : 's'} connected.` : 'Open Mathem, Willys or Hemköp and choose your store.');
 }
 
 function findSession(retailerID, context) {

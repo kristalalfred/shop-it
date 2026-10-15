@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,13 @@ type Session struct {
 	Name       string                `json:"name"`
 	LoggedIn   bool                  `json:"logged_in"`
 	SeenAt     time.Time             `json:"seen_at"`
+}
+
+type Issue struct {
+	RetailerID string    `json:"retailer_id"`
+	ClientID   string    `json:"client_id"`
+	Message    string    `json:"message"`
+	SeenAt     time.Time `json:"seen_at"`
 }
 
 type SearchJob struct {
@@ -39,24 +47,52 @@ type pendingSearch struct {
 type Bridge struct {
 	mu       sync.Mutex
 	sessions map[string][]Session
+	issues   map[string][]Issue
 	jobs     []*pendingSearch
 	timeout  time.Duration
 }
 
 func NewBridge(timeout time.Duration) *Bridge {
-	return &Bridge{sessions: map[string][]Session{}, timeout: timeout}
+	return &Bridge{sessions: map[string][]Session{}, issues: map[string][]Issue{}, timeout: timeout}
 }
 
-func (b *Bridge) Publish(clientID string, sessions []Session) {
+func (b *Bridge) Publish(clientID string, sessions []Session, issues []Issue) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	now := time.Now().UTC()
 	sessions = slices.Clone(sessions)
 	for i := range sessions {
 		sessions[i].ClientID = clientID
-		sessions[i].SeenAt = time.Now().UTC()
+		sessions[i].SeenAt = now
 		sessions[i].Context.Memberships = slices.Clone(sessions[i].Context.Memberships)
 	}
 	b.sessions[clientID] = sessions
+	issues = slices.Clone(issues)
+	for i := range issues {
+		issues[i].ClientID = clientID
+		issues[i].SeenAt = now
+	}
+	b.issues[clientID] = issues
+}
+
+func (b *Bridge) Issues() []Issue {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	result := []Issue{}
+	for _, issues := range b.issues {
+		for _, issue := range issues {
+			if time.Since(issue.SeenAt) < 45*time.Second {
+				result = append(result, issue)
+			}
+		}
+	}
+	slices.SortFunc(result, func(a, c Issue) int {
+		if a.RetailerID != c.RetailerID {
+			return strings.Compare(a.RetailerID, c.RetailerID)
+		}
+		return strings.Compare(a.ClientID, c.ClientID)
+	})
+	return result
 }
 
 func (b *Bridge) Sessions() []Session {

@@ -3,6 +3,7 @@ package backend
 import (
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/kristalalfred/ship-it/internal/retailer"
 	"github.com/kristalalfred/ship-it/internal/shopping"
@@ -23,11 +24,11 @@ func (s *Server) transferSession(retailerID, clientID string, context shopping.S
 
 func (s *Server) registerBrowser(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/browser-sessions", s.user(func(w http.ResponseWriter, r *http.Request) {
-		sessions := []retailer.Session{}
+		sessions, issues := []retailer.Session{}, []retailer.Issue{}
 		if s.bridge != nil {
-			sessions = s.bridge.Sessions()
+			sessions, issues = s.bridge.Sessions(), s.bridge.Issues()
 		}
-		respond(w, 200, map[string]any{"sessions": sessions})
+		respond(w, 200, map[string]any{"sessions": sessions, "issues": issues})
 	}))
 	mux.HandleFunc("POST /v1/clients/{id}/pair", s.user(func(w http.ResponseWriter, r *http.Request) {
 		for _, client := range s.config.Clients {
@@ -41,6 +42,7 @@ func (s *Server) registerBrowser(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/client/sessions", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
 		var input struct {
 			Sessions []retailer.Session `json:"sessions"`
+			Issues   []retailer.Issue   `json:"issues"`
 		}
 		if !decode(w, r, &input) {
 			return
@@ -57,7 +59,18 @@ func (s *Server) registerBrowser(mux *http.ServeMux) {
 			}
 			seen[session.RetailerID] = true
 		}
-		s.bridge.Publish(clientID, input.Sessions)
+		if len(input.Issues) > 3 {
+			fail(w, shopping.ErrInvalid)
+			return
+		}
+		for _, issue := range input.Issues {
+			if !s.browserMode(issue.RetailerID) || seen[issue.RetailerID] || strings.TrimSpace(issue.Message) == "" || len(issue.Message) > 300 || !utf8.ValidString(issue.Message) {
+				fail(w, shopping.ErrInvalid)
+				return
+			}
+			seen[issue.RetailerID] = true
+		}
+		s.bridge.Publish(clientID, input.Sessions, input.Issues)
 		respond(w, 200, map[string]string{"status": "ok"})
 	}))
 	mux.HandleFunc("POST /v1/client/search-claims", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {

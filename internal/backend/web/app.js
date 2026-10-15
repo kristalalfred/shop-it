@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], sessionPoll = null, interpreterMode = '', basketRedirect = null, redirectTransfer = null;
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, sessions = [], issues = [], sessionPoll = null, interpreterMode = '', basketRedirect = null, redirectTransfer = null;
 let extensionReady = false, extensionConnected = false, pairing = false, extensionError = '', shopOptions = '', shopLinks = '';
 let selectedShop = '';
 const contextEqual = (a, b) => ['store_id', 'postal_code', 'fulfillment', 'delivery_slot_id', 'session_id'].every((key) => (a[key] || '') === (b[key] || '')) && JSON.stringify(a.memberships || []) === JSON.stringify(b.memberships || []);
@@ -177,7 +177,7 @@ async function connect() {
     await refreshSessions();
     $('shop-setup').open = !connectedShops().length;
     if (sessionPoll) clearInterval(sessionPoll);
-    sessionPoll = setInterval(() => { if (token) refreshSessions().catch(() => { sessions = []; updateConnection(); }); }, 5000);
+    sessionPoll = setInterval(() => { if (token) refreshSessions().catch(() => { sessions = []; issues = []; updateConnection(); }); }, 5000);
     await history();
   } catch (error) { token = ''; $('reconnect').hidden = false; updateConnection(); throw error; }
 }
@@ -211,6 +211,8 @@ function updateConnection() {
       $('retailer-links').append(link);
     }
   }
+  const problems = issues.filter((issue) => unconnected.some((retailer) => retailer.id === issue.retailer_id));
+  $('shop-issues').replaceChildren(...problems.map((issue) => el('p', `${retailers.find((retailer) => retailer.id === issue.retailer_id).name} isn't connected. ${issue.message}`, 'muted')));
   $('connection-summary').textContent = shops.length ? 'Shops' : 'Connect shop';
   $('connection-status').textContent = shops.length ? `Connected: ${shops.map((shop) => shop.name).join(', ')}.` : 'No shops connected yet.';
   const shop = retailers.find((retailer) => retailer.id === selectedShop);
@@ -227,6 +229,7 @@ function updateConnection() {
 async function refreshSessions() {
   const result = await api('/v1/browser-sessions', undefined, 'GET');
   sessions = result.sessions;
+  issues = result.issues;
   updateConnection();
   document.dispatchEvent(new CustomEvent('ship-it-extension-probe'));
 }

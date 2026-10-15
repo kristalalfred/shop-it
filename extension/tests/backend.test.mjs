@@ -99,6 +99,12 @@ test('real adapter protocol carries a reviewed plan through the backend and veri
   assert.ok(html.includes('Connect extension'));
   assert.equal((await fetch(url + '/extension/firefox.zip')).status, 200);
   await api('/v1/client/sessions', clientToken, 'POST', {sessions: []});
+  await api('/v1/client/sessions', clientToken, 'POST', {sessions: [], issues: [{retailer_id: 'willys', message: 'Select a store and delivery or pickup on Willys.'}]});
+  assert.deepEqual((await api('/v1/browser-sessions', userToken, 'GET')).issues.map(({retailer_id, client_id, message}) => ({retailer_id, client_id, message})), [{retailer_id: 'willys', client_id: 'browser', message: 'Select a store and delivery or pickup on Willys.'}]);
+  for (const body of [{sessions: [], issues: [{retailer_id: 'ica', message: 'Unknown shop.'}]}, {sessions: [session], issues: [{retailer_id: 'willys', message: 'Both connected and failing.'}]}, {sessions: [], issues: [{retailer_id: 'willys', message: ' '}]}]) {
+    const rejected = await fetch(url + '/v1/client/sessions', {method: 'POST', headers: {Authorization: `Bearer ${clientToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    assert.equal(rejected.status, 400);
+  }
   const offline = await fetch(url + '/v1/catalog/search', {method: 'POST', headers: {Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify({retailer_id: 'willys', context: session.context, query: 'milk'})});
   assert.equal(offline.status, 502);
   const stale = await fetch(url + `/v1/shopping-plans/${plan.id}/transfer`, {method: 'POST', headers: {Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json', 'Idempotency-Key': 'stale'}, body: JSON.stringify({revision: plan.revision, client_id: 'browser', acknowledge_warnings: true})});

@@ -48,7 +48,7 @@
     <p class="instruction">Choose a shop, then enter a meal and portions, or a grocery list.</p>
     <section class="input-panel" aria-label="Grocery request">
       <form id="plan-form">
-        <label class="shop-field">Shop<select id="retailer" required disabled><option value="">Choose a shop</option></select></label>
+        <div class="shop-field"><label>Shop<select id="retailer" required disabled><option value="">Choose a shop</option></select></label><div id="shop-issues" role="status"></div></div>
         <label for="text">What do you need?</label>
         <textarea id="text" maxlength="16000" required placeholder="Korvstroganoff för 5 personer. Vi har redan salt och peppar."></textarea>
         <div class="examples" aria-label="Example requests"><span>Try:</span><button type="button" data-example="dinner">Dinner for 5</button><button type="button" data-example="breakfast">Grocery list</button><button type="button" data-example="diet">Dietary needs</button></div>

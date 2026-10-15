@@ -29,7 +29,7 @@ async function app(mode = 'browser', {shops, sessions} = {}) {
     '/v1/retailers': {retailers: shops || [{id: 'mathem', name: 'Mathem', mode}]},
     '/v1/clients': {clients: [{id: 'browser'}]},
     '/healthz': {interpreter: 'codex'},
-    '/v1/browser-sessions': {sessions: sessions || [{retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true}]},
+    '/v1/browser-sessions': {sessions: sessions || [{retailer_id: 'mathem', client_id: 'browser', context: store, logged_in: true}], issues: []},
     '/v1/shopping-plans': {plans: []},
   };
   const values = new Map();
@@ -137,17 +137,31 @@ test('losing the selected shop never switches to another connected retailer', as
   const originalOptions = ui.elements.get('retailer').children;
   await ui.refresh();
   assert.equal(ui.elements.get('retailer').children, originalOptions);
-  ui.responses['/v1/browser-sessions'] = {sessions: [mathem]};
+  ui.responses['/v1/browser-sessions'] = {sessions: [mathem], issues: []};
   await ui.refresh();
   assert.equal(ui.elements.get('retailer').value, '');
   assert.equal(ui.elements.get('create').disabled, true);
   assert.match(ui.elements.get('shop-status').textContent, /Willys disconnected/);
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
   assert.equal(ui.requests.some((request) => request.path === '/v1/shopping-plans' && request.method === 'POST'), false);
-  ui.responses['/v1/browser-sessions'] = {sessions: [mathem, willys]};
+  ui.responses['/v1/browser-sessions'] = {sessions: [mathem, willys], issues: []};
   await ui.refresh();
   assert.equal(ui.elements.get('retailer').value, 'willys');
   assert.equal(ui.elements.get('create').disabled, false);
+});
+
+test('shops that fail to connect explain why under the shop picker', async () => {
+  const ui = await app('browser', {shops, sessions: [mathem]});
+  assert.deepEqual(ui.elements.get('shop-issues').children, []);
+  ui.responses['/v1/browser-sessions'] = {sessions: [mathem], issues: [
+    {retailer_id: 'willys', client_id: 'browser', message: 'Select a store and delivery or pickup on Willys.'},
+    {retailer_id: 'mathem', client_id: 'other', message: 'Reload your Mathem tab to connect it.'},
+  ]};
+  await ui.refresh();
+  assert.deepEqual(ui.elements.get('shop-issues').children.map((line) => line.textContent), ["Willys isn't connected. Select a store and delivery or pickup on Willys."]);
+  ui.responses['/v1/browser-sessions'] = {sessions: [mathem, willys], issues: []};
+  await ui.refresh();
+  assert.deepEqual(ui.elements.get('shop-issues').children, []);
 });
 
 test('paired extension hides setup even without an open shop', async () => {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import '../assets/adapters.js';
-import {applyTransfer, localURL} from '../assets/runner.js';
+import {applyTransfer, discoverSessions, localURL} from '../assets/runner.js';
 
 const adapters = globalThis.ShipItAdapters;
 const fixtures = JSON.parse(await readFile(new URL('./storefronts.json', import.meta.url)));
@@ -141,4 +141,28 @@ test('failed read-back produces uncertainty and failed login produces login_requ
 test('connection settings reject redirects, remote hosts and embedded credentials', () => {
   assert.equal(localURL('http://127.0.0.1:18080'), 'http://127.0.0.1:18080');
   for (const url of ['https://example.com/', 'http://127.0.0.1.evil.test/', 'http://user:pass@127.0.0.1/', 'http://127.0.0.1/path', 'http://127.0.0.1/?token=x']) assert.throws(() => localURL(url));
+});
+
+test('session discovery tries every shop tab, preferring loaded and recently used ones', async () => {
+  const origins = {willys: 'https://www.willys.se', hemkop: 'https://www.hemkop.se', mathem: 'https://www.mathem.se'};
+  const tabs = [
+    {id: 1, url: 'https://www.willys.se/', discarded: true, lastAccessed: 300},
+    {id: 2, url: 'https://www.willys.se/', lastAccessed: 100},
+    {id: 3, url: 'https://www.willys.se/erbjudanden', lastAccessed: 200},
+    {id: 4, url: 'https://www.hemkop.se/', lastAccessed: 50},
+    {id: 5, url: 'https://www.hemkop.se/handla', lastAccessed: 40},
+  ];
+  const calls = [];
+  const unreachable = (id) => Object.assign(new Error(`Reload your ${id} tab to connect it.`), {unreachable: true});
+  const {found, issues} = await discoverSessions(origins, tabs, async (tabID, id) => {
+    calls.push(tabID);
+    if (tabID === 3 || tabID === 1) throw unreachable(id);
+    if (id === 'hemkop') throw new Error('Select a store and delivery or pickup on Hemköp.');
+    return {retailer_id: id, name: id};
+  });
+  assert.deepEqual(calls, [3, 2, 4]);
+  assert.deepEqual(found, [{retailer_id: 'willys', name: 'willys', tabID: 2}]);
+  assert.deepEqual(issues, [{retailer_id: 'hemkop', message: 'Select a store and delivery or pickup on Hemköp.'}]);
+  const stale = await discoverSessions(origins, [tabs[0]], async (tabID, id) => { throw unreachable(id); });
+  assert.deepEqual(stale, {found: [], issues: [{retailer_id: 'willys', message: 'Reload your willys tab to connect it.'}]});
 });

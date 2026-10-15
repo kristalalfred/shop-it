@@ -12,7 +12,7 @@ import (
 func TestBrowserSearchOwnershipAndContext(t *testing.T) {
 	bridge := NewBridge(time.Second)
 	store := shopping.StoreContext{StoreID: "store", PostalCode: "11122", Fulfillment: "delivery", SessionID: "session"}
-	bridge.Publish("browser", []Session{{RetailerID: "willys", Context: store, LoggedIn: true}})
+	bridge.Publish("browser", []Session{{RetailerID: "willys", Context: store, LoggedIn: true}}, nil)
 	request := shopping.SearchRequest{RetailerID: "willys", Context: store, Query: "milk"}
 	finished := make(chan error, 1)
 	go func() {
@@ -64,7 +64,7 @@ func TestBrowserSearchTimeoutAndSessionExpiry(t *testing.T) {
 	if _, err := bridge.Search(context.Background(), request); !errors.Is(err, shopping.ErrUpstream) {
 		t.Fatalf("offline search: %v", err)
 	}
-	bridge.Publish("browser", []Session{{RetailerID: "mathem", Context: store}})
+	bridge.Publish("browser", []Session{{RetailerID: "mathem", Context: store}}, nil)
 	if bridge.HasSession("mathem", "browser", store, true) {
 		t.Fatal("anonymous session allowed a transfer")
 	}

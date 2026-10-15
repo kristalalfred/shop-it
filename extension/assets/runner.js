@@ -37,6 +37,27 @@ export async function applyTransfer(transfer, adapter, journal, renew) {
   return record.receipt;
 }
 
+export async function discoverSessions(origins, tabs, call) {
+  const origin = (tab) => { try { return new URL(tab.url).origin; } catch { return ''; } };
+  const ranked = [...tabs].sort((a, b) => Number(Boolean(a.discarded)) - Number(Boolean(b.discarded)) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  const found = [], issues = [];
+  for (const [id, shopOrigin] of Object.entries(origins)) {
+    let issue = '';
+    for (const tab of ranked.filter((tab) => origin(tab) === shopOrigin)) {
+      try {
+        found.push({...await call(tab.id, id), tabID: tab.id});
+        issue = '';
+        break;
+      } catch (error) {
+        issue = error.unreachable && issue ? issue : String(error.message || 'The shop tab did not respond.').slice(0, 300);
+        if (!error.unreachable) break;
+      }
+    }
+    if (issue) issues.push({retailer_id: id, message: issue});
+  }
+  return {found, issues};
+}
+
 export function localURL(raw) {
   const url = new URL(raw);
   if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Use an http://127.0.0.1 address for the local service.');
