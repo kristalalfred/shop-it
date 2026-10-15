@@ -55,6 +55,8 @@ test('page bridge pairs automatically and announces the paired client', async ()
   pairing = {error: 'Pairing failed.'};
   await listeners.get('ship-it-extension-probe')();
   assert.deepEqual(JSON.parse(events.at(-1).detail), {connected: false, client_id: '', error: 'Pairing failed.'});
+  listeners.get('ship-it-fill')();
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), {type: 'fill'});
   pairing = new Error('Extension context invalidated.');
   await listeners.get('ship-it-extension-probe')();
   assert.deepEqual(JSON.parse(events.at(-1).detail), {connected: false, client_id: '', error: 'Reload the extension and this page.'});

@@ -98,3 +98,27 @@ func TestRenewalRetainsOwnershipAndSurvivesRestart(t *testing.T) {
 		t.Fatalf("expired lease was renewed: %v", err)
 	}
 }
+
+func TestUnclaimedTransfersExpireInsteadOfFillingLater(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemory()
+	req := shopping.TransferRequest{ClientID: "browser", RetailerID: "willys", Items: []shopping.BasketItem{{ProductID: "milk", Quantity: 1}}}
+	created, _, err := s.Create(ctx, req, "waiting", "https://www.willys.se/varukorg")
+	if err != nil || created.State != "pending" {
+		t.Fatalf("create: %+v, %v", created, err)
+	}
+	s.wait = -time.Second
+	if got, err := s.Get(ctx, created.ID); err != nil || got.State != "expired" {
+		t.Fatalf("stale transfer still waiting: %+v, %v", got, err)
+	}
+	if retry, _, err := s.Create(ctx, req, "waiting", "https://www.willys.se/varukorg"); err != nil || retry.State != "expired" {
+		t.Fatalf("retried key revived a stale transfer: %+v, %v", retry, err)
+	}
+	if _, err := s.Claim(ctx, "browser"); !errors.Is(err, shopping.ErrNotFound) {
+		t.Fatalf("stale transfer was claimed: %v", err)
+	}
+	s.wait = time.Hour
+	if got, _ := s.Get(ctx, created.ID); got.State != "expired" {
+		t.Fatalf("expiry was not persisted: %+v", got)
+	}
+}

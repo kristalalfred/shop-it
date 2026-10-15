@@ -18,5 +18,6 @@
     document.dispatchEvent(new CustomEvent('ship-it-extension-ready', {detail: JSON.stringify(result)}));
   });
   document.addEventListener('ship-it-extension-probe', announce);
+  document.addEventListener('ship-it-fill', () => { extension.runtime.sendMessage({type: 'fill'}).catch(() => {}); });
   announce();
 })();

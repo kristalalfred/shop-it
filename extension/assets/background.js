@@ -115,6 +115,11 @@ extension.runtime.onMessage.addListener((message, sender, respond) => {
     pair(message, sender).then(respond, (error) => respond({error: error.message}));
     return true;
   }
+  if (message.type === 'fill' && sender.tab) {
+    try { pageOrigin(sender); } catch { return false; }
+    void tick();
+    return false;
+  }
   if (message.type === 'connection' && sender.tab) {
     let url;
     try { url = pageOrigin(sender); } catch { return false; }

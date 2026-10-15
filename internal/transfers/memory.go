@@ -27,6 +27,7 @@ type snapshot struct {
 type Store struct {
 	state *persistence.Store[snapshot]
 	lease time.Duration
+	wait  time.Duration
 }
 
 func NewMemory() *Store {
@@ -46,7 +47,7 @@ func Open(path string) (*Store, error) {
 	if data.Entries == nil || data.Keys == nil || data.Order == nil {
 		return nil, shopping.ErrInvalid
 	}
-	return &Store{state: state, lease: 30 * time.Second}, nil
+	return &Store{state: state, lease: 30 * time.Second, wait: 2 * time.Minute}, nil
 }
 
 func (s *Store) Create(ctx context.Context, req shopping.TransferRequest, key, basketURL string) (t shopping.Transfer, created bool, err error) {
@@ -64,7 +65,7 @@ func (s *Store) Create(ctx context.Context, req shopping.TransferRequest, key, b
 			if e.Payload != string(payload) {
 				return shopping.ErrConflict
 			}
-			t = clone(e.Transfer)
+			t = s.view(e.Transfer)
 			return nil
 		}
 		t = shopping.Transfer{ID: "transfer-" + rand.Text(), TransferRequest: req, State: "pending", BasketURL: basketURL, CreatedAt: time.Now().UTC()}
@@ -89,16 +90,36 @@ func (s *Store) Get(ctx context.Context, id string) (shopping.Transfer, error) {
 	if !ok {
 		return shopping.Transfer{}, shopping.ErrNotFound
 	}
-	return e.Transfer, nil
+	return s.view(e.Transfer), nil
+}
+
+func (s *Store) unclaimed(t shopping.Transfer) bool {
+	return t.State == "pending" && time.Since(t.CreatedAt) > s.wait
+}
+
+func (s *Store) view(t shopping.Transfer) shopping.Transfer {
+	t = clone(t)
+	if s.unclaimed(t) {
+		t.State = "expired"
+	}
+	return t
 }
 
 func (s *Store) Claim(ctx context.Context, clientID string) (t shopping.Transfer, err error) {
+	claimed := false
 	err = s.state.Update(func(data *snapshot) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		changed := false
 		for _, id := range data.Order {
 			e := data.Entries[id]
+			if s.unclaimed(e.Transfer) {
+				e.Transfer.State = "expired"
+				data.Entries[id] = e
+				changed = true
+				continue
+			}
 			expired := e.Transfer.State == "claimed" && (e.Transfer.ClaimExpiresAt == nil || !e.Transfer.ClaimExpiresAt.After(time.Now()))
 			if e.Transfer.ClientID == clientID && (e.Transfer.State == "pending" || expired) {
 				e.Transfer.State = "claimed"
@@ -106,11 +127,18 @@ func (s *Store) Claim(ctx context.Context, clientID string) (t shopping.Transfer
 				e.Transfer.ClaimExpiresAt = &expires
 				data.Entries[id] = e
 				t = clone(e.Transfer)
+				claimed = true
 				return nil
 			}
 		}
+		if changed {
+			return nil
+		}
 		return shopping.ErrNotFound
 	})
+	if err == nil && !claimed {
+		err = shopping.ErrNotFound
+	}
 	return t, err
 }
 

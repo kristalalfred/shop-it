@@ -29,7 +29,7 @@ async function app(retailers = shops) {
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], new Element()]));
   elements.get('token').value = 'test-user';
   const events = new Map(), documentEvents = new Map(), timers = new Map(), navigation = [], requests = [];
-  let now = 0, nextID = 1;
+  let now = 0, nextID = 1, uuid = 0;
   const responses = {
     '/v1/retailers': {retailers},
     '/v1/clients': {clients: [{id: 'demo-browser'}]},
@@ -43,7 +43,7 @@ async function app(retailers = shops) {
     document: {getElementById: (id) => elements.get(id), createElement: () => new Element(), querySelectorAll: () => [], addEventListener: (type, callback) => documentEvents.set(type, callback), dispatchEvent: (event) => documentEvents.get(event.type)?.(event)},
     window: {location: {assign: (url) => navigation.push(url)}, addEventListener: (event, callback) => events.set(event, callback)},
     localStorage: storage, sessionStorage: storage, CustomEvent: class { constructor(type) { this.type = type; } },
-    crypto: {randomUUID: () => 'key'},
+    crypto: {randomUUID: () => `key-${++uuid}`},
     fetch: async (path, options) => {
       assert.ok(responses[path], `Unexpected request ${path}`);
       requests.push({path, ...options, body: options.body ? JSON.parse(options.body) : undefined});
@@ -57,7 +57,7 @@ async function app(retailers = shops) {
   return {
     elements, navigation, events, emit, requests, responses,
     choose: (shop) => { elements.get('retailer').value = shop; elements.get('retailer').listeners.change(); },
-    receipt: (state, retailer = 'mathem') => runInContext(`showReceipt(${JSON.stringify({id: 'transfer', state, retailer_id: retailer, basket_url: basketURL, receipt: {lines: [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]}})})`, context),
+    receipt: (state, retailer = 'mathem', created = new Date().toISOString()) => runInContext(`showReceipt(${JSON.stringify({id: 'transfer', state, retailer_id: retailer, basket_url: basketURL, created_at: created, receipt: {lines: [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]}})})`, context),
     plan: (value) => runInContext(`showPlan(${JSON.stringify(value)})`, context),
     advance: (duration) => {
       const end = now + duration;
@@ -165,4 +165,36 @@ test('a filled live basket points to the shop tab and leaves this page in place'
   const demoUI = await app(demo);
   demoUI.receipt('completed');
   assert.match(demoUI.elements.get('receipt').textContent, /Demo: Your basket is ready to review/);
+});
+
+test('a finished fill can be tried again as a new attempt', async () => {
+  const ui = await app();
+  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.plan(shoppingPlan());
+  const fill = async (state) => {
+    ui.responses['/v1/shopping-plans/plan/transfer'] = {id: `transfer-${state}`, state, retailer_id: 'mathem', basket_url: basketURL, created_at: new Date().toISOString()};
+    ui.elements.get('transfer').listeners.click();
+    await new Promise((resolve) => setImmediate(resolve));
+    return ui.requests.filter((request) => request.path === '/v1/shopping-plans/plan/transfer').at(-1).headers['Idempotency-Key'];
+  };
+  const first = await fill('failed');
+  assert.match(ui.elements.get('receipt').textContent, /could not be updated/);
+  const second = await fill('expired');
+  assert.notEqual(second, first);
+  assert.match(ui.elements.get('receipt').textContent, /did not pick this up/);
+  const third = await fill('pending');
+  assert.notEqual(third, second);
+  assert.equal(await fill('pending'), third);
+});
+
+test('a fill nobody picks up explains that the extension is not responding', async () => {
+  const ui = await app();
+  ui.plan(shoppingPlan());
+  ui.receipt('pending');
+  assert.match(ui.elements.get('receipt').textContent, /Opening Mathem in a new tab/);
+  ui.receipt('pending', 'mathem', new Date(Date.now() - 15000).toISOString());
+  assert.match(ui.elements.get('receipt').textContent, /Waiting for the Ship It extension/);
+  ui.receipt('expired');
+  assert.match(ui.elements.get('receipt').textContent, /did not pick this up/);
+  assert.match(ui.elements.get('extension-status').textContent, /not running in this browser/);
 });

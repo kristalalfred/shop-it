@@ -174,7 +174,7 @@ function updateShop() {
 }
 function updateExtension() {
   $('extension-setup').hidden = planRetailer()?.mode !== 'browser' || browserExtension.connected;
-  $('extension-status').textContent = browserExtension.error || 'Install the Ship It extension to fill your basket, then reload this page.';
+  $('extension-status').textContent = browserExtension.error || 'The Ship It extension is not running in this browser. Install it, or reload it if it is already installed, then reload this page.';
   $('extension-install').hidden = browserExtension.ready;
   buttons();
 }
@@ -208,7 +208,8 @@ $('refresh').addEventListener('click', () => action(async () => { showPlan(await
 function showReceipt(transfer) {
   const retailer = retailers.find((r) => r.id === transfer.retailer_id);
   const simulated = retailer?.mode === 'mock', name = retailer?.name || 'the shop';
-  const states = {pending: simulated ? 'Filling your basket…' : `Opening ${name} in a new tab…`, claimed: `Filling your ${name} basket…`, completed: simulated ? 'Your basket is ready to review.' : `Your basket is ready in the ${name} tab.`, partial: `Some items need your review in the ${name} tab.`, login_required: `Sign in at ${name}, then fill the basket again.`, uncertain: `Check these items in your ${name} basket.`, failed: 'The basket could not be updated.'};
+  const waiting = !simulated && transfer.state === 'pending' && Date.now() - Date.parse(transfer.created_at) > 10000;
+  const states = {pending: simulated ? 'Filling your basket…' : waiting ? 'Waiting for the Ship It extension. If nothing happens, reload the extension and this page.' : `Opening ${name} in a new tab…`, expired: 'The Ship It extension did not pick this up. Make sure it is running, then fill the basket again.', claimed: `Filling your ${name} basket…`, completed: simulated ? 'Your basket is ready to review.' : `Your basket is ready in the ${name} tab.`, partial: `Some items need your review in the ${name} tab.`, login_required: `Sign in at ${name}, then fill the basket again.`, uncertain: `Check these items in your ${name} basket.`, failed: 'The basket could not be updated.'};
   $('receipt').replaceChildren(el('p', `${simulated ? 'Demo: ' : ''}${states[transfer.state] || 'Checking your basket…'}`, 'notice'));
   const labels = {applied: 'Added', unavailable: 'Unavailable', failed: 'Could not add', login_required: 'Sign in at your shop', uncertain: 'Check at your shop'};
   if (transfer.receipt) for (const line of transfer.receipt.lines) {
@@ -224,20 +225,21 @@ function showReceipt(transfer) {
 
 $('transfer').addEventListener('click', () => action(async () => {
   const clientID = planClient();
-  if (!clientID) throw new Error('Install the Ship It extension to fill your basket.');
+  if (!clientID) throw new Error('The Ship It extension is not running in this browser.');
   const scope = `ship-it-transfer:${plan.id}:${plan.revision}:${clientID}`;
   let key = sessionStorage.getItem(scope); if (!key) { key = crypto.randomUUID(); sessionStorage.setItem(scope, key); }
   const result = await api(`/v1/shopping-plans/${plan.id}/transfer`, {revision: plan.revision, client_id: clientID, acknowledge_warnings: $('ack').checked, allow_over_budget: $('over').checked}, 'POST', key);
-  showReceipt(result);
-  stopPoll();
-  const check = async () => {
-    try {
-      const result = await api(`/v1/basket-transfers/${resultId}`, undefined, 'GET'); showReceipt(result);
-      if (['pending', 'claimed'].includes(result.state)) poll = setTimeout(check, 1000);
-    } catch (error) { message(error.message, true); }
+  document.dispatchEvent(new CustomEvent('ship-it-fill'));
+  const follow = (transfer) => {
+    showReceipt(transfer);
+    if (['pending', 'claimed'].includes(transfer.state)) poll = setTimeout(check, 1000);
+    else sessionStorage.removeItem(scope);
   };
-  const resultId = result.id;
-  if (['pending', 'claimed'].includes(result.state)) poll = setTimeout(check, 500);
+  const check = async () => {
+    try { follow(await api(`/v1/basket-transfers/${result.id}`, undefined, 'GET')); } catch (error) { message(error.message, true); }
+  };
+  stopPoll();
+  follow(result);
 }));
 
 window.addEventListener('pagehide', stopPoll);
