@@ -173,7 +173,8 @@ h2 { font-size: 24px; font-weight: 800; letter-spacing: -.7px; margin: 0; }
 .total strong { font-size: 32px; letter-spacing: -1px; white-space: nowrap; }
 .total p { margin: 6px 0; }
 .check { margin-bottom: 12px; font-size: 13px; }
-.actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 24px; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: 16px; margin-top: 24px; }
+#refresh, .filled { margin-right: auto; }
 .filled { font-size: 14px; font-weight: 700; }
 .actions .primary { min-width: 190px; }
 #receipt p { margin: 16px 0 0; }

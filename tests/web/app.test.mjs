@@ -192,7 +192,10 @@ test('a filled basket only confirms the fill and New list starts over', async ()
   assert.deepEqual(ui.elements.get('receipt').children, []);
   assert.equal(ui.elements.get('filled').hidden, false);
   assert.equal(ui.elements.get('filled').textContent, '✓ Basket filled at Mathem');
-  assert.equal(ui.elements.get('transfer').hidden, true);
+  assert.equal(ui.elements.get('transfer').hidden, false);
+  assert.equal(ui.elements.get('transfer').disabled, false);
+  assert.equal(ui.elements.get('transfer').textContent, 'Fill basket again');
+  assert.equal(ui.elements.get('transfer').className, '');
   assert.equal(ui.elements.get('refresh').hidden, true);
   assert.equal(ui.elements.get('new-list').className, 'primary');
   assert.match(ui.elements.get('lines').textContent, /Ris 500 g · 1 × Basmatiris/);
@@ -226,8 +229,12 @@ test('a finished fill can be tried again as a new attempt', async () => {
     await new Promise((resolve) => setImmediate(resolve));
     return ui.requests.filter((request) => request.path === '/v1/shopping-plans/plan/transfer').at(-1).headers['Idempotency-Key'];
   };
+  const filled = await fill('completed');
+  assert.equal(ui.elements.get('transfer').textContent, 'Fill basket again');
   const first = await fill('failed');
+  assert.notEqual(first, filled);
   assert.match(ui.elements.get('receipt').textContent, /could not be updated/);
+  assert.equal(ui.elements.get('transfer').className, 'primary');
   const second = await fill('expired');
   assert.notEqual(second, first);
   assert.match(ui.elements.get('receipt').textContent, /did not pick this up/);

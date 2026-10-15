@@ -108,7 +108,7 @@ function buttons() {
   const filling = ['pending', 'claimed'].includes(fill?.state), finished = Boolean(fill) && !filling, completed = fill?.state === 'completed';
   $('refresh').hidden = finished;
   $('refresh').disabled = busy || filling || !plan || !plan.lines.length;
-  $('transfer').hidden = completed;
+  $('transfer').className = completed ? '' : 'primary';
   $('transfer').textContent = filling ? 'Filling…' : finished ? 'Fill basket again' : planRetailer()?.mode === 'mock' ? 'Fill demo basket' : 'Fill basket';
   $('transfer').disabled = busy || filling || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
   $('filled').hidden = !completed;
