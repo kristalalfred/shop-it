@@ -67,12 +67,30 @@ test('Mathem changes only the delta and leaves other products intact', async () 
   await assert.rejects(adapter.set(context, input.items[0], 5), /basket changed/);
 });
 
+test('Axfood sessions use the actively selected store before a time slot is booked', async () => {
+  for (const id of ['willys', 'hemkop']) {
+    const responses = {
+      '/customer': {uid: 'anonymous', storeId: ''},
+      '/cart': {deliveryModeCode: 'pickUpInStore', slotCode: '', postalCode: null, deliveryTimeSlot: {slotBaseStoreId: null, pickupStoreId: null}},
+      '/store/active': {storeId: '2351', activelySelected: true},
+    };
+    const request = async (path) => responses[Object.keys(responses).find((suffix) => path.endsWith(suffix))];
+    const session = await adapters.create(id, {digest: async () => 'session', request}).session();
+    assert.equal(session.context.store_id, '2351');
+    assert.equal(session.context.fulfillment, 'pickup');
+    assert.equal(session.logged_in, false);
+    responses['/store/active'] = {storeId: '2110', activelySelected: false};
+    await assert.rejects(adapters.create(id, {digest: async () => 'session', request}).session(), /Select a store/);
+  }
+});
+
 test('Axfood uses absolute quantities and the retailer basket unit', async () => {
   for (const id of ['willys', 'hemkop']) {
     const calls = [];
     const adapter = adapters.create(id, {digest: async () => 'session', request: async (path, options) => {
       if (path.endsWith('/customer')) return {uid: 'signed-in', storeId: 'store-1'};
       if (path.endsWith('/cart')) return {deliveryModeCode: 'homeDelivery', postalCode: '11122', products: []};
+      if (path.endsWith('/store/active')) return {storeId: 'store-1', activelySelected: true};
       if (path.includes('/p/')) return {productBasketType: {code: 'ST'}};
       calls.push({path, body: options.body}); return {};
     }});

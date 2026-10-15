@@ -45,6 +45,7 @@ test('real adapter protocol carries a reviewed plan through the backend and veri
   let mutations = 0;
   const adapter = ShipItAdapters.create('willys', {digest: async () => 'session-1', request: async (path, options) => {
     if (path.endsWith('/customer')) return {uid: 'test-account', storeId: 'store-1'};
+    if (path.endsWith('/store/active')) return {storeId: 'store-1', activelySelected: true};
     if (path.endsWith('/cart')) return {postalCode: '11122', deliveryModeCode: 'homeDelivery', products: Object.entries(basket).map(([code, quantity]) => ({code, quantity, pickQuantity: 0, productBasketType: {code: 'ST'}}))};
     if (path.includes('/search?')) return fixtures.willys;
     if (path.includes('/p/')) return {productBasketType: {code: 'ST'}};

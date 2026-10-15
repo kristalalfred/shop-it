@@ -61,8 +61,8 @@
         const context = {store_id: 'mathem', postal_code: postal(data?.delivery_address?.postal_code || data?.postal_code), fulfillment: 'delivery', memberships: [], session_id: await digest(scope)};
         return {retailer_id: id, name: names[id], logged_in: data != null, context};
       }
-      const [customer, cart] = await Promise.all([request(`${base}/customer`), getCart()]);
-      const storeID = String(customer.storeId || cart.deliveryTimeSlot?.slotBaseStoreId || cart.deliveryTimeSlot?.pickupStoreId || '');
+      const [customer, cart, active] = await Promise.all([request(`${base}/customer`), getCart(), request(`${base}/store/active`)]);
+      const storeID = String(customer.storeId || cart.deliveryTimeSlot?.slotBaseStoreId || cart.deliveryTimeSlot?.pickupStoreId || (active?.activelySelected === true && active.storeId) || '');
       if (!storeID) throw new Error(`Select a store and delivery or pickup on ${names[id]}.`);
       const mode = String(cart.deliveryModeCode || '').toLowerCase();
       const fulfillment = mode.includes('delivery') || cart.deliverySlot === true ? 'delivery' : mode.includes('pickup') || mode.includes('collect') ? 'pickup' : '';
