@@ -14,12 +14,13 @@ const shops = [
 const demo = [{id: 'mathem', name: 'Mathem', mode: 'mock', basket_url: basketURL, context: {store_id: 'mathem-demo', postal_code: '11122', fulfillment: 'delivery', memberships: ['mathem-demo-member']}}];
 
 class Element {
-  constructor() { this.children = []; this.listeners = {}; this.value = ''; this.checked = false; this.hidden = false; this.text = ''; }
+  constructor() { this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.checked = false; this.hidden = false; this.text = ''; }
   set textContent(value) { this.text = value; this.children = []; }
   get textContent() { return this.text + this.children.map((node) => node.textContent).join(' '); }
   append(...nodes) { this.children.push(...nodes); }
   replaceChildren(...nodes) { this.text = ''; this.children = nodes; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
+  setAttribute(name, value) { this.attributes[name] = value; }
   querySelector() { return this; }
   scrollIntoView() {}
   focus() { this.focused = true; }
@@ -58,7 +59,6 @@ async function app(retailers = shops) {
   return {
     elements, navigation, events, emit, requests, responses,
     send: async (event) => { stream.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`)); await settle(); },
-    choose: (shop) => { elements.get('retailer').value = shop; elements.get('retailer').listeners.change(); },
     receipt: (state, retailer = 'mathem', created = new Date().toISOString(), lines = [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]) => runInContext(`showFill(${JSON.stringify({id: 'transfer', state, retailer_id: retailer, basket_url: basketURL, created_at: created, receipt: {lines}})})`, context),
     plan: (value) => runInContext(`showPlan(${JSON.stringify(value)})`, context),
     advance: (duration) => {
@@ -81,11 +81,24 @@ async function settle() {
 const classes = (element) => element.children.map((node) => node.className);
 const texts = (element) => element.children.map((node) => node.textContent);
 
+const sek = (amount_minor) => ({amount_minor, currency: 'SEK'});
+const rice = (name, price) => ({candidates: [], selected: {eligible: true, target_quantity: 1, product: {id: 'rice', name, pack: {quantity: 500, unit: 'g'}}, unit_price: sek(price), total: sek(price)}});
+const notFound = {candidates: [], issue: 'No products found.'};
+
 function shoppingPlan(retailer = 'mathem') {
-  return {id: 'plan', revision: 1, retailer_id: retailer, status: 'ready', context: shops[0].context, warnings: [], total: {amount_minor: 2500, currency: 'SEK'}, lines: [
-    {id: 'salad', item: {label: 'Sallad', query: 'sallad', amount: {quantity: 200, unit: 'g'}, required_traits: []}, candidates: [], issue: 'No products found.'},
-    {id: 'rice', item: {label: 'Ris', query: 'ris', amount: {quantity: 500, unit: 'g'}, required_traits: []}, candidates: [], selected: {eligible: true, target_quantity: 1, product: {id: 'rice', name: 'Basmatiris', pack: {quantity: 500, unit: 'g'}}, unit_price: {amount_minor: 2500, currency: 'SEK'}, total: {amount_minor: 2500, currency: 'SEK'}}},
+  return {id: 'plan', revision: 1, retailer_id: retailer, warnings: [], budget_minor: 0, baskets: [
+    {retailer_id: 'mathem', context: shops[0].context, status: 'ready', total: sek(2500), missing: 1},
+    {retailer_id: 'willys', context: shops[1].context, status: 'ready', total: sek(2900), missing: 1},
+  ], lines: [
+    {id: 'salad', item: {label: 'Sallad', query: 'sallad', amount: {quantity: 200, unit: 'g'}, required_traits: []}, skipped: false, baskets: {mathem: notFound, willys: notFound}},
+    {id: 'rice', item: {label: 'Ris', query: 'ris', amount: {quantity: 500, unit: 'g'}, required_traits: []}, skipped: false, baskets: {mathem: rice('Basmatiris', 2500), willys: rice('Jasminris', 2900)}},
   ]};
+}
+
+function demoPlan() {
+  const plan = shoppingPlan();
+  plan.baskets = [{...plan.baskets[0], context: demo[0].context}];
+  return plan;
 }
 
 test('missing groceries are visible and do not disable the remaining basket', async () => {
@@ -96,37 +109,63 @@ test('missing groceries are visible and do not disable the remaining basket', as
   assert.match(ui.elements.get('lines').textContent, /Sallad 200 g · No products found\. Not found/);
   assert.equal(ui.elements.get('transfer').disabled, false);
   assert.match(ui.elements.get('plan-state').textContent, /Ready/);
-  assert.equal(ui.elements.get('plan-meta').textContent, 'Mathem');
 });
 
-test('every shop is selectable and a choice is required before finding groceries', async () => {
+test('groceries are searched at every shop without choosing one first', async () => {
   const ui = await app();
-  const picker = ui.elements.get('retailer');
-  assert.deepEqual(picker.children.map((option) => option.textContent), ['Choose a shop', 'Mathem', 'Willys', 'Hemköp']);
-  assert.deepEqual(picker.children.map((option) => Boolean(option.disabled)), [true, false, false, false]);
-  assert.equal(picker.value, '');
-  assert.equal(picker.disabled, false);
-  assert.equal(ui.elements.get('create').disabled, true);
-  assert.match(ui.elements.get('shop-status').textContent, /Choose a shop/);
-  ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
-  assert.equal(ui.requests.some((request) => request.path === '/v1/shopping-plans' && request.method === 'POST'), false);
-  assert.equal(picker.focused, true);
-});
-
-test('the chosen shop and its catalog are used for the grocery request and not carried over', async () => {
-  const ui = await app();
-  ui.choose('willys');
   assert.equal(ui.elements.get('create').disabled, false);
-  assert.equal(ui.elements.get('shop-status').textContent, '');
+  assert.equal(ui.elements.get('connection').textContent, '');
   ui.elements.get('text').value = 'milk';
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
+  await settle();
   const request = ui.requests.find((request) => request.path === '/v1/shopping-plans' && request.method === 'POST');
   assert.equal(request.headers.Accept, 'application/x-ndjson');
-  assert.equal(request.body.retailer_id, 'willys');
-  assert.deepEqual(request.body.context, shops[1].context);
-  const reloaded = await app();
-  assert.equal(reloaded.elements.get('retailer').value, '');
-  assert.equal(reloaded.elements.get('create').disabled, true);
+  assert.deepEqual(request.body, {text: 'milk', required_traits: [], budget_minor: 0});
+  assert.match(texts(ui.elements.get('progress-steps'))[1], /Search Mathem, Willys, and Hemköp$/);
+});
+
+test('each shop basket is a card and choosing one switches the list, total and fill target', async () => {
+  const ui = await app();
+  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.plan(shoppingPlan());
+  const cards = () => ui.elements.get('baskets').children;
+  assert.equal(ui.elements.get('shops').hidden, false);
+  assert.match(cards()[0].textContent, /^Mathem 25,00\skr 1 missing$/);
+  assert.match(cards()[1].textContent, /^Willys 29,00\skr 1 missing$/);
+  assert.deepEqual(cards().map((card) => card.attributes['aria-pressed']), ['true', 'false']);
+  assert.equal(ui.elements.get('list-count').textContent, '2 items · Mathem');
+  assert.equal(ui.elements.get('transfer').textContent, 'Fill Mathem basket');
+  cards()[0].listeners.click();
+  await settle();
+  assert.equal(ui.requests.some((request) => request.method === 'PATCH'), false);
+  ui.responses['/v1/shopping-plans/plan'] = {...shoppingPlan('willys'), revision: 2};
+  ui.responses['/v1/shopping-plans'] = {plans: [{...shoppingPlan('willys'), text: 'Risotto'}]};
+  cards()[1].listeners.click();
+  await settle();
+  const choice = ui.requests.find((request) => request.path === '/v1/shopping-plans/plan');
+  assert.equal(choice.method, 'PATCH');
+  assert.deepEqual(choice.body, {revision: 1, retailer_id: 'willys'});
+  assert.deepEqual(cards().map((card) => card.attributes['aria-pressed']), ['false', 'true']);
+  assert.match(ui.elements.get('lines').textContent, /Ris 500 g · 1 × Jasminris/);
+  assert.match(ui.elements.get('total').textContent, /29,00/);
+  assert.equal(ui.elements.get('list-count').textContent, '2 items · Willys');
+  assert.equal(ui.elements.get('transfer').textContent, 'Fill Willys basket');
+  assert.match(ui.elements.get('history').textContent, /Risotto · Willys 29,00\skr/);
+  ui.responses['/v1/shopping-plans/plan/transfer'] = {id: 'transfer', state: 'pending', retailer_id: 'willys', basket_url: 'https://www.willys.se/varukorg', created_at: new Date().toISOString()};
+  ui.elements.get('transfer').listeners.click();
+  await settle();
+  const fill = ui.requests.find((request) => request.path === '/v1/shopping-plans/plan/transfer');
+  assert.equal(fill.body.revision, 2);
+  assert.match(ui.elements.get('receipt').textContent, /Opening Willys in a new tab/);
+});
+
+test('a plan from a single shop shows no shop choice', async () => {
+  const ui = await app();
+  const plan = shoppingPlan();
+  plan.baskets = plan.baskets.slice(0, 1);
+  ui.plan(plan);
+  assert.equal(ui.elements.get('shops').hidden, true);
+  assert.equal(ui.elements.get('list-count').textContent, '2 items · Mathem');
 });
 
 test('filling a live basket asks for the extension until it connects', async () => {
@@ -150,15 +189,14 @@ test('filling a live basket asks for the extension until it connects', async () 
   assert.match(ui.elements.get('receipt').textContent, /Opening Mathem in a new tab/);
 });
 
-test('demo shops are selectable and fill their basket without the extension', async () => {
+test('demo shops fill their basket without the extension', async () => {
   const ui = await app(demo);
-  assert.deepEqual(ui.elements.get('retailer').children.map((option) => option.textContent), ['Choose a shop', 'Mathem · demo']);
-  ui.choose('mathem');
   assert.equal(ui.elements.get('create').disabled, false);
-  ui.plan({...shoppingPlan(), context: demo[0].context});
+  ui.plan(demoPlan());
   assert.equal(ui.elements.get('extension-setup').hidden, true);
   assert.equal(ui.elements.get('transfer').disabled, false);
-  assert.equal(ui.elements.get('plan-meta').textContent, 'Mathem · Delivery · Demo');
+  assert.equal(ui.elements.get('transfer').textContent, 'Fill Mathem demo basket');
+  assert.match(ui.elements.get('estimate').textContent, /Demo prices/);
 });
 
 test('a partial fill marks the items that were not added in the list and leaves this page in place', async () => {
@@ -181,7 +219,6 @@ test('a partial fill marks the items that were not added in the list and leaves 
 test('a filled basket only confirms the fill and New list starts over', async () => {
   const ui = await app();
   ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
-  ui.choose('mathem');
   ui.elements.get('text').value = 'Korvstroganoff';
   ui.plan(shoppingPlan());
   ui.receipt('pending');
@@ -207,16 +244,11 @@ test('a filled basket only confirms the fill and New list starts over', async ()
   assert.equal(ui.elements.get('list').className, 'list-panel empty');
   assert.equal(ui.elements.get('text').value, '');
   assert.equal(ui.elements.get('text').focused, true);
-  assert.equal(ui.elements.get('retailer').value, 'mathem');
   assert.equal(ui.elements.get('create').disabled, false);
   const demoUI = await app(demo);
-  demoUI.plan({...shoppingPlan(), context: demo[0].context});
+  demoUI.plan(demoPlan());
   demoUI.receipt('completed', 'mathem', new Date().toISOString(), []);
   assert.equal(demoUI.elements.get('filled').textContent, '✓ Demo basket filled');
-  assert.equal(demoUI.elements.get('retailer').value, '');
-  demoUI.elements.get('new-list').listeners.click();
-  assert.equal(demoUI.elements.get('retailer').value, 'mathem');
-  assert.equal(demoUI.elements.get('create').disabled, false);
 });
 
 test('a finished fill can be tried again as a new attempt', async () => {
@@ -257,7 +289,6 @@ test('a fill nobody picks up explains that the extension is not responding', asy
 
 test('finding groceries shows each streamed step and then the list with problems first', async () => {
   const ui = await app();
-  ui.choose('willys');
   ui.elements.get('text').value = 'Korvstroganoff för 5';
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
   await settle();
@@ -271,7 +302,7 @@ test('finding groceries shows each streamed step and then the list with problems
   await ui.send({progress: {stage: 'search', done: 1, total: 2}});
   assert.deepEqual(classes(steps), ['step done', 'step active', 'step pending']);
   assert.match(texts(steps)[0], /2 groceries/);
-  assert.match(texts(steps)[1], /Search Willys 1 of 2 groceries/);
+  assert.match(texts(steps)[1], /Search Mathem, Willys, and Hemköp 1 of 2 groceries/);
   await ui.send({progress: {stage: 'match'}});
   assert.deepEqual(classes(steps), ['step done', 'step done', 'step active']);
   const plan = shoppingPlan('willys');
@@ -283,14 +314,13 @@ test('finding groceries shows each streamed step and then the list with problems
   const lines = ui.elements.get('lines');
   assert.deepEqual(classes(lines), ['group', 'line attention', 'group', 'line']);
   assert.deepEqual(texts(lines).map((text) => text.split(' ')[0]), ['Needs', 'Sallad', 'Matched', 'Ris']);
-  assert.equal(ui.elements.get('list-count').textContent, '2 items');
+  assert.equal(ui.elements.get('list-count').textContent, '2 items · Willys');
   assert.match(ui.elements.get('notes').textContent, /Assumptions Korvstroganoff för 5 portioner/);
   assert.equal(ui.elements.get('ack-wrap').hidden, false);
 });
 
 test('a failed planning stream explains the failure and hides the progress', async () => {
   const ui = await app();
-  ui.choose('mathem');
   ui.elements.get('text').value = 'milk';
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
   await settle();

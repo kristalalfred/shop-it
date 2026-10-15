@@ -65,10 +65,11 @@ test('the backend searches the shop and the real adapter fills and verifies the 
   }});
   const {retailers} = await api('/v1/retailers', userToken, 'GET');
   assert.deepEqual(retailers[0].context, {store_id: 'willys', postal_code: '00000', fulfillment: ''});
-  const plan = await api('/v1/shopping-plans', userToken, 'POST', {text: '2 litres milk', retailer_id: 'willys', context: retailers[0].context});
+  const plan = await api('/v1/shopping-plans', userToken, 'POST', {text: '2 litres milk'});
   assert.equal(searches[0], '/axfood/rest/v2/search?page=0&q=mj%C3%B6lk&size=40');
-  assert.equal(plan.status, 'ready');
-  assert.equal(plan.lines[0].selected.target_quantity, 2);
+  assert.equal(plan.retailer_id, 'willys');
+  assert.equal(plan.baskets[0].status, 'ready');
+  assert.equal(plan.lines[0].baskets.willys.selected.target_quantity, 2);
   const transfer = await api(`/v1/shopping-plans/${plan.id}/transfer`, userToken, 'POST', {revision: plan.revision, client_id: 'browser', acknowledge_warnings: true}, 'end-to-end');
   const foreign = await api('/v1/client/claims', 'other-client');
   assert.equal(foreign, null);

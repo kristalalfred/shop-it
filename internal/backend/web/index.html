@@ -20,12 +20,11 @@
   <main>
     <div class="intro">
       <h1>Make a grocery list.</h1>
-      <p class="instruction">Choose a shop, then enter a meal and portions, or a grocery list.</p>
+      <p class="instruction">Enter a meal and portions, or a grocery list. You’ll get a basket from every shop to choose from.</p>
     </div>
     <section class="input-panel" aria-label="Grocery request">
       <form id="plan-form">
         <input id="token" type="hidden" value="{{.APIToken}}">
-        <label class="shop-field">Shop<select id="retailer" required disabled><option value="">Choose a shop</option></select></label>
         <label for="text">What do you need?</label>
         <textarea id="text" maxlength="16000" required placeholder="Korvstroganoff för 5 personer. Vi har redan salt och peppar."></textarea>
         <div class="examples" aria-label="Example requests"><span>Try:</span><button type="button" data-example="dinner">Dinner for 5</button><button type="button" data-example="breakfast">Grocery list</button><button type="button" data-example="diet">Dietary needs</button></div>
@@ -42,7 +41,7 @@
           </fieldset>
           <label class="budget">Budget in SEK <span class="muted">optional</span><input id="budget" type="number" min="0" max="1000000" step="0.01" placeholder="250"></label>
         </details>
-        <div class="submit-row"><p id="shop-status" class="muted" role="status">Connecting…</p><button id="reconnect" type="button" hidden>Reconnect</button><button id="create" class="primary" type="submit" disabled>Find groceries</button></div>
+        <div class="submit-row"><p id="connection" class="muted" role="status">Connecting…</p><button id="reconnect" type="button" hidden>Reconnect</button><button id="create" class="primary" type="submit" disabled>Find groceries</button></div>
         <p id="mode-note" class="muted" hidden></p>
       </form>
     </section>
@@ -53,7 +52,7 @@
     <div id="message" role="status" aria-live="polite"></div>
     <section id="review" class="review" aria-label="Review" hidden>
       <div class="review-heading"><h2>Review groceries</h2><span id="plan-state" class="status"></span></div>
-      <p id="plan-meta" class="muted"></p>
+      <div id="shops" class="shops"><h3 id="shops-title">Choose a shop</h3><div id="baskets" class="baskets" role="group" aria-labelledby="shops-title"></div></div>
       <p id="missing" class="callout"></p>
       <div id="notes"></div>
       <label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions.</label>

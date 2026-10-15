@@ -10,13 +10,16 @@ import (
 )
 
 type Store[T any] struct {
-	mu   sync.Mutex
-	path string
-	data T
+	mu      sync.Mutex
+	path    string
+	version int
+	data    T
 }
 
-func Open[T any](path string, initial T) (*Store[T], error) {
-	s := &Store[T]{path: path, data: initial}
+type Upgrade func(json.RawMessage) (json.RawMessage, error)
+
+func Open[T any](path string, initial T, upgrades ...Upgrade) (*Store[T], error) {
+	s := &Store[T]{path: path, version: len(upgrades) + 1, data: initial}
 	if path == "" {
 		return s, nil
 	}
@@ -28,16 +31,30 @@ func Open[T any](path string, initial T) (*Store[T], error) {
 		return nil, err
 	}
 	var saved struct {
-		Version int `json:"version"`
-		Data    T   `json:"data"`
+		Version int             `json:"version"`
+		Data    json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(data, &saved); err != nil {
 		return nil, fmt.Errorf("read state %s: %w", path, err)
 	}
-	if saved.Version != 1 {
+	if saved.Version < 1 || saved.Version > s.version {
 		return nil, fmt.Errorf("unsupported state version in %s", path)
 	}
-	s.data = saved.Data
+	for _, upgrade := range upgrades[saved.Version-1:] {
+		if saved.Data, err = upgrade(saved.Data); err != nil {
+			return nil, fmt.Errorf("upgrade state %s: %w", path, err)
+		}
+	}
+	var value T
+	if err := json.Unmarshal(saved.Data, &value); err != nil {
+		return nil, fmt.Errorf("read state %s: %w", path, err)
+	}
+	s.data = value
+	if saved.Version < s.version {
+		if err := s.Update(func(*T) error { return nil }); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
@@ -65,7 +82,7 @@ func (s *Store[T]) Update(change func(*T) error) error {
 		data, err := json.Marshal(struct {
 			Version int `json:"version"`
 			Data    T   `json:"data"`
-		}{1, next})
+		}{s.version, next})
 		if err != nil {
 			return err
 		}

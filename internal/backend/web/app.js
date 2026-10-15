@@ -3,10 +3,12 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, interpreterMode = '', selectedShop = '', openLine = '', fill = null;
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, interpreterMode = '', openLine = '', fill = null;
 let browserExtension = {ready: false, connected: false, clientID: '', error: ''};
-const shoppingTarget = () => retailers.find((retailer) => retailer.id === selectedShop) || null;
+const shopName = (id) => retailers.find((retailer) => retailer.id === id)?.name || id;
 const planRetailer = () => plan ? retailers.find((retailer) => retailer.id === plan.retailer_id) : null;
+const chosenBasket = (value = plan) => value.baskets.find((basket) => basket.retailer_id === value.retailer_id);
+const entry = (line) => line.baskets[plan.retailer_id];
 function planClient() {
   const retailer = planRetailer();
   if (!retailer) return null;
@@ -56,8 +58,8 @@ async function createPlan(body, onProgress) {
 }
 
 let progress = null, progressTimer = null;
-function startProgress(shop) {
-  progress = {shop, stage: 'interpret', notes: {}, done: 0, total: 0, started: Date.now()};
+function startProgress(shops) {
+  progress = {shops, stage: 'interpret', notes: {}, done: 0, total: 0, started: Date.now()};
   $('progress').hidden = false;
   renderProgress();
   $('progress').scrollIntoView({block: 'nearest', behavior: 'smooth'});
@@ -82,7 +84,7 @@ function renderProgress() {
   const builtin = interpreterMode === 'builtin';
   const steps = [
     ['interpret', builtin ? 'Read your list' : 'Plan groceries', builtin ? '' : 'Working out what to buy…'],
-    ['search', `Search ${progress.shop}`, progress.total ? `${progress.done} of ${progress.total} groceries` : ''],
+    ['search', `Search ${progress.shops}`, progress.total ? `${progress.done} of ${progress.total} groceries` : ''],
   ];
   if (!builtin) steps.push(['match', 'Check product matches', 'Making sure each product fits its ingredient…']);
   const current = steps.findIndex(([stage]) => stage === progress.stage);
@@ -103,14 +105,14 @@ function message(text, error = false) {
 }
 
 function buttons() {
-  $('create').disabled = busy || !token || !shoppingTarget();
-  $('retailer').disabled = busy || !retailers.length;
+  $('create').disabled = busy || !token || !retailers.length;
   const filling = ['pending', 'claimed'].includes(fill?.state), finished = Boolean(fill) && !filling, completed = fill?.state === 'completed';
+  const shop = planRetailer(), fillLabel = !shop ? 'Fill basket' : shop.mode === 'mock' ? `Fill ${shop.name} demo basket` : `Fill ${shop.name} basket`;
   $('refresh').hidden = finished;
   $('refresh').disabled = busy || filling || !plan || !plan.lines.length;
   $('transfer').className = completed ? '' : 'primary';
-  $('transfer').textContent = filling ? 'Filling…' : finished ? 'Fill basket again' : planRetailer()?.mode === 'mock' ? 'Fill demo basket' : 'Fill basket';
-  $('transfer').disabled = busy || filling || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
+  $('transfer').textContent = filling ? 'Filling…' : finished ? 'Fill basket again' : fillLabel;
+  $('transfer').disabled = busy || filling || !plan || chosenBasket().status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (chosenBasket().over_budget && !$('over').checked) || !planClient();
   $('filled').hidden = !completed;
   $('new-list').hidden = !finished;
   $('new-list').className = completed ? 'primary' : '';
@@ -126,9 +128,9 @@ async function action(work) {
 
 function stopPoll() { if (poll !== null) clearTimeout(poll); poll = null; }
 
-const fillResult = (line) => line.selected && fill?.receipt?.lines.find((result) => result.product_id === line.selected.product.id);
+const fillResult = (line) => entry(line).selected && fill?.receipt?.lines.find((result) => result.product_id === entry(line).selected.product.id);
 const notAdded = (line) => !line.skipped && Boolean(fillResult(line)) && fillResult(line).status !== 'applied';
-const needsAttention = (line) => !line.skipped && (!line.selected?.eligible || notAdded(line));
+const needsAttention = (line) => !line.skipped && (!entry(line).selected?.eligible || notAdded(line));
 const fillLabels = {unavailable: 'Unavailable', failed: 'Not added', login_required: 'Sign in', uncertain: 'Check'};
 const amount = (item) => `${item.amount.quantity} ${item.amount.unit}${item.required_traits.length ? ' · ' + item.required_traits.join(', ').replaceAll('_', ' ') : ''}`;
 
@@ -139,15 +141,14 @@ function showPlan(value) {
   $('ack').checked = false; $('over').checked = false;
   $('review').hidden = false; $('checkout').hidden = false;
   $('receipt').replaceChildren();
-  const missing = plan.lines.filter(needsAttention);
-  const hasProducts = plan.lines.some((line) => !line.skipped && line.selected?.eligible);
-  $('plan-state').textContent = plan.status === 'ready' ? (missing.length ? 'Ready · some items missing' : 'Ready') : (hasProducts ? 'Needs review' : 'Nothing to add');
-  const retailer = retailers.find((r) => r.id === plan.retailer_id);
-  const simulated = retailer?.mode === 'mock';
-  $('plan-meta').textContent = `${retailer?.name || 'Your shop'}${plan.context.fulfillment ? ` · ${plan.context.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}` : ''}${simulated ? ' · Demo' : ''}`;
+  const basket = chosenBasket(), missing = plan.lines.filter(needsAttention);
+  const hasProducts = plan.lines.some((line) => !line.skipped && entry(line).selected?.eligible);
+  $('plan-state').textContent = basket.status === 'ready' ? (missing.length ? 'Ready · some items missing' : 'Ready') : (hasProducts ? 'Needs review' : 'Nothing to add');
+  const simulated = planRetailer()?.mode === 'mock';
+  renderBaskets();
   $('missing').textContent = !plan.lines.length ? 'No grocery items were understood. Describe a dish and how many people it should serve, or enter your grocery list.'
     : !missing.length ? '' : hasProducts ? `${missing.length === 1 ? '1 item needs' : `${missing.length} items need`} attention and won’t be added until you fix ${missing.length === 1 ? 'it' : 'them'}. ${missing.length === 1 ? 'It is' : 'They are'} at the top of the list.`
-    : 'No matching products were found, so nothing will be added.';
+    : `No matching products were found at ${shopName(plan.retailer_id)}, so nothing will be added.`;
   $('missing').hidden = !$('missing').textContent;
   $('notes').replaceChildren();
   if (plan.warnings.length) {
@@ -155,19 +156,31 @@ function showPlan(value) {
     for (const warning of plan.warnings) list.append(el('li', warning));
     $('notes').append(el('h3', 'Assumptions'), list);
   }
-  $('ack-wrap').hidden = !plan.warnings.length; $('over-wrap').hidden = !plan.over_budget;
-  if (plan.over_budget) $('over-text').textContent = `Accept going ${money({amount_minor: plan.total.amount_minor - plan.budget_minor, currency: plan.total.currency})} over your ${money({amount_minor: plan.budget_minor, currency: plan.total.currency})} budget.`;
-  $('total').textContent = money(plan.total);
-  $('estimate').textContent = `${plan.estimated ? 'Estimated by weight. ' : ''}Delivery excluded. ${simulated ? 'Demo prices.' : 'Confirm prices at checkout.'}`;
+  $('ack-wrap').hidden = !plan.warnings.length; $('over-wrap').hidden = !basket.over_budget;
+  if (basket.over_budget) $('over-text').textContent = `Accept going ${money({amount_minor: basket.total.amount_minor - plan.budget_minor, currency: basket.total.currency})} over your ${money({amount_minor: plan.budget_minor, currency: basket.total.currency})} budget.`;
+  $('total').textContent = money(basket.total);
+  $('estimate').textContent = `${basket.estimated ? 'Estimated by weight. ' : ''}Delivery excluded. ${simulated ? 'Demo prices.' : 'Confirm prices at checkout.'}`;
   renderList();
   updateExtension();
+}
+
+function renderBaskets() {
+  $('shops').hidden = plan.baskets.length < 2;
+  $('baskets').replaceChildren(...plan.baskets.map((basket) => {
+    const chosen = basket.retailer_id === plan.retailer_id;
+    const card = el('button', null, `basket${chosen ? ' chosen' : ''}`); card.type = 'button';
+    card.setAttribute('aria-pressed', String(chosen));
+    card.append(el('span', shopName(basket.retailer_id), 'basket-name'), el('strong', money(basket.total), 'basket-total'), el('span', basket.missing ? `${basket.missing} missing` : 'Everything found', 'basket-detail'));
+    card.addEventListener('click', () => { if (!chosen) action(async () => { showPlan(await api(`/v1/shopping-plans/${plan.id}`, {revision: plan.revision, retailer_id: basket.retailer_id}, 'PATCH')); await history(); }); });
+    return card;
+  }));
 }
 
 function renderList() {
   const groups = [['Needs attention', plan.lines.filter(needsAttention)], ['Matched', plan.lines.filter((line) => !line.skipped && !needsAttention(line))], ['Skipped', plan.lines.filter((line) => line.skipped)]].filter(([, lines]) => lines.length);
   $('list').className = `list-panel${plan.lines.length ? '' : ' empty'}`;
   $('list-empty').hidden = plan.lines.length > 0;
-  $('list-count').textContent = plan.lines.length === 1 ? '1 item' : `${plan.lines.length} items`;
+  $('list-count').textContent = `${plan.lines.length === 1 ? '1 item' : `${plan.lines.length} items`} · ${shopName(plan.retailer_id)}`;
   $('lines').replaceChildren(...groups.flatMap(([title, lines]) => [...(groups.length > 1 ? [el('h3', `${title} · ${lines.length}`, 'group')] : []), ...lines.map(renderLine)]));
 }
 
@@ -180,13 +193,13 @@ function renderLine(line) {
     node.append(text, restore);
     return node;
   }
-  const attention = needsAttention(line), selected = line.selected, result = notAdded(line) && fillResult(line);
+  const attention = needsAttention(line), selected = entry(line).selected, result = notAdded(line) && fillResult(line);
   const node = el('details', null, `line${attention ? ' attention' : ''}`);
   node.open = line.id === openLine;
   node.addEventListener('toggle', () => { if (node.open) openLine = line.id; else if (openLine === line.id) openLine = ''; });
   const summary = el('summary'), text = el('span', null, 'line-text');
   const detail = result ? `${selected.target_quantity} × ${selected.product.name} · ${result.message || 'Not added to the basket.'}`
-    : attention ? line.issue || (selected ? 'Choose another product.' : 'No matching product found.')
+    : attention ? entry(line).issue || (selected ? 'Choose another product.' : 'No matching product found.')
     : `${selected.target_quantity} × ${selected.product.name}`;
   text.append(el('span', line.item.label, 'line-name'), el('span', `${amount(line.item)} · ${detail}`, 'line-detail'));
   summary.append(text, result ? el('span', fillLabels[result.status] || 'Check', 'line-flag') : attention ? el('span', selected ? 'Check' : 'Not found', 'line-flag') : el('span', money(selected.total), 'line-price'));
@@ -195,7 +208,7 @@ function renderLine(line) {
 }
 
 function renderEditor(line) {
-  const panel = el('div', null, 'line-edit'), selected = line.selected;
+  const panel = el('div', null, 'line-edit'), found = entry(line), selected = found.selected;
   if (selected) panel.append(el('p', `${selected.product.pack.quantity} ${selected.product.pack.unit} / pack · ${money(selected.unit_price)} / pack`, 'muted'));
   const form = el('form', null, 'edit-form');
   const queryLabel = el('label', 'Search'), query = el('input'); query.value = line.item.query; query.required = true; query.maxLength = 200; queryLabel.append(query);
@@ -210,8 +223,8 @@ function renderEditor(line) {
     showPlan(await patchLine(line, {item})); await history();
   }); });
   panel.append(form);
-  if (line.search_limited) panel.append(el('p', `First ${line.search_limit || 500} results checked. Narrow the search for more options.`, 'muted'));
-  const eligible = line.candidates.filter((candidate) => candidate.eligible), others = line.candidates.filter((candidate) => !candidate.eligible);
+  if (found.search_limited) panel.append(el('p', `First ${found.search_limit || 500} results checked. Narrow the search for more options.`, 'muted'));
+  const eligible = found.candidates.filter((candidate) => candidate.eligible), others = found.candidates.filter((candidate) => !candidate.eligible);
   panel.append(...eligible.map((candidate) => renderCandidate(line, candidate)));
   if (others.length) {
     const rest = el('details', null, 'others');
@@ -219,7 +232,7 @@ function renderEditor(line) {
     panel.append(rest);
   }
   const footer = el('div', null, 'line-footer');
-  footer.append(el('span', line.observed_at ? `Prices checked ${new Date(line.observed_at).toLocaleString()}` : '', 'muted'));
+  footer.append(el('span', found.observed_at ? `Prices checked ${new Date(found.observed_at).toLocaleString()}` : '', 'muted'));
   const skip = el('button', 'Skip item'); skip.type = 'button';
   skip.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: true})); await history(); }));
   footer.append(skip); panel.append(footer);
@@ -229,7 +242,7 @@ function renderEditor(line) {
 function renderCandidate(line, candidate) {
   const row = el('div', null, 'candidate'), description = el('div');
   description.append(el('strong', candidate.product.name), el('p', `${candidate.target_quantity || '?'} × ${candidate.product.pack.quantity} ${candidate.product.pack.unit} · ${money(candidate.total)}${candidate.eligible ? '' : ` · ${candidate.reasons.join(' ')}`}`, 'muted'));
-  const chosen = line.selected?.product.id === candidate.product.id;
+  const chosen = entry(line).selected?.product.id === candidate.product.id;
   const choose = el('button', chosen ? 'Selected' : 'Choose'); choose.type = 'button'; choose.disabled = !candidate.eligible || chosen;
   choose.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {product_id: candidate.product.id})); await history(); }));
   row.append(description, choose);
@@ -243,7 +256,7 @@ async function history() {
   $('history').replaceChildren();
   if (!result.plans.length) $('history').textContent = 'No saved lists.';
   for (const saved of result.plans.slice(0, 8)) {
-    const button = el('button', `${saved.text.slice(0, 55)}${saved.text.length > 55 ? '…' : ''} · ${money(saved.total)}`); button.type = 'button';
+    const button = el('button', `${saved.text.slice(0, 55)}${saved.text.length > 55 ? '…' : ''} · ${shopName(saved.retailer_id)} ${money(chosenBasket(saved).total)}`); button.type = 'button';
     button.addEventListener('click', () => action(async () => {
       showPlan(await api(`/v1/shopping-plans/${saved.id}`, undefined, 'GET'));
       $('saved-lists').open = false;
@@ -267,18 +280,12 @@ async function connect() {
       examples.dinner = '500 g pasta\n500 g tomatoes\n1 pack cheese';
     }
     $('reconnect').hidden = true;
-    showShops();
+    updateConnection();
     await history();
-  } catch (error) { token = ''; $('reconnect').hidden = false; showShops(); throw error; }
+  } catch (error) { token = ''; $('reconnect').hidden = false; updateConnection(); throw error; }
 }
-function showShops() {
-  const placeholder = el('option', 'Choose a shop'); placeholder.value = ''; placeholder.disabled = true;
-  $('retailer').replaceChildren(placeholder, ...retailers.map((retailer) => { const option = el('option', `${retailer.name}${retailer.mode === 'mock' ? ' · demo' : ''}`); option.value = retailer.id; return option; }));
-  $('retailer').value = selectedShop;
-  updateShop();
-}
-function updateShop() {
-  $('shop-status').textContent = !token ? 'Service disconnected. Select Reconnect.' : shoppingTarget() ? '' : 'Choose a shop to start.';
+function updateConnection() {
+  $('connection').textContent = token ? '' : 'Service disconnected. Select Reconnect.';
   buttons();
 }
 function updateExtension() {
@@ -287,10 +294,6 @@ function updateExtension() {
   $('extension-install').hidden = browserExtension.ready;
   buttons();
 }
-$('retailer').addEventListener('change', () => {
-  selectedShop = $('retailer').value;
-  updateShop();
-});
 $('reconnect').addEventListener('click', () => action(connect));
 document.addEventListener('ship-it-extension-ready', (event) => {
   let detail = {};
@@ -303,12 +306,10 @@ for (const button of document.querySelectorAll('[data-example]')) button.addEven
 $('ack').addEventListener('change', buttons); $('over').addEventListener('change', buttons);
 
 $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
-  const retailer = shoppingTarget();
-  if (!token || !retailer) { $('retailer').focus(); return; }
   const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
-  startProgress(retailer.name);
+  startProgress(new Intl.ListFormat('en').format(retailers.map((retailer) => retailer.name)));
   try {
-    showPlan(await createPlan({text: $('text').value, retailer_id: retailer.id, context: retailer.context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)}, updateProgress));
+    showPlan(await createPlan({text: $('text').value, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)}, updateProgress));
   } finally { stopProgress(); }
   await history();
   $('review').scrollIntoView({block: 'start', behavior: 'smooth'});
@@ -332,7 +333,6 @@ function showFill(transfer) {
 
 function newList() {
   stopPoll();
-  if (!selectedShop && retailers.some((retailer) => retailer.id === plan?.retailer_id)) { selectedShop = plan.retailer_id; $('retailer').value = selectedShop; updateShop(); }
   plan = null; fill = null; openLine = '';
   $('review').hidden = true; $('checkout').hidden = true;
   $('lines').replaceChildren(); $('list-count').textContent = '';

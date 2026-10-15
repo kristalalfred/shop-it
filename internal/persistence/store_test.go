@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -74,4 +75,35 @@ func TestExclusiveDataDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	close()
+}
+
+func TestUpgradesRunOnceAndNewerStateIsRejected(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"version":1,"data":[1,2]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	upgrades := 0
+	double := func(data json.RawMessage) (json.RawMessage, error) {
+		upgrades++
+		var values []int
+		if err := json.Unmarshal(data, &values); err != nil {
+			return nil, err
+		}
+		for i := range values {
+			values[i] *= 2
+		}
+		return json.Marshal(values)
+	}
+	for range 2 {
+		s, err := Open(path, []int{}, double)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if values, _ := s.Read(); len(values) != 2 || values[1] != 4 || upgrades != 1 {
+			t.Fatalf("upgraded state: %v after %d upgrades", values, upgrades)
+		}
+	}
+	if _, err := Open(path, []int{}); err == nil {
+		t.Fatal("state from a newer version was accepted")
+	}
 }

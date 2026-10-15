@@ -3,6 +3,7 @@ package planner
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"slices"
 	"time"
 
@@ -15,7 +16,7 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
-	state, err := persistence.Open(path, map[string]shopping.Plan{})
+	state, err := persistence.Open(path, map[string]shopping.Plan{}, compareShops)
 	if err != nil {
 		return nil, err
 	}
@@ -140,4 +141,30 @@ func (s *Store) Review(ctx context.Context, id string, revision int, review func
 		}
 		return review(plan)
 	})
+}
+
+func compareShops(data json.RawMessage) (json.RawMessage, error) {
+	var saved map[string]struct {
+		shopping.Plan
+		Context shopping.StoreContext `json:"context"`
+		Lines   []struct {
+			shopping.PlanLine
+			shopping.BasketLine
+		} `json:"lines"`
+	}
+	if err := json.Unmarshal(data, &saved); err != nil {
+		return nil, err
+	}
+	plans := make(map[string]shopping.Plan, len(saved))
+	for id, old := range saved {
+		plan := old.Plan
+		plan.Baskets = []shopping.Basket{{RetailerID: plan.RetailerID, Context: old.Context}}
+		plan.Lines = make([]shopping.PlanLine, len(old.Lines))
+		for i, line := range old.Lines {
+			plan.Lines[i] = line.PlanLine
+			plan.Lines[i].Baskets = map[string]shopping.BasketLine{plan.RetailerID: line.BasketLine}
+		}
+		plans[id] = plan
+	}
+	return json.Marshal(plans)
 }

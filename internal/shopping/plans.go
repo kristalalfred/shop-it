@@ -58,11 +58,9 @@ type ProductMatcher interface {
 }
 
 type PlanRequest struct {
-	Text           string       `json:"text"`
-	RetailerID     string       `json:"retailer_id"`
-	Context        StoreContext `json:"context"`
-	RequiredTraits []string     `json:"required_traits,omitempty"`
-	BudgetMinor    int64        `json:"budget_minor,omitempty"`
+	Text           string   `json:"text"`
+	RequiredTraits []string `json:"required_traits,omitempty"`
+	BudgetMinor    int64    `json:"budget_minor,omitempty"`
 }
 
 type Candidate struct {
@@ -74,29 +72,41 @@ type Candidate struct {
 	Reasons   []string `json:"reasons"`
 }
 
-type PlanLine struct {
-	ID            string      `json:"id"`
-	Item          Item        `json:"item"`
+type BasketLine struct {
 	Candidates    []Candidate `json:"candidates"`
 	Selected      *Candidate  `json:"selected,omitempty"`
-	Skipped       bool        `json:"skipped"`
 	ObservedAt    time.Time   `json:"observed_at,omitempty"`
 	Issue         string      `json:"issue,omitempty"`
 	SearchLimited bool        `json:"search_limited,omitempty"`
 	SearchLimit   int         `json:"search_limit,omitempty"`
 }
 
+type PlanLine struct {
+	ID      string                `json:"id"`
+	Item    Item                  `json:"item"`
+	Skipped bool                  `json:"skipped"`
+	Baskets map[string]BasketLine `json:"baskets"`
+}
+
+type Basket struct {
+	RetailerID string       `json:"retailer_id"`
+	Context    StoreContext `json:"context"`
+	Status     string       `json:"status"`
+	Total      Money        `json:"total"`
+	Estimated  bool         `json:"estimated"`
+	OverBudget bool         `json:"over_budget"`
+	Missing    int          `json:"missing"`
+}
+
 type Plan struct {
 	ID       string `json:"id"`
 	Revision int    `json:"revision"`
 	PlanRequest
+	RetailerID      string     `json:"retailer_id"`
 	InterpreterMode string     `json:"interpreter_mode"`
 	Lines           []PlanLine `json:"lines"`
+	Baskets         []Basket   `json:"baskets"`
 	Warnings        []string   `json:"warnings"`
-	Status          string     `json:"status"`
-	Total           Money      `json:"total"`
-	Estimated       bool       `json:"estimated"`
-	OverBudget      bool       `json:"over_budget"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }

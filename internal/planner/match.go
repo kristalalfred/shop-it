@@ -9,17 +9,17 @@ import (
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
-func Match(ctx context.Context, catalog shopping.Catalog, req shopping.PlanRequest, item shopping.Item, id string) (shopping.PlanLine, error) {
-	line, err := Search(ctx, catalog, req, item, id, 500)
+func Match(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item) (shopping.BasketLine, error) {
+	line, err := Search(ctx, catalog, basket, item, 500)
 	if err == nil {
 		Select(&line)
 	}
 	return line, err
 }
 
-func Search(ctx context.Context, catalog shopping.Catalog, req shopping.PlanRequest, item shopping.Item, id string, limit int) (shopping.PlanLine, error) {
-	line := shopping.PlanLine{ID: id, Item: item, Candidates: []shopping.Candidate{}, SearchLimit: limit}
-	search := shopping.SearchRequest{RetailerID: req.RetailerID, Context: req.Context, Query: item.Query}
+func Search(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item, limit int) (shopping.BasketLine, error) {
+	line := shopping.BasketLine{Candidates: []shopping.Candidate{}, SearchLimit: limit}
+	search := shopping.SearchRequest{RetailerID: basket.RetailerID, Context: basket.Context, Query: item.Query}
 	cursors, ids := map[string]bool{}, map[string]bool{}
 pages:
 	for page := 0; ; page++ {
@@ -43,7 +43,7 @@ pages:
 				break pages
 			}
 			ids[product.ID] = true
-			line.Candidates = append(line.Candidates, candidate(product, item, req.Context.Memberships))
+			line.Candidates = append(line.Candidates, candidate(product, item, basket.Context.Memberships))
 		}
 		if result.NextCursor == "" {
 			break
@@ -57,7 +57,7 @@ pages:
 	return line, nil
 }
 
-func Select(line *shopping.PlanLine) {
+func Select(line *shopping.BasketLine) {
 	line.Selected = nil
 	line.Issue = ""
 	slices.SortStableFunc(line.Candidates, func(a, b shopping.Candidate) int {
@@ -89,7 +89,7 @@ func Select(line *shopping.PlanLine) {
 	}
 }
 
-func ApplyMatches(line *shopping.PlanLine, ids []string) {
+func ApplyMatches(line *shopping.BasketLine, ids []string) {
 	for i := range line.Candidates {
 		candidate := &line.Candidates[i]
 		if !slices.Contains(ids, candidate.Product.ID) {
@@ -151,64 +151,99 @@ func price(product shopping.Product, quantity int, memberships []string) shoppin
 }
 
 func Recalculate(plan *shopping.Plan) {
-	plan.Total = shopping.Money{Currency: "SEK"}
-	plan.Estimated, plan.OverBudget = false, false
-	plan.Status = "ready"
+	for i := range plan.Baskets {
+		total(plan, &plan.Baskets[i])
+	}
+	slices.SortStableFunc(plan.Baskets, func(a, b shopping.Basket) int {
+		if a.Missing != b.Missing {
+			return a.Missing - b.Missing
+		}
+		if a.Total.AmountMinor < b.Total.AmountMinor {
+			return -1
+		}
+		if a.Total.AmountMinor > b.Total.AmountMinor {
+			return 1
+		}
+		return 0
+	})
+	if _, ok := Chosen(*plan); !ok && len(plan.Baskets) > 0 {
+		plan.RetailerID = plan.Baskets[0].RetailerID
+	}
+}
+
+func total(plan *shopping.Plan, basket *shopping.Basket) {
+	basket.Total = shopping.Money{Currency: "SEK"}
+	basket.Estimated, basket.OverBudget = false, false
+	basket.Status = "ready"
+	basket.Missing = 0
 	quantities := map[string]int{}
 	for _, line := range plan.Lines {
-		if line.Selected != nil && line.Selected.Eligible && !line.Skipped {
-			quantities[line.Selected.Product.ID] += line.Selected.Quantity
+		if selected := line.Baskets[basket.RetailerID].Selected; selected != nil && selected.Eligible && !line.Skipped {
+			quantities[selected.Product.ID] += selected.Quantity
 		}
 	}
 	count := 0
-	for i := range plan.Lines {
-		line := &plan.Lines[i]
+	for _, line := range plan.Lines {
 		if line.Skipped {
 			continue
 		}
-		if line.Selected == nil {
+		selected := line.Baskets[basket.RetailerID].Selected
+		if selected == nil || !selected.Eligible {
+			basket.Missing++
+		}
+		if selected == nil {
 			continue
 		}
-		if !line.Selected.Eligible {
-			plan.Status = "needs_review"
+		if !selected.Eligible {
+			basket.Status = "needs_review"
 			continue
 		}
 		count++
-		line.Selected.UnitPrice = price(line.Selected.Product, quantities[line.Selected.Product.ID], plan.Context.Memberships)
-		line.Selected.Total.AmountMinor = line.Selected.UnitPrice.AmountMinor * int64(line.Selected.Quantity)
-		plan.Total.AmountMinor += line.Selected.Total.AmountMinor
-		plan.Estimated = plan.Estimated || line.Selected.Product.PriceKind == "estimated"
-		if quantities[line.Selected.Product.ID] > 1000 {
-			plan.Status = "needs_review"
+		selected.UnitPrice = price(selected.Product, quantities[selected.Product.ID], basket.Context.Memberships)
+		selected.Total.AmountMinor = selected.UnitPrice.AmountMinor * int64(selected.Quantity)
+		basket.Total.AmountMinor += selected.Total.AmountMinor
+		basket.Estimated = basket.Estimated || selected.Product.PriceKind == "estimated"
+		if quantities[selected.Product.ID] > 1000 {
+			basket.Status = "needs_review"
 		}
 	}
 	if count == 0 {
-		plan.Status = "needs_review"
+		basket.Status = "needs_review"
 	}
-	plan.OverBudget = plan.BudgetMinor > 0 && plan.Total.AmountMinor > plan.BudgetMinor
+	basket.OverBudget = plan.BudgetMinor > 0 && basket.Total.AmountMinor > plan.BudgetMinor
+}
+
+func Chosen(plan shopping.Plan) (shopping.Basket, bool) {
+	index := slices.IndexFunc(plan.Baskets, func(basket shopping.Basket) bool { return basket.RetailerID == plan.RetailerID })
+	if index < 0 {
+		return shopping.Basket{}, false
+	}
+	return plan.Baskets[index], true
 }
 
 func BasketItems(plan shopping.Plan) ([]shopping.BasketItem, error) {
-	if plan.Status != "ready" {
+	basket, ok := Chosen(plan)
+	if !ok || basket.Status != "ready" {
 		return nil, shopping.ErrConflict
 	}
 	items := []shopping.BasketItem{}
 	indices := map[string]int{}
 	for _, line := range plan.Lines {
-		if line.Skipped || line.Selected == nil {
+		selected := line.Baskets[basket.RetailerID].Selected
+		if line.Skipped || selected == nil {
 			continue
 		}
-		if !line.Selected.Eligible {
+		if !selected.Eligible {
 			return nil, shopping.ErrConflict
 		}
-		id := line.Selected.Product.ID
+		id := selected.Product.ID
 		index, exists := indices[id]
 		if !exists {
 			index = len(items)
 			indices[id] = index
-			items = append(items, shopping.BasketItem{ProductID: id, Name: line.Selected.Product.Name})
+			items = append(items, shopping.BasketItem{ProductID: id, Name: selected.Product.Name})
 		}
-		items[index].Quantity += line.Selected.Quantity
+		items[index].Quantity += selected.Quantity
 		if items[index].Quantity > 1000 {
 			return nil, fmt.Errorf("%w: too many packs", shopping.ErrInvalid)
 		}
