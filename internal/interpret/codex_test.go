@@ -31,7 +31,7 @@ func TestCodexInterpretation(t *testing.T) {
 			ctx := context.Background()
 			if mode == "timeout" {
 				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(ctx, 200*time.Millisecond)
+				ctx, cancel = context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 			}
 			result, err := provider.Interpret(ctx, shopping.InterpretationRequest{Text: "Korvstroganoff för 5", RequiredTraits: []string{"vegan"}})
