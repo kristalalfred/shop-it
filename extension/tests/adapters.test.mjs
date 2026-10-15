@@ -43,6 +43,14 @@ test('Axfood uses absolute quantities and the basket unit of the shopper session
   }
 });
 
+test('Axfood baskets with frozen products stay editable while placed orders do not', async () => {
+  const cart = {frozen: true, orderReference: null, notEditableAfterOrder: false, products: [{code: '101349480_ST', pickQuantity: 1, quantity: 1}]};
+  const adapter = adapters.create('willys', {request: async () => cart});
+  assert.deepEqual(await adapter.read(), {'101349480_ST': 1});
+  cart.orderReference = '1234567';
+  await assert.rejects(adapter.read(), /existing order/);
+});
+
 test('products the shopper store does not sell are reported as unavailable', async () => {
   const failure = (httpStatus, body) => Object.assign(new Error(`Store request failed (${httpStatus}).`), {status: 'failed', httpStatus, body});
   const missing = adapters.create('hemkop', {request: async (path) => {

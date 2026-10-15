@@ -24,7 +24,7 @@
     }
     async function read() {
       const cart = await getCart();
-      if (cart.orderReference || cart.notEditableAfterOrder || cart.frozen) throw new Error('This basket is an existing order or cannot be edited.');
+      if (cart.orderReference || cart.notEditableAfterOrder) throw new Error('This basket is an existing order or cannot be edited.');
       return quantities(cart);
     }
     async function set(item, before) {
