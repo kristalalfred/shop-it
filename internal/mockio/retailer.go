@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -21,10 +22,11 @@ type Fault struct {
 }
 
 type CatalogFixture struct {
-	Products   []shopping.Product `json:"products"`
-	ObservedAt time.Time          `json:"observed_at"`
-	PageSize   int                `json:"page_size"`
-	Fault      Fault              `json:"fault,omitempty"`
+	Products    []shopping.Product `json:"products"`
+	ObservedAt  time.Time          `json:"observed_at"`
+	PageSize    int                `json:"page_size"`
+	Fault       Fault              `json:"fault,omitempty"`
+	FailQueries []string           `json:"fail_queries,omitempty"`
 }
 
 type BrowserScenario struct {
@@ -97,6 +99,10 @@ func RetailerHandler(scenario Scenario) http.Handler {
 		var req shopping.SearchRequest
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req) != nil || req.RetailerID != r.PathValue("id") {
 			http.Error(w, "invalid fixture request", http.StatusBadRequest)
+			return
+		}
+		if slices.Contains(fixture.FailQueries, req.Query) {
+			http.Error(w, "failing fixture query", http.StatusBadGateway)
 			return
 		}
 		products := make([]shopping.Product, 0)

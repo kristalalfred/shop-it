@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -209,5 +210,31 @@ func TestPlanAuthenticationAndInput(t *testing.T) {
 		if _, ok := client.(map[string]any)["token"]; ok {
 			t.Fatal("client token exposed")
 		}
+	}
+}
+
+func TestFailedSearchesOnlyAffectTheirOwnLines(t *testing.T) {
+	scenario := demoScenario(t)
+	ica := scenario.Retailers["ica"]
+	ica.FailQueries = []string{"ägg"}
+	scenario.Retailers["ica"] = ica
+	s := startSystem(t, scenario)
+	plan := createPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
+	if plan.Status != "ready" || len(plan.Lines) != 3 || plan.Lines[0].Selected == nil || plan.Lines[2].Selected == nil {
+		t.Fatalf("searchable lines were lost: %+v", plan)
+	}
+	if eggs := plan.Lines[1]; eggs.Selected != nil || len(eggs.Candidates) != 0 || !strings.Contains(eggs.Issue, "search failed") {
+		t.Fatalf("failed search line: %+v", eggs)
+	}
+	refreshed, err := s.request("POST", "/v1/shopping-plans/"+plan.ID+"/refresh", map[string]any{"revision": plan.Revision}, userToken, "")
+	if err != nil || refreshed.status != 200 || !strings.Contains(decodePlan(t, refreshed).Lines[1].Issue, "search failed") {
+		t.Fatalf("refresh: %+v, %v", refreshed, err)
+	}
+	ica.FailQueries = []string{"mjölk", "ägg", "bananer"}
+	scenario.Retailers["ica"] = ica
+	s = startSystem(t, scenario)
+	res, err := s.request("POST", "/v1/shopping-plans", planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."), userToken, "")
+	if err != nil || res.status != 502 {
+		t.Fatalf("plan without any searchable line: %+v, %v", res, err)
 	}
 }

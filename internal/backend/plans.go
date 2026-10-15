@@ -96,52 +96,54 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bool) ([]shopping.PlanLine, error) {
 	lines := make([]shopping.PlanLine, len(plan.Lines))
+	failures := make([]error, len(plan.Lines))
 	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var wg sync.WaitGroup
-	var firstError error
-	var mu sync.Mutex
 	limit := make(chan struct{}, 6)
 	for i, old := range plan.Lines {
+		if old.Skipped {
+			lines[i] = old
+			continue
+		}
 		wg.Go(func() {
-			select {
-			case limit <- struct{}{}:
-			case <-searchCtx.Done():
-				return
-			}
-			defer func() { <-limit }()
-			if old.Skipped {
-				lines[i] = old
-				return
-			}
 			var line shopping.PlanLine
 			var err error
-			if s.productMatcher == nil {
-				line, err = planner.Match(searchCtx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID)
-			} else {
-				line, err = planner.Search(searchCtx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID, 40)
+			select {
+			case limit <- struct{}{}:
+				defer func() { <-limit }()
+				if s.productMatcher == nil {
+					line, err = planner.Match(searchCtx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID)
+				} else {
+					line, err = planner.Search(searchCtx, s.catalogs[plan.RetailerID], plan.PlanRequest, old.Item, old.ID, 40)
+				}
+			case <-searchCtx.Done():
+				err = searchCtx.Err()
 			}
 			if err != nil {
-				mu.Lock()
-				if firstError == nil {
-					firstError = err
-					cancel()
-				}
-				mu.Unlock()
-				return
+				line = shopping.PlanLine{ID: old.ID, Item: old.Item, Candidates: []shopping.Candidate{}, Issue: "The shop search failed for this item. Search again or refresh prices to retry."}
 			}
-			lines[i] = line
+			lines[i], failures[i] = line, err
 		})
 	}
 	wg.Wait()
-	if firstError != nil {
-		return nil, firstError
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	if err := searchCtx.Err(); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
+	var failure error
+	searched := false
+	for i, err := range failures {
+		if !plan.Lines[i].Skipped && err == nil {
+			searched = true
+		} else if err != nil && failure == nil {
+			failure = err
+		}
+	}
+	if failure != nil && !searched {
+		if errors.Is(failure, context.DeadlineExceeded) {
 			return nil, shopping.ErrTimeout
 		}
-		return nil, err
+		return nil, failure
 	}
 	if s.productMatcher != nil {
 		requests := []shopping.ProductMatchRequest{}
@@ -164,7 +166,7 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 			byID[match.ID] = match.ProductIDs
 		}
 		for i := range lines {
-			if !lines[i].Skipped {
+			if !lines[i].Skipped && failures[i] == nil {
 				planner.ApplyMatches(&lines[i], byID[lines[i].ID])
 			}
 		}
@@ -172,17 +174,15 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 	if preserve {
 		for i := range lines {
 			line, old := &lines[i], plan.Lines[i]
-			if old.Skipped {
+			if old.Skipped || old.Selected == nil || failures[i] != nil {
 				continue
 			}
 			line.Selected = nil
-			if old.Selected != nil {
-				for _, candidate := range line.Candidates {
-					if candidate.Eligible && candidate.Product.ID == old.Selected.Product.ID {
-						chosen := candidate
-						line.Selected = &chosen
-						break
-					}
+			for _, candidate := range line.Candidates {
+				if candidate.Eligible && candidate.Product.ID == old.Selected.Product.ID {
+					chosen := candidate
+					line.Selected = &chosen
+					break
 				}
 			}
 			if line.Selected == nil {

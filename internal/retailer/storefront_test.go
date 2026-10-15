@@ -115,6 +115,15 @@ func TestStorefrontSearchesShopsWithoutABrowserSession(t *testing.T) {
 	if _, err := NewStorefront("mathem", server.URL, time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "mathem", Context: store, Query: "mjölk", Cursor: "x"}); !errors.Is(err, shopping.ErrInvalid) {
 		t.Fatalf("invalid cursor: %v", err)
 	}
+	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":null,"pagination":{"pageSize":40,"currentPage":0,"numberOfPages":0,"totalNumberOfResults":0}}`))
+	}))
+	defer empty.Close()
+	store.StoreID = "hemkop"
+	result, err = NewStorefront("hemkop", empty.URL, time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "hemkop", Context: store, Query: "xqzvwy"})
+	if err != nil || len(result.Products) != 0 || result.Products == nil || result.NextCursor != "" {
+		t.Fatalf("search without hits: %+v, %v", result, err)
+	}
 	if _, err := NewStorefront("hemkop", server.URL+"/missing", time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "hemkop", Context: store, Query: "mjölk"}); !errors.Is(err, shopping.ErrUpstream) {
 		t.Fatalf("failed shop: %v", err)
 	}

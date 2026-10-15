@@ -209,11 +209,11 @@ type axfoodProduct struct {
 func parseAxfood(body []byte, page int) ([]shopping.Product, bool, error) {
 	var data struct {
 		Results    []axfoodProduct `json:"results"`
-		Pagination struct {
+		Pagination *struct {
 			NumberOfPages int `json:"numberOfPages"`
 		} `json:"pagination"`
 	}
-	if json.Unmarshal(body, &data) != nil || data.Results == nil {
+	if json.Unmarshal(body, &data) != nil || data.Pagination == nil {
 		return nil, false, shopping.ErrUpstream
 	}
 	products := []shopping.Product{}
