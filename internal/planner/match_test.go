@@ -26,12 +26,20 @@ func catalogProduct(id string, price int64) shopping.Product {
 	return shopping.Product{ID: id, Name: id, Pack: shopping.Pack{Quantity: 1000, Unit: "ml"}, Price: shopping.Money{AmountMinor: price, Currency: "SEK"}, PriceKind: "fixed", Availability: "in_stock"}
 }
 
+func match(catalog shopping.Catalog, item shopping.Item) (shopping.BasketLine, error) {
+	line, err := Search(context.Background(), catalog, shopping.Basket{}, item, 500)
+	if err == nil {
+		Select(&line)
+	}
+	return line, err
+}
+
 func TestRepeatedProductsAcrossPages(t *testing.T) {
 	pages := catalogPages{
 		{Products: []shopping.Product{catalogProduct("milk", 2000), catalogProduct("sponsored", 2200)}, NextCursor: "1", ObservedAt: time.Now()},
 		{Products: []shopping.Product{catalogProduct("sponsored", 2200), catalogProduct("cheapest", 1800)}, ObservedAt: time.Now()},
 	}
-	line, err := Match(context.Background(), pages, shopping.Basket{}, shopping.Item{Query: "milk", Amount: shopping.Pack{Quantity: 2, Unit: "pack"}})
+	line, err := match(pages, shopping.Item{Query: "milk", Amount: shopping.Pack{Quantity: 2, Unit: "pack"}})
 	if err != nil || len(line.Candidates) != 3 || line.Selected == nil || line.Selected.Product.ID != "cheapest" || line.SearchLimited {
 		t.Fatalf("pagination with repeated products: %+v, %v", line, err)
 	}
@@ -43,7 +51,7 @@ func TestBroadSearchReturnsBoundedCandidates(t *testing.T) {
 		page := i / 300
 		pages[page].Products = append(pages[page].Products, catalogProduct(fmt.Sprintf("product-%03d", i), int64(i+1)))
 	}
-	line, err := Match(context.Background(), pages, shopping.Basket{}, shopping.Item{Query: "milk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}})
+	line, err := match(pages, shopping.Item{Query: "milk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}})
 	if err != nil || len(line.Candidates) != 500 || !line.SearchLimited || line.Selected == nil {
 		t.Fatalf("broad search: candidates=%d, limited=%v, error=%v", len(line.Candidates), line.SearchLimited, err)
 	}
@@ -51,7 +59,7 @@ func TestBroadSearchReturnsBoundedCandidates(t *testing.T) {
 
 func TestRepeatedCursorStillFails(t *testing.T) {
 	pages := catalogPages{{Products: []shopping.Product{catalogProduct("milk", 2000)}, NextCursor: "1", ObservedAt: time.Now()}, {Products: []shopping.Product{catalogProduct("milk", 2000)}, NextCursor: "1", ObservedAt: time.Now()}}
-	_, err := Match(context.Background(), pages, shopping.Basket{}, shopping.Item{Query: "milk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}})
+	_, err := match(pages, shopping.Item{Query: "milk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}})
 	if !errors.Is(err, shopping.ErrUpstream) {
 		t.Fatalf("repeated cursor was accepted: %v", err)
 	}
@@ -73,7 +81,7 @@ func TestProductIdentityBeforePrice(t *testing.T) {
 	}
 }
 
-func TestProductMatchCannotOverrideRequirements(t *testing.T) {
+func TestUnmetRequirementsAreOfferedButNotSelected(t *testing.T) {
 	product := catalogProduct("milk", 1000)
 	pages := catalogPages{{Products: []shopping.Product{product}, ObservedAt: time.Now()}}
 	item := shopping.Item{Query: "mjölk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}, RequiredTraits: []string{"lactose_free"}}
@@ -82,8 +90,35 @@ func TestProductMatchCannotOverrideRequirements(t *testing.T) {
 		t.Fatal(err)
 	}
 	ApplyMatches(&line, []string{"milk"})
-	if line.Selected != nil || line.Candidates[0].Eligible {
-		t.Fatalf("AI identity match bypassed dietary evidence: %+v", line)
+	if line.Selected != nil || !line.Candidates[0].Eligible || !slices.Equal(line.Candidates[0].UnmetTraits, []string{"lactose_free"}) || line.Issue != "No product meets every requirement." {
+		t.Fatalf("AI identity match bypassed dietary evidence or hid the alternative: %+v", line)
+	}
+}
+
+func TestClosestAlternativesRankBeforePrice(t *testing.T) {
+	labelled := func(id string, price int64, traits ...string) shopping.Product {
+		product := catalogProduct(id, price)
+		product.Traits = map[string]string{}
+		for _, trait := range traits {
+			product.Traits[trait] = "yes"
+		}
+		return product
+	}
+	pages := catalogPages{{Products: []shopping.Product{labelled("plain", 1000), labelled("organic", 1500, "organic"), labelled("unavailable", 500, "organic", "gluten_free")}, ObservedAt: time.Now()}}
+	pages[0].Products[2].Availability = "out_of_stock"
+	item := shopping.Item{Query: "ris", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}, RequiredTraits: []string{"gluten_free", "organic"}}
+	line, err := match(pages, item)
+	ids := []string{}
+	for _, candidate := range line.Candidates {
+		ids = append(ids, candidate.Product.ID)
+	}
+	if err != nil || line.Selected != nil || !slices.Equal(ids, []string{"organic", "plain", "unavailable"}) || !slices.Equal(line.Candidates[0].UnmetTraits, []string{"gluten_free"}) {
+		t.Fatalf("closest alternative: %v, %+v, %v", ids, line, err)
+	}
+	pages[0].Products = append(pages[0].Products, labelled("exact", 4000, "organic", "gluten_free"))
+	line, err = match(pages, item)
+	if err != nil || line.Selected == nil || line.Selected.Product.ID != "exact" || line.Issue != "" {
+		t.Fatalf("product meeting every requirement: %+v, %v", line, err)
 	}
 }
 

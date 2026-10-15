@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kristalalfred/ship-it/internal/persistence"
@@ -16,7 +17,7 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
-	state, err := persistence.Open(path, map[string]shopping.Plan{}, compareShops)
+	state, err := persistence.Open(path, map[string]shopping.Plan{}, compareShops, offerAlternatives)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +166,39 @@ func compareShops(data json.RawMessage) (json.RawMessage, error) {
 			plan.Lines[i].Baskets = map[string]shopping.BasketLine{plan.RetailerID: line.BasketLine}
 		}
 		plans[id] = plan
+	}
+	return json.Marshal(plans)
+}
+
+func offerAlternatives(data json.RawMessage) (json.RawMessage, error) {
+	var plans map[string]shopping.Plan
+	if err := json.Unmarshal(data, &plans); err != nil {
+		return nil, err
+	}
+	for _, plan := range plans {
+		for _, line := range plan.Lines {
+			for retailer, entry := range line.Baskets {
+				for i := range entry.Candidates {
+					candidate := &entry.Candidates[i]
+					reasons := []string{}
+					for _, reason := range candidate.Reasons {
+						if trait, ok := strings.CutPrefix(reason, "Requirement unverified or unmet: "); ok {
+							candidate.UnmetTraits = append(candidate.UnmetTraits, trait)
+						} else {
+							reasons = append(reasons, reason)
+						}
+					}
+					candidate.Reasons = reasons
+					candidate.Eligible = candidate.Eligible || len(reasons) == 0
+				}
+				if entry.Selected == nil && entry.Issue == "No product has verified availability, requirements and a compatible pack size." {
+					Select(&entry)
+				} else {
+					slices.SortStableFunc(entry.Candidates, rank)
+				}
+				line.Baskets[retailer] = entry
+			}
+		}
 	}
 	return json.Marshal(plans)
 }

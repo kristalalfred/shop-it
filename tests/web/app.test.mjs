@@ -111,6 +111,35 @@ test('missing groceries are visible and do not disable the remaining basket', as
   assert.match(ui.elements.get('plan-state').textContent, /Ready/);
 });
 
+test('a requirement no product meets offers the closest alternative to choose', async () => {
+  const ui = await app();
+  const milk = (id, name, total, extra) => ({product: {id, name, pack: {quantity: 1000, unit: 'ml'}}, target_quantity: 2, unit_price: sek(total / 2), total: sek(total), eligible: true, reasons: [], ...extra});
+  const alternative = milk('milk-basic', 'Mjölk standard 1 l', 2580, {unmet_traits: ['lactose_free', 'organic']});
+  const plan = shoppingPlan();
+  plan.lines[0] = {id: 'milk', item: {label: 'Mjölk', query: 'mjölk', amount: {quantity: 2000, unit: 'ml'}, required_traits: ['lactose_free', 'organic']}, skipped: false, baskets: {
+    mathem: {issue: 'No product meets every requirement.', candidates: [alternative, milk('milk-lactose-free', 'Mjölk laktosfri 1,5 l', 4580, {eligible: false, unmet_traits: ['organic'], reasons: ['Availability: out_of_stock']})]},
+    willys: notFound,
+  }};
+  ui.plan(plan);
+  const lines = ui.elements.get('lines');
+  assert.match(lines.textContent, /Mjölk 2000 ml · lactose free, organic · Closest: Mjölk standard 1 l · Not marked lactose free or organic Check/);
+  const editor = lines.children[1].children[1];
+  const [choice] = editor.children.filter((node) => node.className === 'candidate');
+  assert.match(choice.textContent, /Mjölk standard 1 l 2 × 1000 ml · 25,80\skr · Not marked lactose free or organic Choose/);
+  assert.match(editor.children.find((node) => node.className === 'others').textContent, /Mjölk laktosfri 1,5 l 2 × 1000 ml · 45,80\skr · Not marked organic · Availability: out_of_stock Choose/);
+  const choose = choice.children[1];
+  assert.equal(choose.disabled, false);
+  const chosen = structuredClone(plan);
+  chosen.revision = 2;
+  chosen.lines[0].baskets.mathem.selected = alternative;
+  ui.responses['/v1/shopping-plans/plan/lines/milk'] = chosen;
+  choose.listeners.click();
+  await settle();
+  assert.deepEqual(ui.requests.find((request) => request.path === '/v1/shopping-plans/plan/lines/milk').body, {revision: 1, product_id: 'milk-basic'});
+  assert.deepEqual(classes(lines), ['line', 'line']);
+  assert.match(lines.textContent, /Mjölk 2000 ml · lactose free, organic · 2 × Mjölk standard 1 l · Not marked lactose free or organic/);
+});
+
 test('groceries are searched at every shop without choosing one first', async () => {
   const ui = await app();
   assert.equal(ui.elements.get('create').disabled, false);
@@ -120,7 +149,7 @@ test('groceries are searched at every shop without choosing one first', async ()
   await settle();
   const request = ui.requests.find((request) => request.path === '/v1/shopping-plans' && request.method === 'POST');
   assert.equal(request.headers.Accept, 'application/x-ndjson');
-  assert.deepEqual(request.body, {text: 'milk', required_traits: [], budget_minor: 0});
+  assert.deepEqual(request.body, {text: 'milk', budget_minor: 0});
   assert.match(texts(ui.elements.get('progress-steps'))[1], /Search Mathem, Willys, and Hemköp$/);
 });
 

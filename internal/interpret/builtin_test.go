@@ -18,6 +18,7 @@ func TestGroceryText(t *testing.T) {
 		{"sentence", "We need 2 litres of organic milk, 12 eggs and 500 g bananas.", []string{"mjölk", "ägg", "bananer"}, []shopping.Pack{{Quantity: 2000, Unit: "ml"}, {Quantity: 12, Unit: "each"}, {Quantity: 500, Unit: "g"}}, [][]string{{"organic"}, {}, {}}},
 		{"swedish", "Jag behöver två liter ekologisk mjölk och 1,5kg bananer", []string{"mjölk", "bananer"}, []shopping.Pack{{Quantity: 2000, Unit: "ml"}, {Quantity: 1500, Unit: "g"}}, [][]string{{"organic"}, {}}},
 		{"list", "1. 1.5 l milk\n- 2 packs gluten-free bread\n• 12 st ägg", []string{"mjölk", "bröd", "ägg"}, []shopping.Pack{{Quantity: 1500, Unit: "ml"}, {Quantity: 2, Unit: "pack"}, {Quantity: 12, Unit: "each"}}, [][]string{{}, {"gluten_free"}, {}}},
+		{"neuter", "500 g ekologiskt ris\n1 glutenfritt bröd", []string{"ris", "bröd"}, []shopping.Pack{{Quantity: 500, Unit: "g"}, {Quantity: 1, Unit: "pack"}}, [][]string{{"organic"}, {"gluten_free"}}},
 		{"global", "milk and bread. Everything should be vegan.", []string{"mjölk", "bröd"}, []shopping.Pack{{Quantity: 1, Unit: "pack"}, {Quantity: 1, Unit: "pack"}}, [][]string{{"vegan"}, {"vegan"}}},
 		{"json", `["2 packs milk", "500 g bananas"]`, []string{"mjölk", "bananer"}, []shopping.Pack{{Quantity: 2, Unit: "pack"}, {Quantity: 500, Unit: "g"}}, [][]string{{}, {}}},
 	} {
@@ -46,6 +47,23 @@ func TestUnclearAndInvalidQuantities(t *testing.T) {
 	for _, text := range []string{"0 l milk", "1000001 g bananas", "1.5 eggs", `["milk", 12]`} {
 		if _, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: text}, nil); err == nil {
 			t.Errorf("accepted %q", text)
+		}
+	}
+}
+
+func TestWithoutTraitWords(t *testing.T) {
+	for _, tc := range []struct {
+		query  string
+		traits []string
+		want   string
+	}{
+		{"Ekologisk glutenfri falukorv", []string{"organic", "gluten_free"}, "falukorv"},
+		{"ekologisk laktosfri matlagningsgrädde", []string{"organic"}, "laktosfri matlagningsgrädde"},
+		{"ekologiskt ris", nil, "ekologiskt ris"},
+		{"vegansk korv", []string{"vegan"}, "korv"},
+	} {
+		if got := WithoutTraitWords(tc.query, tc.traits); got != tc.want {
+			t.Errorf("%q without %v: %q", tc.query, tc.traits, got)
 		}
 	}
 }

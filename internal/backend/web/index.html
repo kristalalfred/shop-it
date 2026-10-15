@@ -30,15 +30,6 @@
         <div class="examples" aria-label="Example requests"><span>Try:</span><button type="button" data-example="dinner">Dinner for 5</button><button type="button" data-example="breakfast">Grocery list</button><button type="button" data-example="diet">Dietary needs</button></div>
         <details class="options">
           <summary id="options-summary">Options</summary>
-          <fieldset>
-            <legend>Requirements for every item</legend>
-            <div class="traits">
-              <label><input type="checkbox" value="organic">Organic</label>
-              <label><input type="checkbox" value="vegan">Vegan</label>
-              <label><input type="checkbox" value="lactose_free">Lactose free</label>
-              <label><input type="checkbox" value="gluten_free">Gluten free</label>
-            </div>
-          </fieldset>
           <label class="budget">Budget in SEK <span class="muted">optional</span><input id="budget" type="number" min="0" max="1000000" step="0.01" placeholder="250"></label>
         </details>
         <div class="submit-row"><p id="connection" class="muted" role="status">Connecting…</p><button id="reconnect" type="button" hidden>Reconnect</button><button id="create" class="primary" type="submit" disabled>Find groceries</button></div>

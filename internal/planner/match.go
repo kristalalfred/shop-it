@@ -9,14 +9,6 @@ import (
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
-func Match(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item) (shopping.BasketLine, error) {
-	line, err := Search(ctx, catalog, basket, item, 500)
-	if err == nil {
-		Select(&line)
-	}
-	return line, err
-}
-
 func Search(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item, limit int) (shopping.BasketLine, error) {
 	line := shopping.BasketLine{Candidates: []shopping.Candidate{}, SearchLimit: limit}
 	search := shopping.SearchRequest{RetailerID: basket.RetailerID, Context: basket.Context, Query: item.Query}
@@ -58,35 +50,38 @@ pages:
 }
 
 func Select(line *shopping.BasketLine) {
-	line.Selected = nil
-	line.Issue = ""
-	slices.SortStableFunc(line.Candidates, func(a, b shopping.Candidate) int {
-		if a.Eligible != b.Eligible {
-			if a.Eligible {
-				return -1
-			}
-			return 1
-		}
-		if a.Total.AmountMinor < b.Total.AmountMinor {
+	slices.SortStableFunc(line.Candidates, rank)
+	line.Selected, line.Issue = nil, ""
+	switch {
+	case len(line.Candidates) == 0:
+		line.Issue = "No matching product found."
+	case !line.Candidates[0].Eligible:
+		line.Issue = "No product has verified availability and a compatible pack size."
+	case len(line.Candidates[0].UnmetTraits) > 0:
+		line.Issue = "No product meets every requirement."
+	default:
+		chosen := line.Candidates[0]
+		line.Selected = &chosen
+	}
+}
+
+func rank(a, b shopping.Candidate) int {
+	if a.Eligible != b.Eligible {
+		if a.Eligible {
 			return -1
 		}
-		if a.Total.AmountMinor > b.Total.AmountMinor {
-			return 1
-		}
-		return strings.Compare(a.Product.ID, b.Product.ID)
-	})
-	for _, option := range line.Candidates {
-		if option.Eligible {
-			chosen := option
-			line.Selected = &chosen
-			break
-		}
+		return 1
 	}
-	if len(line.Candidates) == 0 {
-		line.Issue = "No matching product found."
-	} else if line.Selected == nil {
-		line.Issue = "No product has verified availability, requirements and a compatible pack size."
+	if n := len(a.UnmetTraits) - len(b.UnmetTraits); n != 0 {
+		return n
 	}
+	if a.Total.AmountMinor < b.Total.AmountMinor {
+		return -1
+	}
+	if a.Total.AmountMinor > b.Total.AmountMinor {
+		return 1
+	}
+	return strings.Compare(a.Product.ID, b.Product.ID)
 }
 
 func ApplyMatches(line *shopping.BasketLine, ids []string) {
@@ -120,7 +115,7 @@ func candidate(product shopping.Product, item shopping.Item, memberships []strin
 	}
 	for _, trait := range item.RequiredTraits {
 		if product.Traits[trait] != "yes" {
-			c.Reasons = append(c.Reasons, "Requirement unverified or unmet: "+trait)
+			c.UnmetTraits = append(c.UnmetTraits, trait)
 		}
 	}
 	if c.Quantity > 0 && c.Quantity <= 1000 {

@@ -24,11 +24,13 @@ var decimalComma = regexp.MustCompile(`([0-9]),([0-9])`)
 var compactUnit = regexp.MustCompile(`([0-9])([a-zA-Z]+)\b`)
 var sentences = regexp.MustCompile(`([^0-9])[.!?](?:\s+|$)`)
 
-var traitWords = map[string][]string{
-	"organic":      {"organic", "ekologisk", "ekologiska", "eko"},
-	"vegan":        {"vegan", "vegansk", "veganska", "plant-based"},
-	"lactose_free": {"lactose-free", "lactose free", "laktosfri", "laktosfria"},
-	"gluten_free":  {"gluten-free", "gluten free", "glutenfri", "glutenfria"},
+var traitNames = []string{"organic", "vegan", "lactose_free", "gluten_free"}
+
+var traitWords = map[string]*regexp.Regexp{
+	"organic":      regexp.MustCompile(`(?i)\b(?:organic|ekologisk|ekologiskt|ekologiska|eko)\b`),
+	"vegan":        regexp.MustCompile(`(?i)\b(?:vegan|vegansk|veganskt|veganska|plant-based)\b`),
+	"lactose_free": regexp.MustCompile(`(?i)\b(?:lactose-free|lactose free|laktosfri|laktosfritt|laktosfria)\b`),
+	"gluten_free":  regexp.MustCompile(`(?i)\b(?:gluten-free|gluten free|glutenfri|glutenfritt|glutenfria)\b`),
 }
 
 var aliases = map[string]string{
@@ -59,7 +61,7 @@ func (Builtin) Interpret(ctx context.Context, req shopping.InterpretationRequest
 		text = sentences.ReplaceAllString(text, "$1\n")
 		parts = separators.Split(text, -1)
 	}
-	global := slices.Clone(req.RequiredTraits)
+	global := []string{}
 	for _, part := range parts {
 		if len(result.Items) >= 100 {
 			return result, shopping.ErrInvalid
@@ -72,14 +74,10 @@ func (Builtin) Interpret(ctx context.Context, req shopping.InterpretationRequest
 		part = strings.ToLower(part)
 		part = strings.TrimSpace(ending.ReplaceAllString(intro.ReplaceAllString(part, ""), ""))
 		traits := []string{}
-		for _, trait := range []string{"organic", "vegan", "lactose_free", "gluten_free"} {
-			for _, word := range traitWords[trait] {
-				re := regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`)
-				if re.MatchString(part) {
-					traits = append(traits, trait)
-					part = re.ReplaceAllString(part, " ")
-					break
-				}
+		for _, trait := range traitNames {
+			if traitWords[trait].MatchString(part) {
+				traits = append(traits, trait)
+				part = traitWords[trait].ReplaceAllString(part, " ")
 			}
 		}
 		if strings.HasPrefix(part, "everything ") || strings.HasPrefix(part, "all items ") || strings.HasPrefix(part, "allt ") {
@@ -154,6 +152,15 @@ func (Builtin) Interpret(ctx context.Context, req shopping.InterpretationRequest
 		result.Items[i].RequiredTraits = Unique(append(result.Items[i].RequiredTraits, global...))
 	}
 	return result, nil
+}
+
+func WithoutTraitWords(query string, traits []string) string {
+	for _, trait := range traits {
+		if words, ok := traitWords[trait]; ok {
+			query = words.ReplaceAllString(query, " ")
+		}
+	}
+	return strings.Join(strings.Fields(query), " ")
 }
 
 func Unique(traits []string) []string {

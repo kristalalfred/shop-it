@@ -35,7 +35,7 @@ func TestCodexInterpretation(t *testing.T) {
 				defer cancel()
 			}
 			var notes []string
-			result, err := provider.Interpret(ctx, shopping.InterpretationRequest{Text: "Korvstroganoff för 5", RequiredTraits: []string{"vegan"}}, func(note string) { notes = append(notes, note) })
+			result, err := provider.Interpret(ctx, shopping.InterpretationRequest{Text: "Vegansk korvstroganoff för 5"}, func(note string) { notes = append(notes, note) })
 			if mode == "valid" {
 				if err != nil || result.Mode != "codex" || len(result.Items) != 1 || result.Items[0].Query != "vegokorv" {
 					t.Fatalf("interpretation: %+v, %v", result, err)
@@ -62,7 +62,7 @@ func TestCodexInterpretation(t *testing.T) {
 			if err := json.Unmarshal(data, &capture); err != nil {
 				t.Fatal(err)
 			}
-			if capture.Req.Text != "Korvstroganoff för 5" || !slices.Equal(capture.Req.RequiredTraits, []string{"vegan"}) || !slices.Contains(capture.Args, "test-model") {
+			if capture.Req.Text != "Vegansk korvstroganoff för 5" || !slices.Contains(capture.Args, "test-model") {
 				t.Fatalf("wrong request: %+v", capture)
 			}
 			for _, arg := range []string{"--json", "--ignore-user-config", "--ephemeral", "read-only", "shell_tool", "apps", "plugins", "hooks", "multi_agent", `web_search="disabled"`} {

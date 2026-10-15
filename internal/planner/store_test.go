@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -48,10 +50,56 @@ func TestSingleShopPlansAreUpgradedToBaskets(t *testing.T) {
 		Version int                      `json:"version"`
 		Data    map[string]shopping.Plan `json:"data"`
 	}
-	if err := json.Unmarshal(data, &stored); err != nil || stored.Version != 2 || stored.Data["saved"].Baskets[0].Status != "ready" {
+	if err := json.Unmarshal(data, &stored); err != nil || stored.Version != 3 || stored.Data["saved"].Baskets[0].Status != "ready" {
 		t.Fatalf("upgraded state was not persisted: %s, %v", data, err)
 	}
 	if _, err := Open(path); err != nil {
 		t.Fatalf("reopen upgraded state: %v", err)
+	}
+}
+
+func TestRequirementMissesBecomeAlternativesOnUpgrade(t *testing.T) {
+	candidate := func(id string, price int, eligible bool, reasons ...string) string {
+		encoded, _ := json.Marshal(reasons)
+		return `{"product":{"id":"` + id + `","name":"` + id + `","pack":{"quantity":1000,"unit":"ml"},"price":{"amount_minor":` + strconv.Itoa(price) + `,"currency":"SEK"},"price_kind":"fixed","availability":"in_stock"},"target_quantity":1,"unit_price":{"amount_minor":` + strconv.Itoa(price) + `,"currency":"SEK"},"total":{"amount_minor":` + strconv.Itoa(price) + `,"currency":"SEK"},"eligible":` + strconv.FormatBool(eligible) + `,"reasons":` + string(encoded) + `}`
+	}
+	unmet := "Requirement unverified or unmet: "
+	item := `{"label":"Milk","query":"mjölk","amount":{"quantity":1,"unit":"pack"},"required_traits":["lactose_free","organic"]}`
+	saved := `{"version":2,"data":{"saved":{"id":"saved","revision":1,"text":"milk","required_traits":["organic"],"retailer_id":"willys","interpreter_mode":"codex","warnings":[],
+		"baskets":[{"retailer_id":"willys","context":{"store_id":"willys","postal_code":"00000"}}],
+		"lines":[{"id":"open","item":` + item + `,"skipped":false,"baskets":{"willys":{"issue":"No product has verified availability, requirements and a compatible pack size.","candidates":[` +
+		candidate("unrelated", 500, false, unmet+"organic", "This product does not match the requested ingredient.") + `,` +
+		candidate("plain", 1000, false, unmet+"lactose_free", unmet+"organic") + `,` +
+		candidate("organic", 1500, false, unmet+"lactose_free") + `]}}},
+		{"id":"chosen","item":` + item + `,"skipped":false,"baskets":{"willys":{"selected":` + candidate("exact", 3000, true, "Lowest-cost options are ranked by the total needed quantity.") + `,"candidates":[` +
+		candidate("exact", 3000, true, "Lowest-cost options are ranked by the total needed quantity.") + `,` +
+		candidate("organic", 1500, false, unmet+"lactose_free") + `]}}}]}}}`
+	path := filepath.Join(t.TempDir(), "plans.json")
+	if err := os.WriteFile(path, []byte(saved), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := store.Get(context.Background(), "saved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := plan.Lines[0].Baskets["willys"]
+	ids := []string{}
+	for _, candidate := range open.Candidates {
+		ids = append(ids, candidate.Product.ID)
+	}
+	first := open.Candidates[0]
+	if !slices.Equal(ids, []string{"organic", "plain", "unrelated"}) || !first.Eligible || !slices.Equal(first.UnmetTraits, []string{"lactose_free"}) || len(first.Reasons) != 0 || open.Candidates[2].Eligible || open.Selected != nil || open.Issue != "No product meets every requirement." {
+		t.Fatalf("open line: %v, %+v", ids, open)
+	}
+	chosen := plan.Lines[1].Baskets["willys"]
+	if chosen.Selected == nil || chosen.Selected.Product.ID != "exact" || chosen.Candidates[0].Product.ID != "exact" || !chosen.Candidates[1].Eligible {
+		t.Fatalf("chosen line: %+v", chosen)
+	}
+	if basket, _ := Chosen(plan); basket.Missing != 1 || basket.Total.AmountMinor != 3000 {
+		t.Fatalf("basket: %+v", basket)
 	}
 }

@@ -178,11 +178,15 @@ func TestShoppingPlanToBasket(t *testing.T) {
 func TestConstraintsReviewAndBudget(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
 	plan := createPlan(t, s, planRequest("2 l lactose-free milk\n500 g bananas"))
-	if chosen(t, plan).Status != "ready" || selected(plan, 0) != nil {
+	milk := plan.Lines[0].Baskets[plan.RetailerID]
+	if chosen(t, plan).Status != "ready" || selected(plan, 0) != nil || milk.Issue != "No product meets every requirement." {
 		t.Fatalf("unsafe dietary choice: %+v", plan)
 	}
-	for _, candidate := range plan.Lines[0].Baskets[plan.RetailerID].Candidates {
-		if candidate.Eligible {
+	if closest := milk.Candidates[0]; closest.Product.ID != "milk-basic" || !closest.Eligible || !slices.Equal(closest.UnmetTraits, []string{"lactose_free"}) {
+		t.Fatalf("closest alternative: %+v", closest)
+	}
+	for _, candidate := range milk.Candidates {
+		if candidate.Eligible && len(candidate.UnmetTraits) == 0 {
 			t.Fatalf("unsafe candidate: %+v", candidate)
 		}
 	}
@@ -195,9 +199,17 @@ func TestConstraintsReviewAndBudget(t *testing.T) {
 	if len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
 		t.Fatalf("unverified dietary product transferred: %+v", items)
 	}
-	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "product_id": "milk-basic"}, userToken, "")
+	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "product_id": "milk-lactose-free"}, userToken, "")
 	if err != nil || res.status != 400 {
-		t.Fatalf("unsafe override accepted: %+v, %v", res, err)
+		t.Fatalf("unavailable product accepted: %+v, %v", res, err)
+	}
+	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "product_id": "milk-basic"}, userToken, "")
+	if err != nil || res.status != 200 {
+		t.Fatalf("chosen alternative rejected: %+v, %v", res, err)
+	}
+	plan = decodePlan(t, res)
+	if alternative := selected(plan, 0); alternative == nil || alternative.Product.ID != "milk-basic" || !slices.Equal(alternative.UnmetTraits, []string{"lactose_free"}) || chosen(t, plan).Missing != 0 {
+		t.Fatalf("chosen alternative: %+v", plan)
 	}
 	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "skipped": true}, userToken, "")
 	if err != nil || res.status != 200 || chosen(t, decodePlan(t, res)).Status != "ready" {
@@ -222,6 +234,30 @@ func TestConstraintsReviewAndBudget(t *testing.T) {
 	res, err = s.request("POST", path, map[string]any{"revision": plan.Revision, "client_id": "demo-browser", "acknowledge_warnings": true, "allow_over_budget": true}, userToken, "budget")
 	if err != nil || res.status != 202 {
 		t.Fatalf("reviewed budget: %+v, %v", res, err)
+	}
+}
+
+func TestRequirementWordsBroadenAnEmptySearch(t *testing.T) {
+	s := startSystem(t, demoScenario(t))
+	plan := createPlan(t, s, planRequest("2 packs organic milk"))
+	path := "/v1/shopping-plans/" + plan.ID + "/lines/" + plan.Lines[0].ID
+	item := plan.Lines[0].Item
+	item.Query = "ekologisk mjölk"
+	res, err := s.request("PATCH", path, map[string]any{"revision": plan.Revision, "item": item}, userToken, "")
+	if err != nil || res.status != 200 {
+		t.Fatalf("search with requirement words: %+v, %v", res, err)
+	}
+	plan = decodePlan(t, res)
+	if milk := selected(plan, 0); milk == nil || milk.Product.ID != "milk-organic" || plan.Lines[0].Item.Query != "ekologisk mjölk" {
+		t.Fatalf("broader search: %+v", plan.Lines[0])
+	}
+	item.RequiredTraits = []string{}
+	res, err = s.request("PATCH", path, map[string]any{"revision": plan.Revision, "item": item}, userToken, "")
+	if err != nil || res.status != 200 {
+		t.Fatalf("search without requirements: %+v, %v", res, err)
+	}
+	if plan = decodePlan(t, res); len(plan.Lines[0].Baskets[plan.RetailerID].Candidates) != 0 {
+		t.Fatalf("search was broadened without a requirement: %+v", plan.Lines[0])
 	}
 }
 

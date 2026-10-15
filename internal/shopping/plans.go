@@ -19,8 +19,7 @@ type Interpretation struct {
 }
 
 type InterpretationRequest struct {
-	Text           string   `json:"text"`
-	RequiredTraits []string `json:"required_traits,omitempty"`
+	Text string `json:"text"`
 }
 
 type Notify func(note string)
@@ -58,18 +57,18 @@ type ProductMatcher interface {
 }
 
 type PlanRequest struct {
-	Text           string   `json:"text"`
-	RequiredTraits []string `json:"required_traits,omitempty"`
-	BudgetMinor    int64    `json:"budget_minor,omitempty"`
+	Text        string `json:"text"`
+	BudgetMinor int64  `json:"budget_minor,omitempty"`
 }
 
 type Candidate struct {
-	Product   Product  `json:"product"`
-	Quantity  int      `json:"target_quantity"`
-	UnitPrice Money    `json:"unit_price"`
-	Total     Money    `json:"total"`
-	Eligible  bool     `json:"eligible"`
-	Reasons   []string `json:"reasons"`
+	Product     Product  `json:"product"`
+	Quantity    int      `json:"target_quantity"`
+	UnitPrice   Money    `json:"unit_price"`
+	Total       Money    `json:"total"`
+	Eligible    bool     `json:"eligible"`
+	UnmetTraits []string `json:"unmet_traits,omitempty"`
+	Reasons     []string `json:"reasons"`
 }
 
 type BasketLine struct {

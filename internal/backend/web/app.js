@@ -133,6 +133,11 @@ const notAdded = (line) => !line.skipped && Boolean(fillResult(line)) && fillRes
 const needsAttention = (line) => !line.skipped && (!entry(line).selected?.eligible || notAdded(line));
 const fillLabels = {unavailable: 'Unavailable', failed: 'Not added', login_required: 'Sign in', uncertain: 'Check'};
 const amount = (item) => `${item.amount.quantity} ${item.amount.unit}${item.required_traits.length ? ' · ' + item.required_traits.join(', ').replaceAll('_', ' ') : ''}`;
+const unmarked = (candidate) => candidate.unmet_traits?.length ? `Not marked ${new Intl.ListFormat('en', {type: 'disjunction'}).format(candidate.unmet_traits.map((trait) => trait.replaceAll('_', ' ')))}` : '';
+function closest(line) {
+  const found = entry(line), best = found.candidates.find((candidate) => candidate.eligible);
+  return !found.selected && best?.unmet_traits?.length ? best : null;
+}
 
 function showPlan(value) {
   stopPoll();
@@ -193,16 +198,17 @@ function renderLine(line) {
     node.append(text, restore);
     return node;
   }
-  const attention = needsAttention(line), selected = entry(line).selected, result = notAdded(line) && fillResult(line);
+  const attention = needsAttention(line), selected = entry(line).selected, result = notAdded(line) && fillResult(line), alternative = closest(line);
   const node = el('details', null, `line${attention ? ' attention' : ''}`);
   node.open = line.id === openLine;
   node.addEventListener('toggle', () => { if (node.open) openLine = line.id; else if (openLine === line.id) openLine = ''; });
   const summary = el('summary'), text = el('span', null, 'line-text');
   const detail = result ? `${selected.target_quantity} × ${selected.product.name} · ${result.message || 'Not added to the basket.'}`
+    : alternative ? `Closest: ${alternative.product.name} · ${unmarked(alternative)}`
     : attention ? entry(line).issue || (selected ? 'Choose another product.' : 'No matching product found.')
-    : `${selected.target_quantity} × ${selected.product.name}`;
+    : [`${selected.target_quantity} × ${selected.product.name}`, unmarked(selected)].filter(Boolean).join(' · ');
   text.append(el('span', line.item.label, 'line-name'), el('span', `${amount(line.item)} · ${detail}`, 'line-detail'));
-  summary.append(text, result ? el('span', fillLabels[result.status] || 'Check', 'line-flag') : attention ? el('span', selected ? 'Check' : 'Not found', 'line-flag') : el('span', money(selected.total), 'line-price'));
+  summary.append(text, result ? el('span', fillLabels[result.status] || 'Check', 'line-flag') : attention ? el('span', selected || alternative ? 'Check' : 'Not found', 'line-flag') : el('span', money(selected.total), 'line-price'));
   node.append(summary, renderEditor(line));
   return node;
 }
@@ -241,7 +247,8 @@ function renderEditor(line) {
 
 function renderCandidate(line, candidate) {
   const row = el('div', null, 'candidate'), description = el('div');
-  description.append(el('strong', candidate.product.name), el('p', `${candidate.target_quantity || '?'} × ${candidate.product.pack.quantity} ${candidate.product.pack.unit} · ${money(candidate.total)}${candidate.eligible ? '' : ` · ${candidate.reasons.join(' ')}`}`, 'muted'));
+  const notes = [`${candidate.target_quantity || '?'} × ${candidate.product.pack.quantity} ${candidate.product.pack.unit}`, money(candidate.total), unmarked(candidate), candidate.eligible ? '' : candidate.reasons.join(' ')];
+  description.append(el('strong', candidate.product.name), el('p', notes.filter(Boolean).join(' · '), 'muted'));
   const chosen = entry(line).selected?.product.id === candidate.product.id;
   const choose = el('button', chosen ? 'Selected' : 'Choose'); choose.type = 'button'; choose.disabled = !candidate.eligible || chosen;
   choose.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {product_id: candidate.product.id})); await history(); }));
@@ -306,10 +313,9 @@ for (const button of document.querySelectorAll('[data-example]')) button.addEven
 $('ack').addEventListener('change', buttons); $('over').addEventListener('change', buttons);
 
 $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
-  const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
   startProgress(new Intl.ListFormat('en').format(retailers.map((retailer) => retailer.name)));
   try {
-    showPlan(await createPlan({text: $('text').value, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)}, updateProgress));
+    showPlan(await createPlan({text: $('text').value, budget_minor: Math.round(Number($('budget').value || 0) * 100)}, updateProgress));
   } finally { stopProgress(); }
   await history();
   $('review').scrollIntoView({block: 'start', behavior: 'smooth'});
@@ -364,19 +370,8 @@ $('transfer').addEventListener('click', () => action(async () => {
 }));
 
 window.addEventListener('pagehide', stopPoll);
-let savedPreferences = [];
-try { savedPreferences = JSON.parse(localStorage.getItem('ship-it-preferences') || '[]'); } catch { localStorage.removeItem('ship-it-preferences'); }
 function updateOptions() {
-  const preferences = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.parentElement.textContent.trim());
-  if (Number($('budget').value) > 0) preferences.push(`${$('budget').value} SEK`);
-  $('options-summary').textContent = preferences.length ? `Options · ${preferences.join(', ')}` : 'Options';
-}
-for (const input of document.querySelectorAll('.traits input')) {
-  input.checked = Array.isArray(savedPreferences) && savedPreferences.includes(input.value);
-  input.addEventListener('change', () => {
-    localStorage.setItem('ship-it-preferences', JSON.stringify(Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value)));
-    updateOptions();
-  });
+  $('options-summary').textContent = Number($('budget').value) > 0 ? `Options · ${$('budget').value} SEK` : 'Options';
 }
 $('budget').addEventListener('input', updateOptions);
 updateOptions();

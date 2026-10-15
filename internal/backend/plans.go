@@ -44,7 +44,7 @@ func (s *Server) interpretText(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if !validText(req.Text) || !interpret.ValidTraits(req.RequiredTraits) {
+	if !validText(req.Text) {
 		fail(w, shopping.ErrInvalid)
 		return
 	}
@@ -52,9 +52,6 @@ func (s *Server) interpretText(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, err)
 		return
-	}
-	for i := range result.Items {
-		result.Items[i].RequiredTraits = interpret.Unique(append(result.Items[i].RequiredTraits, req.RequiredTraits...))
 	}
 	respond(w, 200, result)
 }
@@ -64,7 +61,7 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if !validText(req.Text) || !interpret.ValidTraits(req.RequiredTraits) || req.BudgetMinor < 0 || req.BudgetMinor > 100000000 {
+	if !validText(req.Text) || req.BudgetMinor < 0 || req.BudgetMinor > 100000000 {
 		fail(w, shopping.ErrInvalid)
 		return
 	}
@@ -90,7 +87,7 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) newPlan(ctx context.Context, req shopping.PlanRequest, report func(shopping.Progress)) (shopping.Plan, error) {
 	report(shopping.Progress{Stage: "interpret"})
-	intent, err := s.interpreter.Interpret(ctx, shopping.InterpretationRequest{Text: req.Text, RequiredTraits: req.RequiredTraits}, func(note string) {
+	intent, err := s.interpreter.Interpret(ctx, shopping.InterpretationRequest{Text: req.Text}, func(note string) {
 		report(shopping.Progress{Stage: "interpret", Note: note})
 	})
 	if err != nil {
@@ -98,7 +95,6 @@ func (s *Server) newPlan(ctx context.Context, req shopping.PlanRequest, report f
 	}
 	plan := shopping.Plan{PlanRequest: req, InterpreterMode: intent.Mode, Warnings: intent.Warnings, Baskets: s.baskets(), Lines: make([]shopping.PlanLine, len(intent.Items))}
 	for i, item := range intent.Items {
-		item.RequiredTraits = interpret.Unique(append(item.RequiredTraits, req.RequiredTraits...))
 		plan.Lines[i] = shopping.PlanLine{ID: "line-" + rand.Text(), Item: item}
 	}
 	plan.Lines, err = s.searchLines(ctx, plan.Baskets, plan.Lines, false, report)
@@ -164,10 +160,8 @@ func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lin
 					defer func() { <-limit }()
 					if catalog == nil {
 						err = shopping.ErrNotFound
-					} else if s.productMatcher == nil {
-						result, err = planner.Match(searchCtx, catalog, basket, line.Item)
 					} else {
-						result, err = planner.Search(searchCtx, catalog, basket, line.Item, 40)
+						result, err = s.searchItem(searchCtx, catalog, basket, line.Item)
 					}
 				case <-searchCtx.Done():
 					err = searchCtx.Err()
@@ -233,6 +227,22 @@ func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lin
 		}
 	}
 	return result, nil
+}
+
+func (s *Server) searchItem(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item) (shopping.BasketLine, error) {
+	limit := 40
+	if s.productMatcher == nil {
+		limit = 500
+	}
+	line, err := planner.Search(ctx, catalog, basket, item, limit)
+	if broader := interpret.WithoutTraitWords(item.Query, item.RequiredTraits); err == nil && len(line.Candidates) == 0 && broader != "" && broader != item.Query {
+		item.Query = broader
+		line, err = planner.Search(ctx, catalog, basket, item, limit)
+	}
+	if err == nil && s.productMatcher == nil {
+		planner.Select(&line)
+	}
+	return line, err
 }
 
 func (s *Server) matchProducts(ctx context.Context, baskets []shopping.Basket, lines []shopping.PlanLine, found [][]shopping.BasketLine, failures [][]error, report func(shopping.Progress)) error {
@@ -365,10 +375,8 @@ func (s *Server) updateLine(w http.ResponseWriter, r *http.Request) {
 			fail(w, shopping.ErrInvalid)
 			return
 		}
-		item := *req.Item
-		item.RequiredTraits = interpret.Unique(append(item.RequiredTraits, plan.RequiredTraits...))
 		var lines []shopping.PlanLine
-		lines, err = s.searchLines(r.Context(), plan.Baskets, []shopping.PlanLine{{ID: line.ID, Item: item}}, false, ignoreProgress)
+		lines, err = s.searchLines(r.Context(), plan.Baskets, []shopping.PlanLine{{ID: line.ID, Item: *req.Item}}, false, ignoreProgress)
 		if err != nil {
 			fail(w, err)
 			return

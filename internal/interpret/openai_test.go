@@ -39,7 +39,7 @@ func TestStructuredInterpretationContract(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Error(err)
 		}
-		if r.Header.Get("Authorization") != "Bearer test-key" || req["model"] != "test-model" || req["store"] != false || req["stream"] != true || req["input"] != `{"text":"breakfast for two","required_traits":["organic"]}` {
+		if r.Header.Get("Authorization") != "Bearer test-key" || req["model"] != "test-model" || req["store"] != false || req["stream"] != true || req["input"] != `{"text":"organic breakfast for two"}` {
 			t.Errorf("wrong interpreter request: %v", req)
 		}
 		if _, capped := req["max_output_tokens"]; capped {
@@ -65,7 +65,7 @@ func TestStructuredInterpretationContract(t *testing.T) {
 	provider := NewOpenAI("test-key", "test-model")
 	provider.URL = server.URL
 	var notes []string
-	result, err := provider.Interpret(context.Background(), shopping.InterpretationRequest{Text: "breakfast for two", RequiredTraits: []string{"organic"}}, func(note string) { notes = append(notes, note) })
+	result, err := provider.Interpret(context.Background(), shopping.InterpretationRequest{Text: "organic breakfast for two"}, func(note string) { notes = append(notes, note) })
 	if err != nil || result.Mode != "openai" || len(result.Items) != 1 || result.Items[0].Amount.Quantity != 1000 || len(result.Warnings) != 1 {
 		t.Fatalf("result: %+v, %v", result, err)
 	}
