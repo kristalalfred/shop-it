@@ -5,16 +5,17 @@
   globalThis.shipItBridgeLoaded = true;
   const extension = globalThis.browser || globalThis.chrome;
   if (location.hostname !== '127.0.0.1' || location.protocol !== 'http:' || location.pathname !== '/') return;
-  const announce = () => extension.runtime.sendMessage({type: 'connection'}).then(
-    (result) => document.dispatchEvent(new CustomEvent('ship-it-extension-ready', {detail: JSON.stringify({connected: Boolean(result?.connected)})})),
-    () => document.dispatchEvent(new CustomEvent('ship-it-extension-ready', {detail: JSON.stringify({connected: false})})),
-  );
-  document.addEventListener('ship-it-pair', () => {
+  async function connect() {
+    let result = await extension.runtime.sendMessage({type: 'connection'});
     const token = document.getElementById('token')?.value;
-    if (!token) return;
-    extension.runtime.sendMessage({type: 'pair', url: location.origin, token}).then((result) => {
-      document.dispatchEvent(new CustomEvent('ship-it-paired', {detail: JSON.stringify(result)}));
-    }, () => document.dispatchEvent(new CustomEvent('ship-it-paired', {detail: JSON.stringify({error: 'Open the extension to reconnect.'})})));
+    if (!result?.connected && token) {
+      const paired = await extension.runtime.sendMessage({type: 'pair', url: location.origin, token});
+      result = paired?.error ? {connected: false, error: paired.error} : {connected: true, client_id: paired.client_id};
+    }
+    return {connected: Boolean(result?.connected), client_id: result?.client_id || '', error: result?.error || ''};
+  }
+  const announce = () => connect().catch(() => ({connected: false, client_id: '', error: 'Reload the extension and this page.'})).then((result) => {
+    document.dispatchEvent(new CustomEvent('ship-it-extension-ready', {detail: JSON.stringify(result)}));
   });
   document.addEventListener('ship-it-extension-probe', announce);
   announce();

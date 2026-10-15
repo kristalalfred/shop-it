@@ -18,9 +18,9 @@ func InitLocal(path string) error {
 		Listen: "127.0.0.1:18080", APIToken: rand.Text(), AdapterTimeoutMS: 25000,
 		DataDir: filepath.Join(filepath.Dir(path), "live"), Interpreter: InterpreterConfig{Mode: "codex"},
 		Retailers: []RetailerConfig{
-			{ID: "mathem", Name: "Mathem", Mode: "browser", BasketURL: "https://www.mathem.se/se/cart/"},
-			{ID: "willys", Name: "Willys", Mode: "browser", BasketURL: "https://www.willys.se/"},
-			{ID: "hemkop", Name: "Hemköp", Mode: "browser", BasketURL: "https://www.hemkop.se/"},
+			{ID: "mathem", Name: "Mathem", Mode: "browser", BasketURL: BasketURLs["mathem"]},
+			{ID: "willys", Name: "Willys", Mode: "browser", BasketURL: BasketURLs["willys"]},
+			{ID: "hemkop", Name: "Hemköp", Mode: "browser", BasketURL: BasketURLs["hemkop"]},
 		},
 		Clients: []ClientConfig{{ID: "browser", Token: rand.Text()}},
 	}

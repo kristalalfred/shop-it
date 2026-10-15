@@ -11,7 +11,7 @@ export async function applyTransfer(transfer, adapter, journal, renew) {
     let started = line?.phase === 'started';
     let result;
     try {
-      const basket = await adapter.read(transfer.context);
+      const basket = await adapter.read();
       const current = basket[item.product_id] || 0;
       if (current === item.target_quantity) {
         result = {product_id: item.product_id, status: 'applied', confirmed_quantity: current};
@@ -22,12 +22,12 @@ export async function applyTransfer(transfer, adapter, journal, renew) {
         record.lines[item.product_id] = {phase: 'started', before: current};
         await save();
         started = true;
-        await adapter.set(transfer.context, item, current);
-        const confirmed = (await adapter.read(transfer.context))[item.product_id] || 0;
+        await adapter.set(item, current);
+        const confirmed = (await adapter.read())[item.product_id] || 0;
         result = {product_id: item.product_id, status: confirmed === item.target_quantity ? 'applied' : 'uncertain', confirmed_quantity: confirmed === item.target_quantity ? confirmed : 0, ...(confirmed !== item.target_quantity ? {message: 'The store did not confirm the requested quantity. Review this item at the store.'} : {})};
       }
     } catch (error) {
-      result = {product_id: item.product_id, status: started ? 'uncertain' : error.status === 'login_required' ? 'login_required' : 'failed', confirmed_quantity: 0, message: String(error.message || 'Store operation failed.').slice(0, 500)};
+      result = {product_id: item.product_id, status: error.status === 'unavailable' ? 'unavailable' : started ? 'uncertain' : error.status === 'login_required' ? 'login_required' : 'failed', confirmed_quantity: 0, message: String(error.message || 'Store operation failed.').slice(0, 500)};
     }
     record.lines[item.product_id] = {phase: 'done', result};
     await save();
@@ -35,27 +35,6 @@ export async function applyTransfer(transfer, adapter, journal, renew) {
   record.receipt = {lines: transfer.items.map((item) => record.lines[item.product_id].result)};
   await save();
   return record.receipt;
-}
-
-export async function discoverSessions(origins, tabs, call) {
-  const origin = (tab) => { try { return new URL(tab.url).origin; } catch { return ''; } };
-  const ranked = [...tabs].sort((a, b) => Number(Boolean(a.discarded)) - Number(Boolean(b.discarded)) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
-  const found = [], issues = [];
-  for (const [id, shopOrigin] of Object.entries(origins)) {
-    let issue = '';
-    for (const tab of ranked.filter((tab) => origin(tab) === shopOrigin)) {
-      try {
-        found.push({...await call(tab.id, id), tabID: tab.id});
-        issue = '';
-        break;
-      } catch (error) {
-        issue = error.unreachable && issue ? issue : String(error.message || 'The shop tab did not respond.').slice(0, 300);
-        if (!error.unreachable) break;
-      }
-    }
-    if (issue) issues.push({retailer_id: id, message: issue});
-  }
-  return {found, issues};
 }
 
 export function localURL(raw) {

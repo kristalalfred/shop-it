@@ -14,7 +14,7 @@
       headers['Content-Type'] = 'application/json';
       if (id === 'mathem') {
         const csrf = document.cookie.split('; ').find((cookie) => cookie.startsWith('csrftoken='))?.slice(10);
-        if (!csrf) throw new Error('Open Mathem and sign in before sending a basket.');
+        if (!csrf) throw new Error('Reload the Mathem tab and try again.');
         headers['X-CSRFToken'] = decodeURIComponent(csrf);
         headers['X-Client-App'] = 'tienda-web';
       } else {
@@ -25,13 +25,16 @@
       }
     }
     const response = await nativeFetch(path, {method: options.method || 'GET', headers, credentials: 'include', redirect: 'error', signal: AbortSignal.timeout(10000), ...(options.body !== undefined ? {body: JSON.stringify(options.body)} : {})});
-    if (!response.ok) throw Object.assign(new Error(`Store request failed (${response.status}).`), {status: response.status === 401 ? 'login_required' : 'failed'});
+    if (!response.ok) {
+      const body = (await response.text().catch(() => '')).slice(0, 500);
+      throw Object.assign(new Error(`Store request failed (${response.status}).`), {status: response.status === 401 ? 'login_required' : 'failed', httpStatus: response.status, body});
+    }
     return response.json();
   }
   const adapter = ShipItAdapters.create(id, {request});
   extension.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== extension.runtime.id || message?.type !== 'store-operation' || message.retailer_id !== id) return false;
-    const methods = {session: () => adapter.session(), search: () => adapter.search(message.job), read: () => adapter.read(message.context), set: () => adapter.set(message.context, message.item, message.before)};
+    const methods = {ready: () => true, read: () => adapter.read(), set: () => adapter.set(message.item, message.before)};
     if (!Object.hasOwn(methods, message.operation)) return false;
     Promise.resolve().then(methods[message.operation]).then((result) => respond({result}), (error) => respond({error: error.message, status: error.status || 'failed'}));
     return true;

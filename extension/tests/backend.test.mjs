@@ -5,18 +5,27 @@ import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {get} from 'node:http';
+import {createServer, get} from 'node:http';
 import '../assets/adapters.js';
 import {applyTransfer} from '../assets/runner.js';
 
-const fixtures = JSON.parse(await readFile(new URL('./storefronts.json', import.meta.url)));
+const fixtures = JSON.parse(await readFile(new URL('../../internal/retailer/testdata/storefronts.json', import.meta.url)));
 const userToken = 'test-user';
 const clientToken = 'test-browser';
 
-test('real adapter protocol carries a reviewed plan through the backend and verifies its basket receipt', async (t) => {
+test('the backend searches the shop and the real adapter fills and verifies the basket', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'ship-it-extension-test-'));
   t.after(() => rm(dir, {recursive: true, force: true}));
-  const config = {listen: '127.0.0.1:0', api_token: userToken, adapter_timeout_ms: 5000, data_dir: join(dir, 'data'), retailers: [{id: 'willys', name: 'Willys', mode: 'browser', basket_url: 'https://www.willys.se/'}], clients: [{id: 'browser', token: clientToken}, {id: 'other', token: 'other-client'}]};
+  const searches = [];
+  const storefront = createServer((request, response) => {
+    searches.push(request.url);
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify(fixtures.willys));
+  });
+  storefront.listen(0, '127.0.0.1');
+  await once(storefront, 'listening');
+  t.after(() => { if (storefront.listening) storefront.close(); });
+  const config = {listen: '127.0.0.1:0', api_token: userToken, adapter_timeout_ms: 5000, data_dir: join(dir, 'data'), retailers: [{id: 'willys', name: 'Willys', mode: 'browser', gateway_url: `http://127.0.0.1:${storefront.address().port}`, basket_url: 'https://www.willys.se/varukorg'}], clients: [{id: 'browser', token: clientToken}, {id: 'other', token: 'other-client'}]};
   const path = join(dir, 'config.json');
   await writeFile(path, JSON.stringify(config));
   const process = spawn(resolve('bin/ship-it'), ['-config', path], {stdio: ['ignore', 'pipe', 'pipe']});
@@ -43,35 +52,21 @@ test('real adapter protocol carries a reviewed plan through the backend and veri
   }
   const basket = {'unrelated_ST': 7};
   let mutations = 0;
-  const adapter = ShipItAdapters.create('willys', {digest: async () => 'session-1', request: async (path, options) => {
-    if (path.endsWith('/customer')) return {uid: 'test-account', storeId: 'store-1'};
-    if (path.endsWith('/store/active')) return {storeId: 'store-1', activelySelected: true};
-    if (path.endsWith('/cart')) return {postalCode: '11122', deliveryModeCode: 'homeDelivery', products: Object.entries(basket).map(([code, quantity]) => ({code, quantity, pickQuantity: 0, productBasketType: {code: 'ST'}}))};
-    if (path.includes('/search?')) return fixtures.willys;
+  const adapter = ShipItAdapters.create('willys', {request: async (path, options) => {
+    if (path.endsWith('/cart')) return {products: Object.entries(basket).map(([code, quantity]) => ({code, quantity, pickQuantity: 0, productBasketType: {code: 'ST'}}))};
     if (path.includes('/p/')) return {productBasketType: {code: 'ST'}};
     if (path.endsWith('/cart/addProducts')) {
       mutations++;
+      assert.equal(options.body.storeId, undefined);
       for (const item of options.body.products) basket[item.productCodePost] = item.qty;
       return {};
     }
     throw new Error(`Unexpected store request: ${path}`);
   }});
-  const session = await adapter.session();
-  await api('/v1/client/sessions', clientToken, 'POST', {sessions: [session]});
-  const listed = await api('/v1/browser-sessions', userToken, 'GET');
-  assert.equal(listed.sessions[0].client_id, 'browser');
-  let polling = false;
-  const poll = setInterval(async () => {
-    if (polling) return;
-    polling = true;
-    try {
-      const {jobs} = await api('/v1/client/search-claims', clientToken);
-      for (const job of jobs) await api(`/v1/client/searches/${job.id}/result`, clientToken, 'PUT', {result: await adapter.search(job)});
-    } finally { polling = false; }
-  }, 20);
-  t.after(() => clearInterval(poll));
-  const plan = await api('/v1/shopping-plans', userToken, 'POST', {text: '2 litres milk', retailer_id: 'willys', context: session.context});
-  clearInterval(poll);
+  const {retailers} = await api('/v1/retailers', userToken, 'GET');
+  assert.deepEqual(retailers[0].context, {store_id: 'willys', postal_code: '00000', fulfillment: ''});
+  const plan = await api('/v1/shopping-plans', userToken, 'POST', {text: '2 litres milk', retailer_id: 'willys', context: retailers[0].context});
+  assert.equal(searches[0], '/axfood/rest/v2/search?page=0&q=mj%C3%B6lk&size=40');
   assert.equal(plan.status, 'ready');
   assert.equal(plan.lines[0].selected.target_quantity, 2);
   const transfer = await api(`/v1/shopping-plans/${plan.id}/transfer`, userToken, 'POST', {revision: plan.revision, client_id: 'browser', acknowledge_warnings: true}, 'end-to-end');
@@ -96,17 +91,13 @@ test('real adapter protocol carries a reviewed plan through the backend and veri
   assert.equal(await new Promise((resolve, reject) => { const req = get(url, {headers: {Host: 'evil.example'}}, (response) => { response.resume(); resolve(response.statusCode); }); req.on('error', reject); }), 403);
   const html = await (await fetch(url)).text();
   assert.ok(html.includes('value="test-user"'));
-  assert.ok(html.includes('Connect extension'));
+  assert.ok(!html.includes('Connect extension'));
   assert.equal((await fetch(url + '/extension/firefox.zip')).status, 200);
-  await api('/v1/client/sessions', clientToken, 'POST', {sessions: []});
-  await api('/v1/client/sessions', clientToken, 'POST', {sessions: [], issues: [{retailer_id: 'willys', message: 'Select a store and delivery or pickup on Willys.'}]});
-  assert.deepEqual((await api('/v1/browser-sessions', userToken, 'GET')).issues.map(({retailer_id, client_id, message}) => ({retailer_id, client_id, message})), [{retailer_id: 'willys', client_id: 'browser', message: 'Select a store and delivery or pickup on Willys.'}]);
-  for (const body of [{sessions: [], issues: [{retailer_id: 'ica', message: 'Unknown shop.'}]}, {sessions: [session], issues: [{retailer_id: 'willys', message: 'Both connected and failing.'}]}, {sessions: [], issues: [{retailer_id: 'willys', message: ' '}]}]) {
-    const rejected = await fetch(url + '/v1/client/sessions', {method: 'POST', headers: {Authorization: `Bearer ${clientToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    assert.equal(rejected.status, 400);
-  }
-  const offline = await fetch(url + '/v1/catalog/search', {method: 'POST', headers: {Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify({retailer_id: 'willys', context: session.context, query: 'milk'})});
+  storefront.close();
+  await once(storefront, 'close');
+  const offline = await fetch(url + '/v1/catalog/search', {method: 'POST', headers: {Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify({retailer_id: 'willys', context: retailers[0].context, query: 'milk'})});
   assert.equal(offline.status, 502);
-  const stale = await fetch(url + `/v1/shopping-plans/${plan.id}/transfer`, {method: 'POST', headers: {Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json', 'Idempotency-Key': 'stale'}, body: JSON.stringify({revision: plan.revision, client_id: 'browser', acknowledge_warnings: true})});
-  assert.equal(stale.status, 409);
+  for (const path of ['/v1/browser-sessions', '/v1/client/sessions', '/v1/client/search-claims']) {
+    assert.equal((await fetch(url + path, {method: path === '/v1/browser-sessions' ? 'GET' : 'POST', headers: {Authorization: `Bearer ${clientToken}`}})).status, 404);
+  }
 });

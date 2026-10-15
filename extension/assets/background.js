@@ -1,36 +1,34 @@
-import {api, applyTransfer, discoverSessions, localURL} from './runner.js';
+import {api, applyTransfer, localURL} from './runner.js';
 import './adapters.js';
 
 const extension = globalThis.browser || globalThis.chrome;
-const origins = ShipItAdapters.origins;
 let running = false;
-let sessions = [];
-let sessionTime = 0;
-let status = 'Connect from the Ship It page.';
+let connection = 'Open Ship It to connect.';
+let basket = '';
 const storage = extension.storage.local;
 if (storage.setAccessLevel) storage.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
 
 async function storeCall(tabID, retailerID, operation, body = {}) {
-  const unreachable = () => Object.assign(new Error(`Reload your ${ShipItAdapters.names[retailerID]} tab to connect it.`), {unreachable: true});
-  const reply = await extension.tabs.sendMessage(tabID, {type: 'store-operation', retailer_id: retailerID, operation, ...body}).catch(() => { throw unreachable(); });
-  if (!reply) throw unreachable();
+  const reply = await extension.tabs.sendMessage(tabID, {type: 'store-operation', retailer_id: retailerID, operation, ...body});
+  if (!reply) throw new Error('The shop tab did not respond.');
   if (reply.error) throw Object.assign(new Error(reply.error), {status: reply.status});
   return reply.result;
 }
 
-async function discover(settings) {
-  const tabs = await extension.tabs.query({url: Object.values(origins).map((origin) => origin + '/*')});
-  const {found, issues} = await discoverSessions(origins, tabs, (tabID, id) => storeCall(tabID, id, 'session'));
-  await api(settings, '/v1/client/sessions', 'POST', {sessions: found.map(({tabID, ...session}) => session), issues});
-  sessions = found;
-  sessionTime = Date.now();
-  status = issues.map((issue) => issue.message).join(' ') || (sessions.length ? `${sessions.length} store session${sessions.length === 1 ? '' : 's'} connected.` : 'Open Mathem, Willys or Hemköp and choose your store.');
-}
-
-function findSession(retailerID, context) {
-  const session = sessions.find((session) => session.retailer_id === retailerID && ShipItAdapters.sameContext(session.context, context));
-  if (!session) throw new Error('The matching store tab is unavailable.');
-  return session;
+async function openShop(input) {
+  const name = ShipItAdapters.names[input.retailer_id];
+  const url = new URL(input.basket_url);
+  if (!name || url.origin !== ShipItAdapters.origins[input.retailer_id]) throw new Error('Unsupported shop.');
+  const tab = await extension.tabs.create({url: url.href, active: true});
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    try {
+      await storeCall(tab.id, input.retailer_id, 'ready');
+      return tab.id;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`${name} did not finish loading. Try again.`);
 }
 
 function journal(settings) {
@@ -44,26 +42,22 @@ function journal(settings) {
 async function transfer(settings, input) {
   const activeKey = `active:${settings.url}:${settings.client_id}`;
   await storage.set({[activeKey]: input});
-  const receipts = journal(settings);
-  let session;
-  try { session = findSession(input.retailer_id, input.context); } catch {}
-  const call = (operation, body) => {
-    if (!session) throw new Error('The matching store tab is unavailable.');
-    return storeCall(session.tabID, input.retailer_id, operation, body);
-  };
   let leaseError;
   const renew = async () => {
     if (leaseError) throw leaseError;
     await api(settings, `/v1/client/transfers/${input.id}/renew`);
   };
   const heartbeat = setInterval(() => renew().catch((error) => { leaseError = error; }), 10000);
-  let receipt;
+  let tabID, openError, receipt;
   try {
-    receipt = await applyTransfer(input, {read: (context) => call('read', {context}), set: (context, item, before) => call('set', {context, item, before})}, receipts, renew);
+    try { tabID = await openShop(input); } catch (error) { openError = error; }
+    const call = (operation, body) => openError ? Promise.reject(openError) : storeCall(tabID, input.retailer_id, operation, body);
+    receipt = await applyTransfer(input, {read: () => call('read'), set: (item, before) => call('set', {item, before})}, journal(settings), renew);
   } finally { clearInterval(heartbeat); }
   await api(settings, `/v1/client/transfers/${input.id}/result`, 'PUT', receipt);
   await storage.remove(activeKey);
-  status = `Basket result: ${receipt.lines.every((line) => line.status === 'applied') ? 'confirmed' : 'review needed'}.`;
+  if (tabID !== undefined) await extension.tabs.reload(tabID).catch(() => {});
+  basket = `Last basket: ${receipt.lines.every((line) => line.status === 'applied') ? 'all items added' : 'some items need review'}.`;
 }
 
 async function tick() {
@@ -71,17 +65,7 @@ async function tick() {
   running = true;
   try {
     const {settings} = await storage.get('settings');
-    if (!settings?.enabled) return;
-    if (Date.now() - sessionTime > 15000) await discover(settings);
-    const {jobs} = await api(settings, '/v1/client/search-claims');
-    await Promise.all(jobs.map(async (job) => {
-      let reply;
-      try {
-        const session = findSession(job.retailer_id, job.context);
-        reply = {result: await storeCall(session.tabID, job.retailer_id, 'search', {job})};
-      } catch { reply = {error: 'adapter unavailable'}; }
-      try { await api(settings, `/v1/client/searches/${job.id}/result`, 'PUT', reply); } catch (error) { status = error.message; }
-    }));
+    if (!settings) return;
     const activeKey = `active:${settings.url}:${settings.client_id}`;
     const active = (await storage.get(activeKey))[activeKey];
     if (active) {
@@ -92,8 +76,9 @@ async function tick() {
       }
     }
     const input = await api(settings, '/v1/client/claims');
+    connection = 'Connected to Ship It.';
     if (input) await transfer(settings, input);
-  } catch (error) { status = error.message; }
+  } catch (error) { connection = error.message; }
   finally { running = false; }
 }
 
@@ -111,16 +96,13 @@ async function pair(message, sender) {
   const client = clients.find((client) => client.id === 'browser') || clients[0];
   if (!client) throw new Error('No browser client is configured.');
   const paired = await api(credentials, `/v1/clients/${encodeURIComponent(client.id)}/pair`);
-  await storage.set({settings: {url, token: paired.token, client_id: paired.id, enabled: true}});
-  sessions = [];
-  sessionTime = 0;
+  await storage.set({settings: {url, token: paired.token, client_id: paired.id}});
   void tick();
   return {client_id: paired.id};
 }
 
 extension.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== extension.runtime.id) return false;
-  const fromExtension = sender.url?.startsWith(extension.runtime.getURL(''));
   if (message.type === 'pair' && sender.tab) {
     pair(message, sender).then(respond, (error) => respond({error: error.message}));
     return true;
@@ -128,24 +110,11 @@ extension.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.type === 'connection' && sender.tab) {
     let url;
     try { url = pageOrigin(sender); } catch { return false; }
-    storage.get('settings').then(({settings}) => respond({connected: Boolean(settings?.enabled && settings.url === url)}));
+    storage.get('settings').then(({settings}) => respond(settings?.url === url ? {connected: true, client_id: settings.client_id} : {connected: false}));
     return true;
   }
-  if (!fromExtension) return false;
-  if (message.type === 'status') {
-    storage.get('settings').then(({settings}) => respond({status, enabled: Boolean(settings?.enabled), url: settings?.url || 'http://127.0.0.1:18080', sessions: sessions.map(({tabID, context, ...session}) => session)}));
-    return true;
-  }
-  if (message.type === 'enabled') {
-    storage.get('settings').then(async ({settings}) => {
-      if (!settings) throw new Error('Connect from the Ship It page first.');
-      if (running) throw new Error('Wait for the current operation to finish.');
-      await storage.set({settings: {...settings, enabled: Boolean(message.enabled)}});
-      if (!message.enabled) await api(settings, '/v1/client/sessions', 'POST', {sessions: []});
-      sessionTime = 0;
-      respond({ok: true});
-      void tick();
-    }).catch((error) => respond({error: error.message}));
+  if (message.type === 'status' && sender.url?.startsWith(extension.runtime.getURL(''))) {
+    storage.get('settings').then(({settings}) => respond({status: [connection, basket].filter(Boolean).join(' '), url: settings?.url || 'http://127.0.0.1:18080'}));
     return true;
   }
   return false;

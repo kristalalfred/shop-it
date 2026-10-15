@@ -2,34 +2,11 @@ package backend
 
 import (
 	"net/http"
-	"strings"
-	"unicode/utf8"
 
-	"github.com/kristalalfred/ship-it/internal/retailer"
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
-func (s *Server) browserMode(id string) bool {
-	for _, config := range s.config.Retailers {
-		if config.ID == id {
-			return config.Mode == "browser"
-		}
-	}
-	return false
-}
-
-func (s *Server) transferSession(retailerID, clientID string, context shopping.StoreContext) bool {
-	return !s.browserMode(retailerID) || s.bridge.HasSession(retailerID, clientID, context, true)
-}
-
 func (s *Server) registerBrowser(mux *http.ServeMux) {
-	mux.HandleFunc("GET /v1/browser-sessions", s.user(func(w http.ResponseWriter, r *http.Request) {
-		sessions, issues := []retailer.Session{}, []retailer.Issue{}
-		if s.bridge != nil {
-			sessions, issues = s.bridge.Sessions(), s.bridge.Issues()
-		}
-		respond(w, 200, map[string]any{"sessions": sessions, "issues": issues})
-	}))
 	mux.HandleFunc("POST /v1/clients/{id}/pair", s.user(func(w http.ResponseWriter, r *http.Request) {
 		for _, client := range s.config.Clients {
 			if client.ID == r.PathValue("id") {
@@ -38,62 +15,6 @@ func (s *Server) registerBrowser(mux *http.ServeMux) {
 			}
 		}
 		fail(w, shopping.ErrNotFound)
-	}))
-	mux.HandleFunc("POST /v1/client/sessions", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
-		var input struct {
-			Sessions []retailer.Session `json:"sessions"`
-			Issues   []retailer.Issue   `json:"issues"`
-		}
-		if !decode(w, r, &input) {
-			return
-		}
-		if s.bridge == nil || input.Sessions == nil || len(input.Sessions) > 3 {
-			fail(w, shopping.ErrInvalid)
-			return
-		}
-		seen := map[string]bool{}
-		for _, session := range input.Sessions {
-			if !s.browserMode(session.RetailerID) || seen[session.RetailerID] || !validContext(session.Context) || !validID(session.Context.SessionID) || strings.TrimSpace(session.Name) == "" || len(session.Name) > 200 {
-				fail(w, shopping.ErrInvalid)
-				return
-			}
-			seen[session.RetailerID] = true
-		}
-		if len(input.Issues) > 3 {
-			fail(w, shopping.ErrInvalid)
-			return
-		}
-		for _, issue := range input.Issues {
-			if !s.browserMode(issue.RetailerID) || seen[issue.RetailerID] || strings.TrimSpace(issue.Message) == "" || len(issue.Message) > 300 || !utf8.ValidString(issue.Message) {
-				fail(w, shopping.ErrInvalid)
-				return
-			}
-			seen[issue.RetailerID] = true
-		}
-		s.bridge.Publish(clientID, input.Sessions, input.Issues)
-		respond(w, 200, map[string]string{"status": "ok"})
-	}))
-	mux.HandleFunc("POST /v1/client/search-claims", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
-		jobs := []retailer.SearchJob{}
-		if s.bridge != nil {
-			jobs = s.bridge.Claim(clientID)
-		}
-		respond(w, 200, map[string]any{"jobs": jobs})
-	}))
-	mux.HandleFunc("PUT /v1/client/searches/{id}/result", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
-		var reply retailer.SearchReply
-		if !decode(w, r, &reply) {
-			return
-		}
-		if s.bridge == nil {
-			fail(w, shopping.ErrNotFound)
-			return
-		}
-		if err := s.bridge.Complete(clientID, r.PathValue("id"), reply); err != nil {
-			fail(w, err)
-			return
-		}
-		respond(w, 200, map[string]string{"status": "ok"})
 	}))
 	mux.HandleFunc("POST /v1/client/transfers/{id}/renew", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
 		transfer, err := s.transfers.Renew(r.Context(), r.PathValue("id"), clientID)

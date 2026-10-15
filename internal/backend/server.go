@@ -26,7 +26,6 @@ type Server struct {
 	interpreter     shopping.Interpreter
 	productMatcher  shopping.ProductMatcher
 	interpreterMode string
-	bridge          *retailer.Bridge
 }
 
 func New(config Config, transfers shopping.TransferStore) (http.Handler, error) {
@@ -61,14 +60,16 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 		s.interpreter, s.productMatcher = provider, provider
 		s.interpreterMode = "openai"
 	}
+	timeout := time.Duration(config.AdapterTimeoutMS) * time.Millisecond
 	for _, r := range config.Retailers {
 		if r.Mode == "browser" {
-			if s.bridge == nil {
-				s.bridge = retailer.NewBridge(time.Duration(config.AdapterTimeoutMS) * time.Millisecond)
+			gateway := r.GatewayURL
+			if gateway == "" {
+				gateway = retailer.Storefronts[r.ID]
 			}
-			s.catalogs[r.ID] = s.bridge
+			s.catalogs[r.ID] = retailer.NewStorefront(r.ID, gateway, timeout)
 		} else {
-			s.catalogs[r.ID] = retailer.NewHTTP(r.GatewayURL, time.Duration(config.AdapterTimeoutMS)*time.Millisecond)
+			s.catalogs[r.ID] = retailer.NewHTTP(r.GatewayURL, timeout)
 		}
 	}
 	mux := http.NewServeMux()
@@ -115,14 +116,15 @@ func matchesToken(r *http.Request, token string) bool {
 
 func (s *Server) listRetailers(w http.ResponseWriter, r *http.Request) {
 	type retailerView struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		Mode      string `json:"mode"`
-		BasketURL string `json:"basket_url"`
+		ID        string                `json:"id"`
+		Name      string                `json:"name"`
+		Mode      string                `json:"mode"`
+		BasketURL string                `json:"basket_url"`
+		Context   shopping.StoreContext `json:"context"`
 	}
 	retailers := make([]retailerView, 0, len(s.config.Retailers))
 	for _, retailer := range s.config.Retailers {
-		retailers = append(retailers, retailerView{retailer.ID, retailer.Name, retailer.Mode, retailer.BasketURL})
+		retailers = append(retailers, retailerView{retailer.ID, retailer.Name, retailer.Mode, retailer.BasketURL, retailer.Context()})
 	}
 	respond(w, http.StatusOK, map[string]any{"retailers": retailers})
 }
@@ -175,10 +177,6 @@ func (s *Server) createTransfer(w http.ResponseWriter, r *http.Request) {
 	}
 	if basketURL == "" {
 		fail(w, shopping.ErrNotFound)
-		return
-	}
-	if !s.transferSession(req.RetailerID, req.ClientID, req.Context) {
-		fail(w, shopping.ErrConflict)
 		return
 	}
 	t, created, err := s.transfers.Create(r.Context(), req, key, basketURL)
@@ -239,7 +237,7 @@ func (s *Server) complete(w http.ResponseWriter, r *http.Request, clientID strin
 }
 
 func validContext(c shopping.StoreContext) bool {
-	if strings.TrimSpace(c.StoreID) == "" || len(c.StoreID) > 256 || len(c.SessionID) > 128 || len(c.PostalCode) != 5 || len(c.DeliverySlotID) > 256 || len(c.Memberships) > 20 || (c.Fulfillment != "delivery" && c.Fulfillment != "pickup") {
+	if strings.TrimSpace(c.StoreID) == "" || len(c.StoreID) > 256 || len(c.SessionID) > 128 || len(c.PostalCode) != 5 || len(c.DeliverySlotID) > 256 || len(c.Memberships) > 20 || (c.Fulfillment != "" && c.Fulfillment != "delivery" && c.Fulfillment != "pickup") {
 		return false
 	}
 	for _, r := range c.PostalCode {

@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
 type RetailerConfig struct {
@@ -16,6 +18,17 @@ type RetailerConfig struct {
 	GatewayURL string `json:"gateway_url,omitempty"`
 	BasketURL  string `json:"basket_url"`
 	Mode       string `json:"mode"`
+}
+
+func (r RetailerConfig) Context() shopping.StoreContext {
+	if r.Mode == "browser" {
+		return shopping.StoreContext{StoreID: r.ID, PostalCode: "00000"}
+	}
+	context := shopping.StoreContext{StoreID: r.ID + "-demo", PostalCode: "11122", Fulfillment: "delivery"}
+	if r.Mode == "mock" {
+		context.Memberships = []string{r.ID + "-demo-member"}
+	}
+	return context
 }
 
 type ClientConfig struct {
@@ -78,14 +91,11 @@ func (c Config) Validate() error {
 		if !validID(r.ID) || ids[r.ID] || strings.TrimSpace(r.Name) == "" || (r.Mode != "mock" && r.Mode != "gateway" && r.Mode != "browser") {
 			return fmt.Errorf("retailer IDs must be unique, named, and use mock, gateway or browser mode")
 		}
-		if !validURL(r.BasketURL) || r.Mode != "browser" && !validURL(r.GatewayURL) {
+		if !validURL(r.BasketURL) || (r.Mode != "browser" || r.GatewayURL != "") && !validURL(r.GatewayURL) {
 			return fmt.Errorf("retailer %s requires absolute HTTP gateway and basket URLs", r.ID)
 		}
-		if r.Mode == "browser" {
-			origins := map[string]string{"willys": "https://www.willys.se/", "hemkop": "https://www.hemkop.se/", "mathem": "https://www.mathem.se/se/cart/"}
-			if origins[r.ID] != r.BasketURL || r.GatewayURL != "" {
-				return fmt.Errorf("retailer %s has no supported browser adapter or an incorrect basket URL", r.ID)
-			}
+		if r.Mode == "browser" && BasketURLs[r.ID] != r.BasketURL {
+			return fmt.Errorf("retailer %s has no supported browser adapter or an incorrect basket URL", r.ID)
 		}
 		ids[r.ID] = true
 	}
@@ -97,6 +107,12 @@ func (c Config) Validate() error {
 		ids[client.ID], tokens[client.Token] = true, true
 	}
 	return nil
+}
+
+var BasketURLs = map[string]string{
+	"mathem": "https://www.mathem.se/se/cart/",
+	"willys": "https://www.willys.se/varukorg",
+	"hemkop": "https://www.hemkop.se/varukorg",
 }
 
 func validID(id string) bool {
