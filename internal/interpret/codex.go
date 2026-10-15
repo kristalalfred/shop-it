@@ -29,19 +29,10 @@ func NewCodex(model string) (*Codex, error) {
 }
 
 func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationRequest, notify shopping.Notify) (shopping.Interpretation, error) {
-	data, err := c.generate(ctx, groceryInstructions, req, grocerySchema(), notify)
-	if err != nil {
-		return shopping.Interpretation{}, err
-	}
-	var result shopping.Interpretation
-	if decodeResult(data, &result) != nil || result.Items == nil || result.Warnings == nil {
-		return shopping.Interpretation{}, shopping.ErrUpstream
-	}
-	result.Mode = "codex"
-	return result, Validate(result)
+	return interpret(ctx, c, "codex", req, notify)
 }
 
-func (c *Codex) generate(ctx context.Context, instructions string, request any, schemaObject map[string]any, notify shopping.Notify) ([]byte, error) {
+func (c *Codex) generate(ctx context.Context, instructions, input string, schemaObject map[string]any, notify shopping.Notify) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 	dir, err := os.MkdirTemp("", "ship-it-interpret-")
@@ -55,10 +46,6 @@ func (c *Codex) generate(ctx context.Context, instructions string, request any, 
 	}
 	schemaPath, outputPath := filepath.Join(dir, "schema.json"), filepath.Join(dir, "result.json")
 	if err := os.WriteFile(schemaPath, schema, 0600); err != nil {
-		return nil, err
-	}
-	input, err := json.Marshal(request)
-	if err != nil {
 		return nil, err
 	}
 	encodedInstructions, _ := json.Marshal(instructions)
@@ -76,7 +63,7 @@ func (c *Codex) generate(ctx context.Context, instructions string, request any, 
 	args = append(args, "-")
 	cmd := exec.CommandContext(ctx, c.Binary, args...)
 	cmd.Dir = dir
-	cmd.Stdin = bytes.NewReader(input)
+	cmd.Stdin = strings.NewReader(input)
 	cmd.WaitDelay = time.Second
 	if notify != nil {
 		cmd.Stdout = &reasoningNotes{notify: notify}

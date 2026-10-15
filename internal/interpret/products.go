@@ -2,6 +2,7 @@ package interpret
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
@@ -13,7 +14,7 @@ Return exactly one entry for every request ID, with the IDs of all relevant prod
 Respect the requested identity and substitutions: vegan sausage requires a plant-based sausage, not meat sausage, tofu or falafel. Dairy milk or cream requires dairy products unless the query or requirements explicitly call for a plant-based substitute. Do not substitute a different ingredient. For an unspecified variety, accept sensible variants of the same ingredient. Do not assess price, availability, pack quantities, dietary certification or allergy safety; the application checks those separately. Never invent an ID or copy an ID from another request. If none of the supplied products matches, return an empty product_ids array.`
 
 type structuredGenerator interface {
-	generate(context.Context, string, any, map[string]any, shopping.Notify) ([]byte, error)
+	generate(ctx context.Context, instructions, input string, schema map[string]any, notify shopping.Notify) ([]byte, error)
 }
 
 func (c *Codex) MatchProducts(ctx context.Context, requests []shopping.ProductMatchRequest, notify shopping.Notify) ([]shopping.ProductMatch, error) {
@@ -39,7 +40,11 @@ func matchProducts(ctx context.Context, generator structuredGenerator, requests 
 		"type": "object", "additionalProperties": false, "required": []string{"matches"},
 		"properties": map[string]any{"matches": map[string]any{"type": "array", "items": entry}},
 	}
-	data, err := generator.generate(ctx, productInstructions, map[string]any{"requests": requests}, schema, notify)
+	input, err := json.Marshal(map[string]any{"requests": requests})
+	if err != nil {
+		return nil, err
+	}
+	data, err := generator.generate(ctx, productInstructions, string(input), schema, notify)
 	if err != nil {
 		return nil, err
 	}

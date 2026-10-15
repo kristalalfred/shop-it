@@ -10,7 +10,7 @@ import (
 
 type generatedText string
 
-func (text generatedText) generate(context.Context, string, any, map[string]any, shopping.Notify) ([]byte, error) {
+func (text generatedText) generate(context.Context, string, string, map[string]any, shopping.Notify) ([]byte, error) {
 	return []byte(text), nil
 }
 

@@ -27,29 +27,16 @@ func NewOpenAI(key, model string) *OpenAI {
 }
 
 func (o *OpenAI) Interpret(ctx context.Context, req shopping.InterpretationRequest, notify shopping.Notify) (shopping.Interpretation, error) {
-	data, err := o.generate(ctx, groceryInstructions, req, grocerySchema(), notify)
-	if err != nil {
-		return shopping.Interpretation{}, err
-	}
-	var result shopping.Interpretation
-	if decodeResult(data, &result) != nil || result.Items == nil || result.Warnings == nil {
-		return shopping.Interpretation{}, shopping.ErrUpstream
-	}
-	result.Mode = "openai"
-	return result, Validate(result)
+	return interpret(ctx, o, "openai", req, notify)
 }
 
-func (o *OpenAI) generate(ctx context.Context, instructions string, request any, schema map[string]any, notify shopping.Notify) ([]byte, error) {
+func (o *OpenAI) generate(ctx context.Context, instructions, input string, schema map[string]any, notify shopping.Notify) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
-	input, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
 	payload, err := json.Marshal(map[string]any{
 		"model": o.Model, "store": false, "stream": true,
 		"instructions": instructions, "reasoning": map[string]any{"summary": "auto"},
-		"input": string(input), "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "grocery_result", "strict": true, "schema": schema}},
+		"input": input, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "grocery_result", "strict": true, "schema": schema}},
 	})
 	if err != nil {
 		return nil, err
