@@ -1,6 +1,7 @@
 package interpret
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,6 +13,8 @@ import (
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
 
+const providerTimeout = 90 * time.Second
+
 type OpenAI struct {
 	URL    string
 	Key    string
@@ -20,7 +23,7 @@ type OpenAI struct {
 }
 
 func NewOpenAI(key, model string) *OpenAI {
-	return &OpenAI{URL: "https://api.openai.com/v1/responses", Key: key, Model: model, Client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	return &OpenAI{URL: "https://api.openai.com/v1/responses", Key: key, Model: model, Client: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
 func (o *OpenAI) Interpret(ctx context.Context, req shopping.InterpretationRequest, notify shopping.Notify) (shopping.Interpretation, error) {
@@ -36,15 +39,17 @@ func (o *OpenAI) Interpret(ctx context.Context, req shopping.InterpretationReque
 	return result, Validate(result)
 }
 
-func (o *OpenAI) generate(ctx context.Context, instructions string, request any, schema map[string]any, _ shopping.Notify) ([]byte, error) {
+func (o *OpenAI) generate(ctx context.Context, instructions string, request any, schema map[string]any, notify shopping.Notify) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, providerTimeout)
+	defer cancel()
 	input, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
 	payload, err := json.Marshal(map[string]any{
-		"model": o.Model, "store": false, "max_output_tokens": 6000,
-		"instructions": instructions,
-		"input":        string(input), "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "grocery_result", "strict": true, "schema": schema}},
+		"model": o.Model, "store": false, "stream": true,
+		"instructions": instructions, "reasoning": map[string]any{"summary": "auto"},
+		"input": string(input), "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "grocery_result", "strict": true, "schema": schema}},
 	})
 	if err != nil {
 		return nil, err
@@ -55,6 +60,7 @@ func (o *OpenAI) generate(ctx context.Context, instructions string, request any,
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+o.Key)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
 	res, err := o.Client.Do(httpReq)
 	if err != nil {
 		return nil, providerError(err)
@@ -63,13 +69,44 @@ func (o *OpenAI) generate(ctx context.Context, instructions string, request any,
 	if res.StatusCode != 200 {
 		return nil, shopping.ErrUpstream
 	}
-	data, err := io.ReadAll(io.LimitReader(res.Body, (1<<20)+1))
-	if err != nil {
-		return nil, providerError(err)
+	data, err := readResponseStream(res.Body, notify)
+	if err != nil && ctx.Err() != nil {
+		return nil, providerError(ctx.Err())
 	}
-	if len(data) > 1<<20 {
-		return nil, shopping.ErrUpstream
+	return data, err
+}
+
+func readResponseStream(body io.Reader, notify shopping.Notify) ([]byte, error) {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64<<10), 4<<20)
+	for scanner.Scan() {
+		data, ok := bytes.CutPrefix(scanner.Bytes(), []byte("data:"))
+		if !ok {
+			continue
+		}
+		var event struct {
+			Type     string          `json:"type"`
+			Text     string          `json:"text"`
+			Response json.RawMessage `json:"response"`
+		}
+		if json.Unmarshal(data, &event) != nil {
+			return nil, shopping.ErrUpstream
+		}
+		switch event.Type {
+		case "response.reasoning_summary_text.done":
+			if title := noteTitle(event.Text); notify != nil && title != "" {
+				notify(title)
+			}
+		case "response.completed":
+			return outputText(event.Response)
+		case "response.failed", "response.incomplete", "error":
+			return nil, shopping.ErrUpstream
+		}
 	}
+	return nil, shopping.ErrUpstream
+}
+
+func outputText(data []byte) ([]byte, error) {
 	var response struct {
 		Status string `json:"status"`
 		Output []struct {
@@ -96,7 +133,7 @@ func (o *OpenAI) generate(ctx context.Context, instructions string, request any,
 			}
 		}
 	}
-	if count != 1 {
+	if count != 1 || len(result) > 1<<20 {
 		return nil, shopping.ErrUpstream
 	}
 	return result, nil

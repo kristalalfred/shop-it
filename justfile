@@ -1,4 +1,5 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-path := ".data/.env"
 export GOCACHE := justfile_directory() / ".cache/go-build"
 export GOMODCACHE := justfile_directory() / ".cache/go-mod"
 

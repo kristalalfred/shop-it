@@ -42,7 +42,7 @@ func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationReques
 }
 
 func (c *Codex) generate(ctx context.Context, instructions string, request any, schemaObject map[string]any, notify shopping.Notify) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 	dir, err := os.MkdirTemp("", "ship-it-interpret-")
 	if err != nil {
@@ -144,12 +144,16 @@ func (r *reasoningNotes) emit() {
 	if json.Unmarshal(r.line, &event) != nil || event.Type != "item.completed" || event.Item.Type != "reasoning" {
 		return
 	}
-	title, _, _ := strings.Cut(strings.TrimSpace(event.Item.Text), "\n")
+	if title := noteTitle(event.Item.Text); title != "" {
+		r.notify(title)
+	}
+}
+
+func noteTitle(text string) string {
+	title, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
 	title = strings.TrimSpace(strings.Trim(strings.TrimSpace(title), "*"))
 	if runes := []rune(title); len(runes) > 120 {
 		title = string(runes[:119]) + "…"
 	}
-	if title != "" {
-		r.notify(title)
-	}
+	return title
 }
