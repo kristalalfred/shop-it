@@ -41,7 +41,7 @@ async function app(retailers = shops) {
   const emit = (type, detail) => documentEvents.get(type)?.({detail: JSON.stringify(detail)});
   const context = createContext({
     document: {getElementById: (id) => elements.get(id), createElement: () => new Element(), querySelectorAll: () => [], addEventListener: (type, callback) => documentEvents.set(type, callback), dispatchEvent: (event) => documentEvents.get(event.type)?.(event)},
-    window: {location: {assign: (url) => navigation.push(url)}, addEventListener: (event, callback) => events.set(event, callback)},
+    window: {location: {assign: (url) => navigation.push(url)}, addEventListener: (event, callback) => events.set(event, callback), scrollTo() {}},
     localStorage: storage, sessionStorage: storage, CustomEvent: class { constructor(type) { this.type = type; } }, TextDecoder,
     crypto: {randomUUID: () => `key-${++uuid}`},
     fetch: async (path, options) => {
@@ -59,7 +59,7 @@ async function app(retailers = shops) {
     elements, navigation, events, emit, requests, responses,
     send: async (event) => { stream.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`)); await settle(); },
     choose: (shop) => { elements.get('retailer').value = shop; elements.get('retailer').listeners.change(); },
-    receipt: (state, retailer = 'mathem', created = new Date().toISOString()) => runInContext(`showReceipt(${JSON.stringify({id: 'transfer', state, retailer_id: retailer, basket_url: basketURL, created_at: created, receipt: {lines: [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]}})})`, context),
+    receipt: (state, retailer = 'mathem', created = new Date().toISOString(), lines = [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]) => runInContext(`showFill(${JSON.stringify({id: 'transfer', state, retailer_id: retailer, basket_url: basketURL, created_at: created, receipt: {lines}})})`, context),
     plan: (value) => runInContext(`showPlan(${JSON.stringify(value)})`, context),
     advance: (duration) => {
       const end = now + duration;
@@ -161,20 +161,59 @@ test('demo shops are selectable and fill their basket without the extension', as
   assert.equal(ui.elements.get('plan-meta').textContent, 'Mathem · Delivery · Demo');
 });
 
-test('a filled live basket points to the shop tab and leaves this page in place', async () => {
+test('a partial fill marks the items that were not added in the list and leaves this page in place', async () => {
   const ui = await app();
   ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.plan(shoppingPlan());
   ui.receipt('partial');
   const receipt = ui.elements.get('receipt');
-  assert.match(receipt.textContent, /Some items need your review in the Mathem tab/);
-  assert.match(receipt.textContent, /Basmatiris: Unavailable · Not sold online at your Mathem store/);
-  assert.equal(receipt.children.find((node) => node.href)?.href, basketURL);
+  assert.match(receipt.textContent, /Some items were not added\. They are at the top of the list/);
+  assert.doesNotMatch(receipt.textContent, /Basmatiris/);
+  assert.equal(receipt.children.some((node) => node.href), false);
+  assert.match(ui.elements.get('lines').textContent, /Ris 500 g · 1 × Basmatiris · Not sold online at your Mathem store\. Unavailable/);
+  assert.equal(ui.elements.get('transfer').textContent, 'Fill basket again');
+  assert.equal(ui.elements.get('new-list').hidden, false);
+  assert.equal(ui.elements.get('refresh').hidden, true);
   ui.advance(10000);
   assert.deepEqual(ui.navigation, []);
+});
+
+test('a filled basket only confirms the fill and New list starts over', async () => {
+  const ui = await app();
+  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.choose('mathem');
+  ui.elements.get('text').value = 'Korvstroganoff';
+  ui.plan(shoppingPlan());
+  ui.receipt('pending');
+  assert.equal(ui.elements.get('transfer').textContent, 'Filling…');
+  assert.equal(ui.elements.get('transfer').disabled, true);
+  assert.equal(ui.elements.get('new-list').hidden, true);
+  ui.receipt('completed', 'mathem', new Date().toISOString(), [{product_id: 'rice', status: 'applied', confirmed_quantity: 1}]);
+  assert.deepEqual(ui.elements.get('receipt').children, []);
+  assert.equal(ui.elements.get('filled').hidden, false);
+  assert.equal(ui.elements.get('filled').textContent, '✓ Basket filled at Mathem');
+  assert.equal(ui.elements.get('transfer').hidden, true);
+  assert.equal(ui.elements.get('refresh').hidden, true);
+  assert.equal(ui.elements.get('new-list').className, 'primary');
+  assert.match(ui.elements.get('lines').textContent, /Ris 500 g · 1 × Basmatiris/);
+  assert.doesNotMatch(ui.elements.get('lines').textContent, /Unavailable|Not added/);
+  ui.elements.get('new-list').listeners.click();
+  assert.equal(ui.elements.get('review').hidden, true);
+  assert.equal(ui.elements.get('checkout').hidden, true);
+  assert.deepEqual(ui.elements.get('lines').children, []);
+  assert.equal(ui.elements.get('list').className, 'list-panel empty');
+  assert.equal(ui.elements.get('text').value, '');
+  assert.equal(ui.elements.get('text').focused, true);
+  assert.equal(ui.elements.get('retailer').value, 'mathem');
+  assert.equal(ui.elements.get('create').disabled, false);
   const demoUI = await app(demo);
-  demoUI.receipt('completed');
-  assert.match(demoUI.elements.get('receipt').textContent, /Demo: Your basket is ready to review/);
+  demoUI.plan({...shoppingPlan(), context: demo[0].context});
+  demoUI.receipt('completed', 'mathem', new Date().toISOString(), []);
+  assert.equal(demoUI.elements.get('filled').textContent, '✓ Demo basket filled');
+  assert.equal(demoUI.elements.get('retailer').value, '');
+  demoUI.elements.get('new-list').listeners.click();
+  assert.equal(demoUI.elements.get('retailer').value, 'mathem');
+  assert.equal(demoUI.elements.get('create').disabled, false);
 });
 
 test('a finished fill can be tried again as a new attempt', async () => {

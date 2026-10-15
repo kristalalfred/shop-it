@@ -54,7 +54,7 @@
     <section id="review" class="review" aria-label="Review" hidden>
       <div class="review-heading"><h2>Review groceries</h2><span id="plan-state" class="status"></span></div>
       <p id="plan-meta" class="muted"></p>
-      <p id="missing" class="missing"></p>
+      <p id="missing" class="callout"></p>
       <div id="notes"></div>
       <label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions.</label>
     </section>
@@ -75,7 +75,7 @@
           <p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p>
         </details>
       </div>
-      <div class="actions"><button id="refresh" type="button">Refresh prices</button><button id="transfer" class="primary" type="button">Fill basket</button></div>
+      <div class="actions"><button id="refresh" type="button">Refresh prices</button><span id="filled" class="filled" hidden></span><button id="new-list" type="button" hidden>New list</button><button id="transfer" class="primary" type="button">Fill basket</button></div>
       <div id="receipt" aria-live="polite"></div>
     </section>
   </main>

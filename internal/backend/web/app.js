@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, interpreterMode = '', selectedShop = '', openLine = '';
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, interpreterMode = '', selectedShop = '', openLine = '', fill = null;
 let browserExtension = {ready: false, connected: false, clientID: '', error: ''};
 const shoppingTarget = () => retailers.find((retailer) => retailer.id === selectedShop) || null;
 const planRetailer = () => plan ? retailers.find((retailer) => retailer.id === plan.retailer_id) : null;
@@ -105,8 +105,15 @@ function message(text, error = false) {
 function buttons() {
   $('create').disabled = busy || !token || !shoppingTarget();
   $('retailer').disabled = busy || !retailers.length;
-  $('refresh').disabled = busy || !plan || !plan.lines.length;
-  $('transfer').disabled = busy || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
+  const filling = ['pending', 'claimed'].includes(fill?.state), finished = Boolean(fill) && !filling, completed = fill?.state === 'completed';
+  $('refresh').hidden = finished;
+  $('refresh').disabled = busy || filling || !plan || !plan.lines.length;
+  $('transfer').hidden = completed;
+  $('transfer').textContent = filling ? 'Filling…' : finished ? 'Fill basket again' : planRetailer()?.mode === 'mock' ? 'Fill demo basket' : 'Fill basket';
+  $('transfer').disabled = busy || filling || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
+  $('filled').hidden = !completed;
+  $('new-list').hidden = !finished;
+  $('new-list').className = completed ? 'primary' : '';
   $('reconnect').disabled = busy;
 }
 
@@ -119,13 +126,16 @@ async function action(work) {
 
 function stopPoll() { if (poll !== null) clearTimeout(poll); poll = null; }
 
-const needsAttention = (line) => !line.skipped && !line.selected?.eligible;
+const fillResult = (line) => line.selected && fill?.receipt?.lines.find((result) => result.product_id === line.selected.product.id);
+const notAdded = (line) => !line.skipped && Boolean(fillResult(line)) && fillResult(line).status !== 'applied';
+const needsAttention = (line) => !line.skipped && (!line.selected?.eligible || notAdded(line));
+const fillLabels = {unavailable: 'Unavailable', failed: 'Not added', login_required: 'Sign in', uncertain: 'Check'};
 const amount = (item) => `${item.amount.quantity} ${item.amount.unit}${item.required_traits.length ? ' · ' + item.required_traits.join(', ').replaceAll('_', ' ') : ''}`;
 
 function showPlan(value) {
   stopPoll();
   if (plan?.id !== value.id) openLine = '';
-  plan = value;
+  plan = value; fill = null;
   $('ack').checked = false; $('over').checked = false;
   $('review').hidden = false; $('checkout').hidden = false;
   $('receipt').replaceChildren();
@@ -134,7 +144,6 @@ function showPlan(value) {
   $('plan-state').textContent = plan.status === 'ready' ? (missing.length ? 'Ready · some items missing' : 'Ready') : (hasProducts ? 'Needs review' : 'Nothing to add');
   const retailer = retailers.find((r) => r.id === plan.retailer_id);
   const simulated = retailer?.mode === 'mock';
-  $('transfer').textContent = simulated ? 'Fill demo basket' : 'Fill basket';
   $('plan-meta').textContent = `${retailer?.name || 'Your shop'}${plan.context.fulfillment ? ` · ${plan.context.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}` : ''}${simulated ? ' · Demo' : ''}`;
   $('missing').textContent = !plan.lines.length ? 'No grocery items were understood. Describe a dish and how many people it should serve, or enter your grocery list.'
     : !missing.length ? '' : hasProducts ? `${missing.length === 1 ? '1 item needs' : `${missing.length} items need`} attention and won’t be added until you fix ${missing.length === 1 ? 'it' : 'them'}. ${missing.length === 1 ? 'It is' : 'They are'} at the top of the list.`
@@ -171,13 +180,16 @@ function renderLine(line) {
     node.append(text, restore);
     return node;
   }
-  const attention = needsAttention(line), selected = line.selected;
+  const attention = needsAttention(line), selected = line.selected, result = notAdded(line) && fillResult(line);
   const node = el('details', null, `line${attention ? ' attention' : ''}`);
   node.open = line.id === openLine;
   node.addEventListener('toggle', () => { if (node.open) openLine = line.id; else if (openLine === line.id) openLine = ''; });
   const summary = el('summary'), text = el('span', null, 'line-text');
-  text.append(el('span', line.item.label, 'line-name'), el('span', attention ? `${amount(line.item)} · ${line.issue || (selected ? 'Choose another product.' : 'No matching product found.')}` : `${amount(line.item)} · ${selected.target_quantity} × ${selected.product.name}`, 'line-detail'));
-  summary.append(text, attention ? el('span', selected ? 'Check' : 'Not found', 'line-flag') : el('span', money(selected.total), 'line-price'));
+  const detail = result ? `${selected.target_quantity} × ${selected.product.name} · ${result.message || 'Not added to the basket.'}`
+    : attention ? line.issue || (selected ? 'Choose another product.' : 'No matching product found.')
+    : `${selected.target_quantity} × ${selected.product.name}`;
+  text.append(el('span', line.item.label, 'line-name'), el('span', `${amount(line.item)} · ${detail}`, 'line-detail'));
+  summary.append(text, result ? el('span', fillLabels[result.status] || 'Check', 'line-flag') : attention ? el('span', selected ? 'Check' : 'Not found', 'line-flag') : el('span', money(selected.total), 'line-price'));
   node.append(summary, renderEditor(line));
   return node;
 }
@@ -304,23 +316,33 @@ $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); a
 
 $('refresh').addEventListener('click', () => action(async () => { showPlan(await api(`/v1/shopping-plans/${plan.id}/refresh`, {revision: plan.revision})); await history(); }));
 
-function showReceipt(transfer) {
+function showFill(transfer) {
+  fill = transfer;
   const retailer = retailers.find((r) => r.id === transfer.retailer_id);
   const simulated = retailer?.mode === 'mock', name = retailer?.name || 'the shop';
   const waiting = !simulated && transfer.state === 'pending' && Date.now() - Date.parse(transfer.created_at) > 10000;
-  const states = {pending: simulated ? 'Filling your basket…' : waiting ? 'Waiting for the Ship It extension. If nothing happens, reload the extension and this page.' : `Opening ${name} in a new tab…`, expired: 'The Ship It extension did not pick this up. Make sure it is running, then fill the basket again.', claimed: `Filling your ${name} basket…`, completed: simulated ? 'Your basket is ready to review.' : `Your basket is ready in the ${name} tab.`, partial: `Some items need your review in the ${name} tab.`, login_required: `Sign in at ${name}, then fill the basket again.`, uncertain: `Check these items in your ${name} basket.`, failed: 'The basket could not be updated.'};
-  $('receipt').replaceChildren(el('p', `${simulated ? 'Demo: ' : ''}${states[transfer.state] || 'Checking your basket…'}`, 'notice'));
-  const labels = {applied: 'Added', unavailable: 'Unavailable', failed: 'Could not add', login_required: 'Sign in at your shop', uncertain: 'Check at your shop'};
-  if (transfer.receipt) for (const line of transfer.receipt.lines) {
-    const product = plan?.lines.find((item) => item.selected?.product.id === line.product_id)?.selected.product.name || 'Item';
-    $('receipt').append(el('p', `${product}: ${labels[line.status] || 'Needs review'}${line.confirmed_quantity ? ` · ${line.confirmed_quantity} packs` : ''}${line.message ? ` · ${line.message}` : ''}`));
-  }
-  if (!simulated) {
-    const link = el('a', `Open ${name} basket ↗`); link.href = transfer.basket_url; link.target = '_blank'; link.rel = 'noopener noreferrer';
-    $('receipt').append(link);
-  }
-  $('receipt').append(el('p', simulated ? 'Simulation only.' : 'Review the basket and check out at the shop.', 'muted'));
+  const progress = {pending: simulated ? 'Filling your basket…' : waiting ? 'Waiting for the Ship It extension. If nothing happens, reload the extension and this page.' : `Opening ${name} in a new tab…`, claimed: `Filling your ${name} basket…`};
+  const problems = {expired: 'The Ship It extension did not pick this up. Make sure it is running, then fill the basket again.', partial: 'Some items were not added. They are at the top of the list.', login_required: `Sign in at ${name}, then fill the basket again.`, uncertain: `Some items may be missing from your ${name} basket. They are at the top of the list.`, failed: 'The basket could not be updated.'};
+  const text = progress[transfer.state] || problems[transfer.state] || (transfer.state === 'completed' ? '' : 'Checking your basket…');
+  $('receipt').replaceChildren(...(text ? [el('p', `${simulated ? 'Demo: ' : ''}${text}`, problems[transfer.state] ? 'callout' : 'muted')] : []));
+  $('filled').textContent = simulated ? '✓ Demo basket filled' : `✓ Basket filled at ${name}`;
+  renderList();
+  buttons();
 }
+
+function newList() {
+  stopPoll();
+  if (!selectedShop && retailers.some((retailer) => retailer.id === plan?.retailer_id)) { selectedShop = plan.retailer_id; $('retailer').value = selectedShop; updateShop(); }
+  plan = null; fill = null; openLine = '';
+  $('review').hidden = true; $('checkout').hidden = true;
+  $('lines').replaceChildren(); $('list-count').textContent = '';
+  $('list').className = 'list-panel empty'; $('list-empty').hidden = false;
+  $('text').value = ''; message('');
+  buttons();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  $('text').focus({preventScroll: true});
+}
+$('new-list').addEventListener('click', newList);
 
 $('transfer').addEventListener('click', () => action(async () => {
   const clientID = planClient();
@@ -330,7 +352,7 @@ $('transfer').addEventListener('click', () => action(async () => {
   const result = await api(`/v1/shopping-plans/${plan.id}/transfer`, {revision: plan.revision, client_id: clientID, acknowledge_warnings: $('ack').checked, allow_over_budget: $('over').checked}, 'POST', key);
   document.dispatchEvent(new CustomEvent('ship-it-fill'));
   const follow = (transfer) => {
-    showReceipt(transfer);
+    showFill(transfer);
     if (['pending', 'claimed'].includes(transfer.state)) poll = setTimeout(check, 1000);
     else sessionStorage.removeItem(scope);
   };
