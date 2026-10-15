@@ -14,7 +14,9 @@ Each request has a number, the requested query and display label, any required t
 
 Return exactly one entry for every request number, with the numbers of all relevant products from that request's list. Product names are Swedish. Use the query for the requested identity; the label may reflect an earlier request. Match the ingredient's identity, form, brand or variety where specified, and its purpose in cooking. A search may match text in a product's ingredient list or brand and therefore return unrelated products. Rice flour, rice pudding and products from the brand Risenta are not dry rice. A sauce containing onion is not an onion. Yoghurt is not sausage. Cream containing rapeseed oil is not rapeseed oil. A branded product such as Oatly iMat can match oat cooking cream even if its name does not repeat every search word.
 
-Respect the requested identity and substitutions: vegan sausage requires a plant-based sausage, not meat sausage, tofu or falafel. Dairy milk or cream requires dairy products unless the query or requirements explicitly call for a plant-based substitute. Do not substitute a different ingredient. Organic, gluten-free and lactose-free requirements, including query words such as ekologisk, glutenfri or laktosfri, do not limit matches: the application checks them against product labels and offers unlabelled products as alternatives. For an unspecified variety, accept sensible variants of the same ingredient. Do not assess price, availability, pack quantities, dietary certification or allergy safety; the application checks those separately. Never invent a product number or use a number from another request's list. If none of the listed products matches, return an empty products array.`
+Respect the requested identity and substitutions: vegan sausage requires a plant-based sausage, not meat sausage, tofu or falafel. Dairy milk or cream requires dairy products unless the query or requirements explicitly call for a plant-based substitute. Do not substitute a different ingredient. Organic, gluten-free and lactose-free requirements, including query words such as ekologisk, glutenfri or laktosfri, do not limit matches: the application offers matching products that do not meet them as alternatives. For an unspecified variety, accept sensible variants of the same ingredient. Do not assess price, availability or pack quantities; the application checks those separately. Never invent a product number or use a number from another request's list. If none of the listed products matches, return an empty products array.
+
+For a request with required traits, also list in meets_requirements the numbers of matched products that clearly meet every required trait from their name, brand or nature: oat cooking cream is vegan and lactose-free, a plain vegetable is vegan, lactose-free and gluten-free, and a product named glutenfri is gluten-free. Organic is met only when the name or brand says eko, ekologisk or KRAV. Leave out products you are unsure about; the user can still choose them. For a request without required traits, return an empty meets_requirements array.`
 
 type structuredGenerator interface {
 	generate(ctx context.Context, instructions, input string, schema map[string]any, notify shopping.Notify) ([]byte, error)
@@ -34,8 +36,8 @@ func matchProducts(ctx context.Context, generator structuredGenerator, requests 
 	}
 	numbers := map[string]any{"type": "array", "items": map[string]any{"type": "integer"}}
 	entry := map[string]any{
-		"type": "object", "additionalProperties": false, "required": []string{"request", "products"},
-		"properties": map[string]any{"request": map[string]any{"type": "integer"}, "products": numbers},
+		"type": "object", "additionalProperties": false, "required": []string{"request", "products", "meets_requirements"},
+		"properties": map[string]any{"request": map[string]any{"type": "integer"}, "products": numbers, "meets_requirements": numbers},
 	}
 	schema := map[string]any{
 		"type": "object", "additionalProperties": false, "required": []string{"matches"},
@@ -48,8 +50,9 @@ func matchProducts(ctx context.Context, generator structuredGenerator, requests 
 	}
 	var result struct {
 		Matches []struct {
-			Request  int   `json:"request"`
-			Products []int `json:"products"`
+			Request           int   `json:"request"`
+			Products          []int `json:"products"`
+			MeetsRequirements []int `json:"meets_requirements"`
 		} `json:"matches"`
 	}
 	if decodeResult(data, &result) != nil || len(result.Matches) != len(requests) {
@@ -62,17 +65,26 @@ func matchProducts(ctx context.Context, generator structuredGenerator, requests 
 			return nil, shopping.ErrUpstream
 		}
 		seen[i] = true
-		ids, chosen := []string{}, make(map[int]bool, len(match.Products))
-		for _, number := range match.Products {
-			if number < 1 || number > len(listed[i]) || chosen[number] {
-				return nil, shopping.ErrUpstream
-			}
-			chosen[number] = true
-			ids = append(ids, listed[i][number-1]...)
+		products, ok := productIDs(listed[i], match.Products)
+		met, metOK := productIDs(listed[i], match.MeetsRequirements)
+		if !ok || !metOK {
+			return nil, shopping.ErrUpstream
 		}
-		matches[i] = shopping.ProductMatch{ID: requests[i].ID, ProductIDs: ids}
+		matches[i] = shopping.ProductMatch{ID: requests[i].ID, ProductIDs: products, RequirementsMet: met}
 	}
 	return matches, nil
+}
+
+func productIDs(listed [][]string, numbers []int) ([]string, bool) {
+	ids, chosen := []string{}, make(map[int]bool, len(numbers))
+	for _, number := range numbers {
+		if number < 1 || number > len(listed) || chosen[number] {
+			return nil, false
+		}
+		chosen[number] = true
+		ids = append(ids, listed[number-1]...)
+	}
+	return ids, true
 }
 
 func productList(requests []shopping.ProductMatchRequest) (string, [][][]string) {

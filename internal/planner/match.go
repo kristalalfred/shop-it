@@ -84,10 +84,13 @@ func rank(a, b shopping.Candidate) int {
 	return strings.Compare(a.Product.ID, b.Product.ID)
 }
 
-func ApplyMatches(line *shopping.BasketLine, ids []string) {
+func ApplyMatches(line *shopping.BasketLine, match shopping.ProductMatch) {
 	for i := range line.Candidates {
 		candidate := &line.Candidates[i]
-		if !slices.Contains(ids, candidate.Product.ID) {
+		if slices.Contains(match.RequirementsMet, candidate.Product.ID) {
+			candidate.UnmetTraits = nil
+		}
+		if !slices.Contains(match.ProductIDs, candidate.Product.ID) {
 			if candidate.Eligible {
 				candidate.Reasons = []string{}
 			}

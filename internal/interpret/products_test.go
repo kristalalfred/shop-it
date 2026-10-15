@@ -30,8 +30,9 @@ func TestProductMatchReferences(t *testing.T) {
 		name, text string
 		want       []shopping.ProductMatch
 	}{
-		{"valid", `{"matches":[{"request":2,"products":[1]},{"request":1,"products":[1]}]}`, []shopping.ProductMatch{{ID: "rice", ProductIDs: []string{"basmati"}}, {ID: "onions", ProductIDs: []string{"onion"}}}},
-		{"no matches", `{"matches":[{"request":1,"products":[]},{"request":2,"products":[]}]}`, []shopping.ProductMatch{{ID: "rice", ProductIDs: []string{}}, {ID: "onions", ProductIDs: []string{}}}},
+		{"valid", `{"matches":[{"request":2,"products":[1],"meets_requirements":[1]},{"request":1,"products":[1],"meets_requirements":[]}]}`, []shopping.ProductMatch{{ID: "rice", ProductIDs: []string{"basmati"}, RequirementsMet: []string{}}, {ID: "onions", ProductIDs: []string{"onion"}, RequirementsMet: []string{"onion"}}}},
+		{"no matches", `{"matches":[{"request":1,"products":[]},{"request":2,"products":[]}]}`, []shopping.ProductMatch{{ID: "rice", ProductIDs: []string{}, RequirementsMet: []string{}}, {ID: "onions", ProductIDs: []string{}, RequirementsMet: []string{}}}},
+		{"invented requirement product", `{"matches":[{"request":1,"products":[1],"meets_requirements":[3]},{"request":2,"products":[]}]}`, nil},
 		{"invented product", `{"matches":[{"request":1,"products":[3]},{"request":2,"products":[]}]}`, nil},
 		{"product zero", `{"matches":[{"request":1,"products":[0]},{"request":2,"products":[]}]}`, nil},
 		{"missing request", `{"matches":[{"request":1,"products":[1]}]}`, nil},
@@ -72,7 +73,7 @@ func TestProductList(t *testing.T) {
 	if input != want {
 		t.Fatalf("product list:\n%s", input)
 	}
-	if !reflect.DeepEqual(matches, []shopping.ProductMatch{{ID: "line-rice", ProductIDs: []string{"a", "d", "c"}}, {ID: "line-onion", ProductIDs: []string{"e"}}}) {
+	if !reflect.DeepEqual(matches, []shopping.ProductMatch{{ID: "line-rice", ProductIDs: []string{"a", "d", "c"}, RequirementsMet: []string{}}, {ID: "line-onion", ProductIDs: []string{"e"}, RequirementsMet: []string{}}}) {
 		t.Fatalf("matches: %+v", matches)
 	}
 }

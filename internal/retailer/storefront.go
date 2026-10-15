@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
@@ -162,25 +163,31 @@ func pack(text string) (shopping.Pack, bool) {
 	return shopping.Pack{Quantity: quantity, Unit: unit.unit}, true
 }
 
-func traits(labels []string) map[string]string {
-	values := map[string]bool{}
+func traits(labels []string, name string) map[string]string {
+	evidence := map[string]bool{}
 	for _, label := range labels {
-		values[strings.ToLower(label)] = true
+		evidence[strings.ToLower(label)] = true
+	}
+	for _, word := range strings.FieldsFunc(strings.ToLower(name), func(r rune) bool { return !unicode.IsLetter(r) }) {
+		evidence[word] = true
 	}
 	aliases := map[string][]string{
-		"organic":      {"ecological", "krav", "eu_ecological", "organic", "ekologiskt", "ekologisk"},
-		"vegan":        {"vegan", "veganskt"},
-		"lactose_free": {"lactose_free", "lactose free", "laktosfri", "laktosfritt"},
-		"gluten_free":  {"gluten_free", "gluten free", "glutenfri", "glutenfritt"},
+		"organic":      {"ecological", "krav", "eu_ecological", "organic", "eko", "ekologisk", "ekologiskt", "ekologiska"},
+		"vegan":        {"vegan", "vegansk", "veganskt", "veganska", "växtbaserad", "växtbaserat", "växtbaserade"},
+		"lactose_free": {"lactose_free", "lactose free", "laktosfri", "laktosfritt", "laktosfria"},
+		"gluten_free":  {"gluten_free", "gluten free", "glutenfri", "glutenfritt", "glutenfria"},
 	}
 	result := map[string]string{}
 	for trait, words := range aliases {
 		result[trait] = "unknown"
 		for _, word := range words {
-			if values[word] {
+			if evidence[word] {
 				result[trait] = "yes"
 			}
 		}
+	}
+	if result["vegan"] == "yes" {
+		result["lactose_free"] = "yes"
 	}
 	return result
 }
@@ -252,7 +259,7 @@ func axfood(raw axfoodProduct) (shopping.Product, bool) {
 	if !ok {
 		return shopping.Product{}, false
 	}
-	product := shopping.Product{ID: raw.Code, Name: raw.Name, Brand: raw.Manufacturer, Pack: size, Price: money, PriceKind: "fixed", Availability: "unknown", Traits: traits(raw.Labels)}
+	product := shopping.Product{ID: raw.Code, Name: raw.Name, Brand: raw.Manufacturer, Pack: size, Price: money, PriceKind: "fixed", Availability: "unknown", Traits: traits(raw.Labels, raw.Name)}
 	if weightPrice || byWeight {
 		product.PriceKind = "estimated"
 	}
@@ -314,7 +321,7 @@ func mathem(raw mathemProduct) (shopping.Product, bool) {
 	for i, classifier := range raw.ClientClassifiers {
 		labels[i] = classifier.Name
 	}
-	product := shopping.Product{ID: string(raw.ID), Name: raw.FullName, Brand: raw.Brand, Pack: size, Price: money, PriceKind: "fixed", Availability: "unknown", Traits: traits(labels)}
+	product := shopping.Product{ID: string(raw.ID), Name: raw.FullName, Brand: raw.Brand, Pack: size, Price: money, PriceKind: "fixed", Availability: "unknown", Traits: traits(labels, raw.FullName)}
 	if approximate.MatchString(raw.NameExtra) {
 		product.PriceKind = "estimated"
 	}

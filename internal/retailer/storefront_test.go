@@ -54,16 +54,22 @@ func TestStorefrontProductsPreserveIdentifiersPricesPacksAndDietaryEvidence(t *t
 	if product, _ := axfood(loose); product.Pack != (shopping.Pack{Quantity: 1000, Unit: "g"}) {
 		t.Fatalf("loose produce: %+v", product)
 	}
-	unknownPack, drug, named := willys.Results[0], willys.Results[0], willys.Results[0]
-	unknownPack.DisplayVolume, drug.IsDrugProduct, named.Name = "unknown", true, "Organic milk"
+	unknownPack, drug, named, unrelated, vegan := willys.Results[0], willys.Results[0], willys.Results[0], willys.Results[0], willys.Results[0]
+	unknownPack.DisplayVolume, drug.IsDrugProduct, named.Name, unrelated.Name, vegan.Name = "unknown", true, "Mjölkdryck Laktosfri 1,5% EKO/KRAV", "Ekonomiförpackning Glutenfrihet", "Peas of Heaven Vegansk Middagskorv"
 	if _, ok := axfood(unknownPack); ok {
 		t.Fatal("product without a pack size was kept")
 	}
 	if _, ok := axfood(drug); ok {
 		t.Fatal("drug product was kept")
 	}
-	if product, _ := axfood(named); product.Traits["organic"] != "unknown" {
-		t.Fatal("product name was treated as dietary evidence")
+	if product, _ := axfood(named); product.Traits["lactose_free"] != "yes" || product.Traits["organic"] != "yes" || product.Traits["gluten_free"] != "unknown" {
+		t.Fatalf("product name evidence: %+v", product.Traits)
+	}
+	if product, _ := axfood(unrelated); product.Traits["organic"] != "unknown" || product.Traits["gluten_free"] != "unknown" {
+		t.Fatalf("partial words in a product name were treated as evidence: %+v", product.Traits)
+	}
+	if product, _ := axfood(vegan); product.Traits["vegan"] != "yes" || product.Traits["lactose_free"] != "yes" {
+		t.Fatalf("vegan product is not lactose free: %+v", product.Traits)
 	}
 	for text, want := range map[string]shopping.Pack{"2 x 500 g": {Quantity: 1000, Unit: "g"}, "15 st": {Quantity: 15, Unit: "each"}, "1,5 l": {Quantity: 1500, Unit: "ml"}, "ca: 180g": {Quantity: 180, Unit: "g"}} {
 		if got, ok := pack(text); !ok || got != want {

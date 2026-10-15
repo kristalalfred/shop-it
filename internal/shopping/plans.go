@@ -48,8 +48,9 @@ type ProductMatchRequest struct {
 }
 
 type ProductMatch struct {
-	ID         string   `json:"id"`
-	ProductIDs []string `json:"product_ids"`
+	ID              string   `json:"id"`
+	ProductIDs      []string `json:"product_ids"`
+	RequirementsMet []string `json:"requirements_met"`
 }
 
 type ProductMatcher interface {

@@ -263,7 +263,7 @@ func (s *Server) matchProducts(ctx context.Context, baskets []shopping.Basket, l
 	if slices.ContainsFunc(requests, func(batch []shopping.ProductMatchRequest) bool { return len(batch) > 0 }) {
 		report(shopping.Progress{Stage: "match"})
 	}
-	matches := make([]map[string][]string, len(baskets))
+	matches := make([]map[string]shopping.ProductMatch, len(baskets))
 	errs := make([]error, len(baskets))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -281,9 +281,9 @@ func (s *Server) matchProducts(ctx context.Context, baskets []shopping.Basket, l
 				cancel()
 				return
 			}
-			matches[j] = make(map[string][]string, len(result))
+			matches[j] = make(map[string]shopping.ProductMatch, len(result))
 			for _, match := range result {
-				matches[j][match.ID] = match.ProductIDs
+				matches[j][match.ID] = match
 			}
 		})
 	}
