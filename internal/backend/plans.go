@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -46,7 +47,7 @@ func (s *Server) interpretText(w http.ResponseWriter, r *http.Request) {
 		fail(w, shopping.ErrInvalid)
 		return
 	}
-	result, err := s.interpreter.Interpret(r.Context(), req)
+	result, err := s.interpreter.Interpret(r.Context(), req, nil)
 	if err != nil {
 		fail(w, err)
 		return
@@ -70,37 +71,85 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 		fail(w, shopping.ErrNotFound)
 		return
 	}
-	intent, err := s.interpreter.Interpret(r.Context(), shopping.InterpretationRequest{Text: req.Text, RequiredTraits: req.RequiredTraits})
-	if err != nil {
-		fail(w, err)
+	if !accepts(r, "application/x-ndjson") {
+		plan, err := s.newPlan(r.Context(), req, ignoreProgress)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		w.Header().Set("Location", "/v1/shopping-plans/"+plan.ID)
+		respond(w, 201, plan)
 		return
+	}
+	stream := startStream(w)
+	plan, err := s.newPlan(r.Context(), req, func(progress shopping.Progress) { stream.send(map[string]any{"progress": progress}) })
+	if err != nil {
+		status, message := failure(err)
+		stream.send(map[string]any{"status": status, "error": message})
+		return
+	}
+	stream.send(map[string]any{"plan": plan})
+}
+
+func (s *Server) newPlan(ctx context.Context, req shopping.PlanRequest, report func(shopping.Progress)) (shopping.Plan, error) {
+	report(shopping.Progress{Stage: "interpret"})
+	intent, err := s.interpreter.Interpret(ctx, shopping.InterpretationRequest{Text: req.Text, RequiredTraits: req.RequiredTraits}, func(note string) {
+		report(shopping.Progress{Stage: "interpret", Note: note})
+	})
+	if err != nil {
+		return shopping.Plan{}, err
 	}
 	plan := shopping.Plan{PlanRequest: req, InterpreterMode: intent.Mode, Warnings: intent.Warnings, Lines: make([]shopping.PlanLine, len(intent.Items))}
 	for i, item := range intent.Items {
 		item.RequiredTraits = interpret.Unique(append(item.RequiredTraits, req.RequiredTraits...))
 		plan.Lines[i] = shopping.PlanLine{ID: "line-" + rand.Text(), Item: item}
 	}
-	plan.Lines, err = s.matchLines(r.Context(), plan, false)
+	plan.Lines, err = s.matchLines(ctx, plan, false, report)
 	if err != nil {
-		fail(w, err)
-		return
+		return shopping.Plan{}, err
 	}
-	plan, err = s.plans.Create(r.Context(), plan)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	w.Header().Set("Location", "/v1/shopping-plans/"+plan.ID)
-	respond(w, 201, plan)
+	return s.plans.Create(ctx, plan)
 }
 
-func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bool) ([]shopping.PlanLine, error) {
+func ignoreProgress(shopping.Progress) {}
+
+type eventStream struct {
+	mu         sync.Mutex
+	encoder    *json.Encoder
+	controller *http.ResponseController
+}
+
+func startStream(w http.ResponseWriter) *eventStream {
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	return &eventStream{encoder: json.NewEncoder(w), controller: http.NewResponseController(w)}
+}
+
+func (s *eventStream) send(event any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.encoder.Encode(event) == nil {
+		_ = s.controller.Flush()
+	}
+}
+
+func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bool, report func(shopping.Progress)) ([]shopping.PlanLine, error) {
 	lines := make([]shopping.PlanLine, len(plan.Lines))
 	failures := make([]error, len(plan.Lines))
 	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var wg sync.WaitGroup
 	limit := make(chan struct{}, 6)
+	searches := 0
+	for _, line := range plan.Lines {
+		if !line.Skipped {
+			searches++
+		}
+	}
+	var searched sync.Mutex
+	finished := 0
+	report(shopping.Progress{Stage: "search", Total: searches})
 	for i, old := range plan.Lines {
 		if old.Skipped {
 			lines[i] = old
@@ -124,26 +173,30 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 				line = shopping.PlanLine{ID: old.ID, Item: old.Item, Candidates: []shopping.Candidate{}, Issue: "The shop search failed for this item. Search again or refresh prices to retry."}
 			}
 			lines[i], failures[i] = line, err
+			searched.Lock()
+			finished++
+			report(shopping.Progress{Stage: "search", Done: finished, Total: searches})
+			searched.Unlock()
 		})
 	}
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	var failure error
-	searched := false
+	var searchFailure error
+	found := false
 	for i, err := range failures {
 		if !plan.Lines[i].Skipped && err == nil {
-			searched = true
-		} else if err != nil && failure == nil {
-			failure = err
+			found = true
+		} else if err != nil && searchFailure == nil {
+			searchFailure = err
 		}
 	}
-	if failure != nil && !searched {
-		if errors.Is(failure, context.DeadlineExceeded) {
+	if searchFailure != nil && !found {
+		if errors.Is(searchFailure, context.DeadlineExceeded) {
 			return nil, shopping.ErrTimeout
 		}
-		return nil, failure
+		return nil, searchFailure
 	}
 	if s.productMatcher != nil {
 		requests := []shopping.ProductMatchRequest{}
@@ -157,7 +210,12 @@ func (s *Server) matchLines(ctx context.Context, plan shopping.Plan, preserve bo
 			}
 			requests = append(requests, shopping.ProductMatchRequest{ID: line.ID, Item: line.Item, Products: products})
 		}
-		matches, err := s.productMatcher.MatchProducts(ctx, requests)
+		if len(requests) > 0 {
+			report(shopping.Progress{Stage: "match"})
+		}
+		matches, err := s.productMatcher.MatchProducts(ctx, requests, func(note string) {
+			report(shopping.Progress{Stage: "match", Note: note})
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +308,7 @@ func (s *Server) updateLine(w http.ResponseWriter, r *http.Request) {
 		updated := plan
 		updated.Lines = []shopping.PlanLine{{ID: line.ID, Item: item}}
 		var lines []shopping.PlanLine
-		lines, err = s.matchLines(r.Context(), updated, false)
+		lines, err = s.matchLines(r.Context(), updated, false, ignoreProgress)
 		if err != nil {
 			fail(w, err)
 			return
@@ -301,7 +359,7 @@ func (s *Server) refreshPlan(w http.ResponseWriter, r *http.Request) {
 		fail(w, shopping.ErrConflict)
 		return
 	}
-	lines, err := s.matchLines(r.Context(), plan, true)
+	lines, err := s.matchLines(r.Context(), plan, true, ignoreProgress)
 	if err != nil {
 		fail(w, err)
 		return

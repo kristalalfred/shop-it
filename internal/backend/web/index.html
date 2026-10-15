@@ -18,8 +18,10 @@
     </nav>
   </header>
   <main>
-    <h1>Make a grocery list.</h1>
-    <p class="instruction">Choose a shop, then enter a meal and portions, or a grocery list.</p>
+    <div class="intro">
+      <h1>Make a grocery list.</h1>
+      <p class="instruction">Choose a shop, then enter a meal and portions, or a grocery list.</p>
+    </div>
     <section class="input-panel" aria-label="Grocery request">
       <form id="plan-form">
         <input id="token" type="hidden" value="{{.APIToken}}">
@@ -44,29 +46,37 @@
         <p id="mode-note" class="muted" hidden></p>
       </form>
     </section>
+    <section id="progress" class="progress" aria-label="Progress" hidden>
+      <div class="progress-head"><strong>Finding groceries</strong><span id="progress-time" class="muted"></span></div>
+      <ol id="progress-steps" aria-live="polite"></ol>
+    </section>
     <div id="message" role="status" aria-live="polite"></div>
-    <section id="review" class="review-panel" aria-label="Shopping list" hidden>
+    <section id="review" class="review" aria-label="Review" hidden>
       <div class="review-heading"><h2>Review groceries</h2><span id="plan-state" class="status"></span></div>
-      <div id="plan" hidden>
-        <p id="plan-meta" class="muted"></p>
-        <div id="missing"></div>
-        <div id="warnings"></div>
-        <div id="lines"></div>
-        <div class="total"><div><span>Subtotal</span><p id="estimate" class="muted"></p></div><strong id="total"></strong></div>
-        <label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions.</label>
-        <label id="over-wrap" class="check"><input type="checkbox" id="over">Accept the amount over budget.</label>
-        <div id="extension-setup" class="notice" hidden>
-          <p id="extension-status" role="status">Install the Ship It extension to fill your basket, then reload this page.</p>
-          <details id="extension-install">
-            <summary>Install extension</summary>
-            <p>Firefox / Zen: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select <strong>bin/extension/firefox/manifest.json</strong>.</p>
-            <p>Chromium: open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, and load <strong>bin/extension/chromium</strong>.</p>
-            <p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p>
-          </details>
-        </div>
-        <div class="actions"><button id="refresh" type="button">Refresh prices</button><button id="transfer" class="primary" type="button">Fill basket</button></div>
-        <div id="receipt" aria-live="polite"></div>
+      <p id="plan-meta" class="muted"></p>
+      <p id="missing" class="missing"></p>
+      <div id="notes"></div>
+      <label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions.</label>
+    </section>
+    <aside id="list" class="list-panel empty" aria-label="Grocery list">
+      <div class="list-head"><h2>Groceries</h2><span id="list-count" class="muted"></span></div>
+      <p id="list-empty" class="muted">Your groceries will be listed here.</p>
+      <div id="lines"></div>
+    </aside>
+    <section id="checkout" class="checkout" aria-label="Basket" hidden>
+      <div class="total"><div><span>Subtotal</span><p id="estimate" class="muted"></p></div><strong id="total"></strong></div>
+      <label id="over-wrap" class="check"><input type="checkbox" id="over"><span id="over-text">Accept the amount over budget.</span></label>
+      <div id="extension-setup" class="notice" hidden>
+        <p id="extension-status" role="status">Install the Ship It extension to fill your basket, then reload this page.</p>
+        <details id="extension-install">
+          <summary>Install extension</summary>
+          <p>Firefox / Zen: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select <strong>bin/extension/firefox/manifest.json</strong>.</p>
+          <p>Chromium: open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, and load <strong>bin/extension/chromium</strong>.</p>
+          <p><a href="/extension/firefox.zip">Firefox / Zen download</a> · <a href="/extension/chromium.zip">Chromium download</a></p>
+        </details>
       </div>
+      <div class="actions"><button id="refresh" type="button">Refresh prices</button><button id="transfer" class="primary" type="button">Fill basket</button></div>
+      <div id="receipt" aria-live="polite"></div>
     </section>
   </main>
 </body>

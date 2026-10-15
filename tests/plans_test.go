@@ -1,8 +1,11 @@
 package tests_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -35,6 +38,80 @@ func createPlan(t *testing.T, s system, req shopping.PlanRequest) shopping.Plan 
 		t.Fatalf("create plan: %+v, %v", res, err)
 	}
 	return decodePlan(t, res)
+}
+
+func streamPlan(t *testing.T, s system, req shopping.PlanRequest) []map[string]json.RawMessage {
+	t.Helper()
+	body, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpReq, err := http.NewRequest("POST", s.url+"/v1/shopping-plans", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+userToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json, application/x-ndjson")
+	res, err := s.client.Do(httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "application/x-ndjson" {
+		t.Fatalf("stream response: %d %s", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	events := []map[string]json.RawMessage{}
+	decoder := json.NewDecoder(res.Body)
+	for {
+		var event map[string]json.RawMessage
+		if err := decoder.Decode(&event); err == io.EOF {
+			return events
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		events = append(events, event)
+	}
+}
+
+func TestPlanCreationStreamsProgress(t *testing.T) {
+	scenario := demoScenario(t)
+	s := startSystem(t, scenario)
+	events := streamPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
+	stages := []string{}
+	for _, event := range events[:len(events)-1] {
+		var progress shopping.Progress
+		if err := json.Unmarshal(event["progress"], &progress); err != nil {
+			t.Fatalf("progress event: %s", event)
+		}
+		if progress.Stage == "search" && (progress.Total != 3 || progress.Done != len(stages)-1) {
+			t.Fatalf("search progress out of order: %+v after %v", progress, stages)
+		}
+		stages = append(stages, progress.Stage)
+	}
+	if !slices.Equal(stages, []string{"interpret", "search", "search", "search", "search"}) {
+		t.Fatalf("stages: %v", stages)
+	}
+	var plan shopping.Plan
+	if err := json.Unmarshal(events[len(events)-1]["plan"], &plan); err != nil || plan.ID == "" || plan.Status != "ready" || len(plan.Lines) != 3 {
+		t.Fatalf("streamed plan: %+v, %v", plan, err)
+	}
+	if res, err := s.request("GET", "/v1/shopping-plans/"+plan.ID, nil, userToken, ""); err != nil || res.status != 200 {
+		t.Fatalf("streamed plan was not saved: %+v, %v", res, err)
+	}
+	ica := scenario.Retailers["ica"]
+	ica.FailQueries = []string{"mjölk", "ägg", "bananer"}
+	scenario.Retailers["ica"] = ica
+	s = startSystem(t, scenario)
+	events = streamPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
+	var failure struct {
+		Status int    `json:"status"`
+		Error  string `json:"error"`
+	}
+	last, _ := json.Marshal(events[len(events)-1])
+	if err := json.Unmarshal(last, &failure); err != nil || failure.Status != 502 || failure.Error == "" {
+		t.Fatalf("stream failure: %s", last)
+	}
 }
 
 func TestShoppingPlanToBasket(t *testing.T) {

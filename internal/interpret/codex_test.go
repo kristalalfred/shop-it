@@ -34,10 +34,14 @@ func TestCodexInterpretation(t *testing.T) {
 				ctx, cancel = context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 			}
-			result, err := provider.Interpret(ctx, shopping.InterpretationRequest{Text: "Korvstroganoff för 5", RequiredTraits: []string{"vegan"}})
+			var notes []string
+			result, err := provider.Interpret(ctx, shopping.InterpretationRequest{Text: "Korvstroganoff för 5", RequiredTraits: []string{"vegan"}}, func(note string) { notes = append(notes, note) })
 			if mode == "valid" {
 				if err != nil || result.Mode != "codex" || len(result.Items) != 1 || result.Items[0].Query != "vegokorv" {
 					t.Fatalf("interpretation: %+v, %v", result, err)
+				}
+				if !slices.Equal(notes, []string{"Choosing a vegan stroganoff", "Estimating quantities"}) {
+					t.Fatalf("reasoning notes: %q", notes)
 				}
 			} else if mode == "timeout" {
 				if !errors.Is(err, shopping.ErrTimeout) {
@@ -61,7 +65,7 @@ func TestCodexInterpretation(t *testing.T) {
 			if capture.Req.Text != "Korvstroganoff för 5" || !slices.Equal(capture.Req.RequiredTraits, []string{"vegan"}) || !slices.Contains(capture.Args, "test-model") {
 				t.Fatalf("wrong request: %+v", capture)
 			}
-			for _, arg := range []string{"--ignore-user-config", "--ephemeral", "read-only", "shell_tool", "apps", "plugins", "hooks", "multi_agent", `web_search="disabled"`} {
+			for _, arg := range []string{"--json", "--ignore-user-config", "--ephemeral", "read-only", "shell_tool", "apps", "plugins", "hooks", "multi_agent", `web_search="disabled"`} {
 				if !slices.Contains(capture.Args, arg) {
 					t.Errorf("missing argument %s", arg)
 				}
@@ -102,6 +106,15 @@ func TestCodexProcessHelper(t *testing.T) {
 				os.Exit(2)
 			}
 		}
+	}
+	for _, event := range []string{
+		`{"type":"thread.started","thread_id":"thread"}`,
+		`{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"**Choosing a vegan stroganoff**\n\nThe user wants five portions."}}`,
+		`{"type":"item.completed","item":{"id":"item_1","type":"command_execution","text":"**Not a note**"}}`,
+		`not json`,
+		`{"type":"item.completed","item":{"id":"item_2","type":"reasoning","text":"**Estimating quantities**"}}`,
+	} {
+		os.Stdout.WriteString(event + "\n")
 	}
 	text := `{"items":[{"label":"Vegokorv","query":"vegokorv","amount":{"quantity":750,"unit":"g"},"required_traits":["vegan"]}],"warnings":["Korvstroganoff för 5 portioner, mängderna är uppskattade."]}`
 	switch mode {

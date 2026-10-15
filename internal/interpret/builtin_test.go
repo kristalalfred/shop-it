@@ -22,7 +22,7 @@ func TestGroceryText(t *testing.T) {
 		{"json", `["2 packs milk", "500 g bananas"]`, []string{"mjölk", "bananer"}, []shopping.Pack{{Quantity: 2, Unit: "pack"}, {Quantity: 500, Unit: "g"}}, [][]string{{}, {}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: tc.text})
+			result, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: tc.text}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,12 +39,12 @@ func TestGroceryText(t *testing.T) {
 }
 
 func TestUnclearAndInvalidQuantities(t *testing.T) {
-	result, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: "2 x 500 g pasta"})
+	result, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: "2 x 500 g pasta"}, nil)
 	if err != nil || len(result.Items) != 1 || len(result.Warnings) == 0 {
 		t.Fatalf("ambiguous request lost: %+v, %v", result, err)
 	}
 	for _, text := range []string{"0 l milk", "1000001 g bananas", "1.5 eggs", `["milk", 12]`} {
-		if _, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: text}); err == nil {
+		if _, err := (Builtin{}).Interpret(context.Background(), shopping.InterpretationRequest{Text: text}, nil); err == nil {
 			t.Errorf("accepted %q", text)
 		}
 	}

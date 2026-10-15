@@ -254,6 +254,15 @@ func validContext(c shopping.StoreContext) bool {
 	return true
 }
 
+func accepts(r *http.Request, mediaType string) bool {
+	for _, value := range strings.Split(r.Header.Get("Accept"), ",") {
+		if media, _, err := mime.ParseMediaType(value); err == nil && media == mediaType {
+			return true
+		}
+	}
+	return false
+}
+
 func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
@@ -279,6 +288,11 @@ func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 }
 
 func fail(w http.ResponseWriter, err error) {
+	status, message := failure(err)
+	respond(w, status, map[string]string{"error": message})
+}
+
+func failure(err error) (int, string) {
 	status := http.StatusInternalServerError
 	message := "internal error"
 	for _, pair := range []struct {
@@ -296,7 +310,7 @@ func fail(w http.ResponseWriter, err error) {
 			break
 		}
 	}
-	respond(w, status, map[string]string{"error": message})
+	return status, message
 }
 
 func respond(w http.ResponseWriter, status int, value any) {

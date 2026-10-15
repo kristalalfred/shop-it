@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kristalalfred/ship-it/internal/shopping"
@@ -27,8 +28,8 @@ func NewCodex(model string) (*Codex, error) {
 	return &Codex{Binary: binary, Model: model}, nil
 }
 
-func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationRequest) (shopping.Interpretation, error) {
-	data, err := c.generate(ctx, groceryInstructions, req, grocerySchema())
+func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationRequest, notify shopping.Notify) (shopping.Interpretation, error) {
+	data, err := c.generate(ctx, groceryInstructions, req, grocerySchema(), notify)
 	if err != nil {
 		return shopping.Interpretation{}, err
 	}
@@ -40,7 +41,7 @@ func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationReques
 	return result, Validate(result)
 }
 
-func (c *Codex) generate(ctx context.Context, instructions string, request any, schemaObject map[string]any) ([]byte, error) {
+func (c *Codex) generate(ctx context.Context, instructions string, request any, schemaObject map[string]any, notify shopping.Notify) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	dir, err := os.MkdirTemp("", "ship-it-interpret-")
@@ -62,10 +63,10 @@ func (c *Codex) generate(ctx context.Context, instructions string, request any, 
 	}
 	encodedInstructions, _ := json.Marshal(instructions)
 	args := []string{
-		"exec", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
+		"exec", "--json", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
 		"--disable", "shell_tool", "--disable", "apps", "--disable", "plugins", "--disable", "hooks", "--disable", "multi_agent",
 		"--disable", "browser_use", "--disable", "computer_use",
-		"-c", `web_search="disabled"`, "-c", `approval_policy="never"`, "-c", "project_doc_max_bytes=0",
+		"-c", `web_search="disabled"`, "-c", `approval_policy="never"`, "-c", "project_doc_max_bytes=0", "-c", `model_reasoning_summary="concise"`,
 		"-c", "developer_instructions=" + string(encodedInstructions),
 		"--output-schema", schemaPath, "--output-last-message", outputPath,
 	}
@@ -77,6 +78,9 @@ func (c *Codex) generate(ctx context.Context, instructions string, request any, 
 	cmd.Dir = dir
 	cmd.Stdin = bytes.NewReader(input)
 	cmd.WaitDelay = time.Second
+	if notify != nil {
+		cmd.Stdout = &reasoningNotes{notify: notify}
+	}
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return nil, providerError(ctx.Err())
@@ -102,4 +106,50 @@ func decodeResult(data []byte, result any) error {
 		return shopping.ErrUpstream
 	}
 	return nil
+}
+
+type reasoningNotes struct {
+	notify shopping.Notify
+	line   []byte
+}
+
+func (r *reasoningNotes) Write(data []byte) (int, error) {
+	written := len(data)
+	for {
+		end := bytes.IndexByte(data, '\n')
+		if end < 0 {
+			r.keep(data)
+			return written, nil
+		}
+		r.keep(data[:end])
+		r.emit()
+		r.line, data = r.line[:0], data[end+1:]
+	}
+}
+
+func (r *reasoningNotes) keep(data []byte) {
+	if len(r.line) < 64<<10 {
+		r.line = append(r.line, data...)
+	}
+}
+
+func (r *reasoningNotes) emit() {
+	var event struct {
+		Type string `json:"type"`
+		Item struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"item"`
+	}
+	if json.Unmarshal(r.line, &event) != nil || event.Type != "item.completed" || event.Item.Type != "reasoning" {
+		return
+	}
+	title, _, _ := strings.Cut(strings.TrimSpace(event.Item.Text), "\n")
+	title = strings.TrimSpace(strings.Trim(strings.TrimSpace(title), "*"))
+	if runes := []rune(title); len(runes) > 120 {
+		title = string(runes[:119]) + "…"
+	}
+	if title != "" {
+		r.notify(title)
+	}
 }

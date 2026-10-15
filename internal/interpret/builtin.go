@@ -41,7 +41,7 @@ var aliases = map[string]string{
 	"yogurt": "yoghurt", "yoghurt": "yoghurt", "onions": "lök", "onion": "lök", "lök": "lök",
 }
 
-func (Builtin) Interpret(ctx context.Context, req shopping.InterpretationRequest) (shopping.Interpretation, error) {
+func (Builtin) Interpret(ctx context.Context, req shopping.InterpretationRequest, _ shopping.Notify) (shopping.Interpretation, error) {
 	if err := ctx.Err(); err != nil {
 		return shopping.Interpretation{}, err
 	}

@@ -29,7 +29,7 @@ async function app(retailers = shops) {
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], new Element()]));
   elements.get('token').value = 'test-user';
   const events = new Map(), documentEvents = new Map(), timers = new Map(), navigation = [], requests = [];
-  let now = 0, nextID = 1, uuid = 0;
+  let now = 0, nextID = 1, uuid = 0, stream = null;
   const responses = {
     '/v1/retailers': {retailers},
     '/v1/clients': {clients: [{id: 'demo-browser'}]},
@@ -42,11 +42,12 @@ async function app(retailers = shops) {
   const context = createContext({
     document: {getElementById: (id) => elements.get(id), createElement: () => new Element(), querySelectorAll: () => [], addEventListener: (type, callback) => documentEvents.set(type, callback), dispatchEvent: (event) => documentEvents.get(event.type)?.(event)},
     window: {location: {assign: (url) => navigation.push(url)}, addEventListener: (event, callback) => events.set(event, callback)},
-    localStorage: storage, sessionStorage: storage, CustomEvent: class { constructor(type) { this.type = type; } },
+    localStorage: storage, sessionStorage: storage, CustomEvent: class { constructor(type) { this.type = type; } }, TextDecoder,
     crypto: {randomUUID: () => `key-${++uuid}`},
     fetch: async (path, options) => {
       assert.ok(responses[path], `Unexpected request ${path}`);
       requests.push({path, ...options, body: options.body ? JSON.parse(options.body) : undefined});
+      if (options.headers.Accept === 'application/x-ndjson') return {ok: true, body: new ReadableStream({start: (controller) => { stream = controller; }})};
       return {ok: true, json: async () => responses[path]};
     },
     setTimeout: (callback, delay) => { const id = nextID++; timers.set(id, {callback, time: now + delay}); return id; },
@@ -56,6 +57,7 @@ async function app(retailers = shops) {
   await new Promise((resolve) => setImmediate(resolve));
   return {
     elements, navigation, events, emit, requests, responses,
+    send: async (event) => { stream.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`)); await settle(); },
     choose: (shop) => { elements.get('retailer').value = shop; elements.get('retailer').listeners.change(); },
     receipt: (state, retailer = 'mathem', created = new Date().toISOString()) => runInContext(`showReceipt(${JSON.stringify({id: 'transfer', state, retailer_id: retailer, basket_url: basketURL, created_at: created, receipt: {lines: [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]}})})`, context),
     plan: (value) => runInContext(`showPlan(${JSON.stringify(value)})`, context),
@@ -72,10 +74,17 @@ async function app(retailers = shops) {
   };
 }
 
+async function settle() {
+  for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
+}
+
+const classes = (element) => element.children.map((node) => node.className);
+const texts = (element) => element.children.map((node) => node.textContent);
+
 function shoppingPlan(retailer = 'mathem') {
   return {id: 'plan', revision: 1, retailer_id: retailer, status: 'ready', context: shops[0].context, warnings: [], total: {amount_minor: 2500, currency: 'SEK'}, lines: [
     {id: 'salad', item: {label: 'Sallad', query: 'sallad', amount: {quantity: 200, unit: 'g'}, required_traits: []}, candidates: [], issue: 'No products found.'},
-    {id: 'rice', item: {label: 'Ris', query: 'ris', amount: {quantity: 500, unit: 'g'}, required_traits: []}, candidates: [], selected: {target_quantity: 1, product: {id: 'rice', name: 'Basmatiris', pack: {quantity: 500, unit: 'g'}}, unit_price: {amount_minor: 2500, currency: 'SEK'}, total: {amount_minor: 2500, currency: 'SEK'}}},
+    {id: 'rice', item: {label: 'Ris', query: 'ris', amount: {quantity: 500, unit: 'g'}, required_traits: []}, candidates: [], selected: {eligible: true, target_quantity: 1, product: {id: 'rice', name: 'Basmatiris', pack: {quantity: 500, unit: 'g'}}, unit_price: {amount_minor: 2500, currency: 'SEK'}, total: {amount_minor: 2500, currency: 'SEK'}}},
   ]};
 }
 
@@ -83,7 +92,8 @@ test('missing groceries are visible and do not disable the remaining basket', as
   const ui = await app();
   ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.plan(shoppingPlan());
-  assert.match(ui.elements.get('missing').textContent, /Not included in the basket.*Sallad/);
+  assert.match(ui.elements.get('missing').textContent, /1 item needs attention/);
+  assert.match(ui.elements.get('lines').textContent, /Sallad 200 g · No products found\. Not found/);
   assert.equal(ui.elements.get('transfer').disabled, false);
   assert.match(ui.elements.get('plan-state').textContent, /Ready/);
   assert.equal(ui.elements.get('plan-meta').textContent, 'Mathem');
@@ -108,10 +118,10 @@ test('the chosen shop and its catalog are used for the grocery request and not c
   ui.choose('willys');
   assert.equal(ui.elements.get('create').disabled, false);
   assert.equal(ui.elements.get('shop-status').textContent, '');
-  ui.responses['/v1/shopping-plans'] = {...shoppingPlan('willys'), plans: []};
   ui.elements.get('text').value = 'milk';
   ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
   const request = ui.requests.find((request) => request.path === '/v1/shopping-plans' && request.method === 'POST');
+  assert.equal(request.headers.Accept, 'application/x-ndjson');
   assert.equal(request.body.retailer_id, 'willys');
   assert.deepEqual(request.body.context, shops[1].context);
   const reloaded = await app();
@@ -197,4 +207,50 @@ test('a fill nobody picks up explains that the extension is not responding', asy
   ui.receipt('expired');
   assert.match(ui.elements.get('receipt').textContent, /did not pick this up/);
   assert.match(ui.elements.get('extension-status').textContent, /not running in this browser/);
+});
+
+test('finding groceries shows each streamed step and then the list with problems first', async () => {
+  const ui = await app();
+  ui.choose('willys');
+  ui.elements.get('text').value = 'Korvstroganoff för 5';
+  ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
+  await settle();
+  const steps = ui.elements.get('progress-steps');
+  assert.equal(ui.elements.get('progress').hidden, false);
+  assert.equal(ui.elements.get('create').disabled, true);
+  assert.deepEqual(classes(steps), ['step active', 'step pending', 'step pending']);
+  await ui.send({progress: {stage: 'interpret', note: 'Choosing a stroganoff recipe'}});
+  assert.match(texts(steps)[0], /Plan groceries Choosing a stroganoff recipe/);
+  await ui.send({progress: {stage: 'search', total: 2}});
+  await ui.send({progress: {stage: 'search', done: 1, total: 2}});
+  assert.deepEqual(classes(steps), ['step done', 'step active', 'step pending']);
+  assert.match(texts(steps)[0], /2 groceries/);
+  assert.match(texts(steps)[1], /Search Willys 1 of 2 groceries/);
+  await ui.send({progress: {stage: 'match'}});
+  assert.deepEqual(classes(steps), ['step done', 'step done', 'step active']);
+  const plan = shoppingPlan('willys');
+  plan.lines.reverse();
+  plan.warnings = ['Korvstroganoff för 5 portioner.'];
+  await ui.send({plan});
+  assert.equal(ui.elements.get('progress').hidden, true);
+  assert.equal(ui.elements.get('create').disabled, false);
+  const lines = ui.elements.get('lines');
+  assert.deepEqual(classes(lines), ['group', 'line attention', 'group', 'line']);
+  assert.deepEqual(texts(lines).map((text) => text.split(' ')[0]), ['Needs', 'Sallad', 'Matched', 'Ris']);
+  assert.equal(ui.elements.get('list-count').textContent, '2 items');
+  assert.match(ui.elements.get('notes').textContent, /Assumptions Korvstroganoff för 5 portioner/);
+  assert.equal(ui.elements.get('ack-wrap').hidden, false);
+});
+
+test('a failed planning stream explains the failure and hides the progress', async () => {
+  const ui = await app();
+  ui.choose('mathem');
+  ui.elements.get('text').value = 'milk';
+  ui.elements.get('plan-form').listeners.submit({preventDefault() {}});
+  await settle();
+  await ui.send({progress: {stage: 'interpret'}});
+  await ui.send({status: 502, error: 'adapter unavailable'});
+  assert.equal(ui.elements.get('progress').hidden, true);
+  assert.match(ui.elements.get('message').textContent, /did not respond/);
+  assert.deepEqual(ui.elements.get('lines').children, []);
 });

@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, interpreterMode = '', selectedShop = '';
+let token = $('token').value.trim(), plan = null, busy = false, retailers = [], clients = [], poll = null, interpreterMode = '', selectedShop = '', openLine = '';
 let browserExtension = {ready: false, connected: false, clientID: '', error: ''};
 const shoppingTarget = () => retailers.find((retailer) => retailer.id === selectedShop) || null;
 const planRetailer = () => plan ? retailers.find((retailer) => retailer.id === plan.retailer_id) : null;
@@ -18,17 +18,83 @@ const examples = {
   diet: '2 litres lactose-free milk\n1 pack gluten-free bread\n500 g bananas',
 };
 
-async function api(path, body, method = 'POST', key) {
-  const headers = {Authorization: `Bearer ${token}`};
+const failures = {400: 'Check your input, quantity and selected product.', 401: 'The connection expired. Reload this page to reconnect.', 409: 'The plan changed or still needs review. Reopen it, resolve all lines, and review the warnings.', 502: 'The AI or the shop did not respond. Check your AI login and try again.', 504: 'Planning ingredients or searching the shop took too long. Please try again.'};
+const failure = (status, error) => new Error(failures[status] || error || 'The request failed.');
+
+function request(path, body, method, key, accept = 'application/json') {
+  const headers = {Authorization: `Bearer ${token}`, Accept: accept};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (key) headers['Idempotency-Key'] = key;
-  const response = await fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body)});
+  return fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body)});
+}
+
+async function api(path, body, method = 'POST', key) {
+  const response = await request(path, body, method, key);
   const result = await response.json();
-  if (!response.ok) {
-    const messages = {400: 'Check your input, quantity and selected product.', 401: 'The connection expired. Reload this page to reconnect.', 409: 'The plan changed or still needs review. Reopen it, resolve all lines, and review the warnings.', 502: 'The AI or the shop did not respond. Check your AI login and try again.', 504: 'Planning ingredients or searching the shop took too long. Please try again.'};
-    throw new Error(messages[response.status] || result.error || 'The request failed.');
-  }
+  if (!response.ok) throw failure(response.status, result.error);
   return result;
+}
+
+async function createPlan(body, onProgress) {
+  const response = await request('/v1/shopping-plans', body, 'POST', undefined, 'application/x-ndjson');
+  if (!response.ok) throw failure(response.status, (await response.json()).error);
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffered = '';
+  for (;;) {
+    const {done, value} = await reader.read();
+    buffered += decoder.decode(value, {stream: !done});
+    const lines = buffered.split('\n');
+    buffered = lines.pop();
+    for (const line of lines.filter((line) => line.trim())) {
+      const event = JSON.parse(line);
+      if (event.plan) return event.plan;
+      if (event.error) throw failure(event.status, event.error);
+      if (event.progress) onProgress(event.progress);
+    }
+    if (done) throw new Error('The connection to the service was lost. Please try again.');
+  }
+}
+
+let progress = null, progressTimer = null;
+function startProgress(shop) {
+  progress = {shop, stage: 'interpret', notes: {}, done: 0, total: 0, started: Date.now()};
+  $('progress').hidden = false;
+  renderProgress();
+  $('progress').scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  progressTimer = setInterval(renderProgressTime, 1000);
+}
+function updateProgress(event) {
+  progress.stage = event.stage;
+  if (event.note) progress.notes[event.stage] = event.note;
+  if (event.stage === 'search') { progress.done = Math.max(event.done || 0, progress.done); progress.total = event.total || 0; }
+  renderProgress();
+}
+function stopProgress() {
+  clearInterval(progressTimer);
+  progress = null; progressTimer = null;
+  $('progress').hidden = true;
+}
+function renderProgressTime() {
+  const seconds = Math.floor((Date.now() - progress.started) / 1000);
+  $('progress-time').textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+function renderProgress() {
+  const builtin = interpreterMode === 'builtin';
+  const steps = [
+    ['interpret', builtin ? 'Read your list' : 'Plan groceries', builtin ? '' : 'Working out what to buy…'],
+    ['search', `Search ${progress.shop}`, progress.total ? `${progress.done} of ${progress.total} groceries` : ''],
+  ];
+  if (!builtin) steps.push(['match', 'Check product matches', 'Making sure each product fits its ingredient…']);
+  const current = steps.findIndex(([stage]) => stage === progress.stage);
+  $('progress-steps').replaceChildren(...steps.map(([stage, name, detail], index) => {
+    const state = index < current ? 'done' : index === current ? 'active' : 'pending';
+    const step = el('li', null, `step ${state}`);
+    step.append(el('span', null, 'step-mark'), el('span', name, 'step-name'));
+    if (state === 'active') step.append(el('span', progress.notes[stage] || detail, 'step-detail'));
+    if (state === 'done' && stage === 'interpret' && progress.total) step.append(el('span', `${progress.total} groceries`, 'step-detail'));
+    return step;
+  }));
+  renderProgressTime();
 }
 
 function message(text, error = false) {
@@ -39,7 +105,7 @@ function message(text, error = false) {
 function buttons() {
   $('create').disabled = busy || !token || !shoppingTarget();
   $('retailer').disabled = busy || !retailers.length;
-  $('refresh').disabled = busy || !plan;
+  $('refresh').disabled = busy || !plan || !plan.lines.length;
   $('transfer').disabled = busy || !plan || plan.status !== 'ready' || (plan.warnings.length > 0 && !$('ack').checked) || (plan.over_budget && !$('over').checked) || !planClient();
   $('reconnect').disabled = busy;
 }
@@ -53,78 +119,109 @@ async function action(work) {
 
 function stopPoll() { if (poll !== null) clearTimeout(poll); poll = null; }
 
+const needsAttention = (line) => !line.skipped && !line.selected?.eligible;
+const amount = (item) => `${item.amount.quantity} ${item.amount.unit}${item.required_traits.length ? ' · ' + item.required_traits.join(', ').replaceAll('_', ' ') : ''}`;
+
 function showPlan(value) {
-  stopPoll(); plan = value;
+  stopPoll();
+  if (plan?.id !== value.id) openLine = '';
+  plan = value;
   $('ack').checked = false; $('over').checked = false;
-  $('review').hidden = false; $('plan').hidden = false;
+  $('review').hidden = false; $('checkout').hidden = false;
   $('receipt').replaceChildren();
-  const missing = plan.lines.filter((line) => !line.skipped && !line.selected);
-  const hasProducts = plan.lines.some((line) => !line.skipped && line.selected);
+  const missing = plan.lines.filter(needsAttention);
+  const hasProducts = plan.lines.some((line) => !line.skipped && line.selected?.eligible);
   $('plan-state').textContent = plan.status === 'ready' ? (missing.length ? 'Ready · some items missing' : 'Ready') : (hasProducts ? 'Needs review' : 'Nothing to add');
   const retailer = retailers.find((r) => r.id === plan.retailer_id);
   const simulated = retailer?.mode === 'mock';
   $('transfer').textContent = simulated ? 'Fill demo basket' : 'Fill basket';
   $('plan-meta').textContent = `${retailer?.name || 'Your shop'}${plan.context.fulfillment ? ` · ${plan.context.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}` : ''}${simulated ? ' · Demo' : ''}`;
-  $('missing').replaceChildren();
-  if (missing.length) {
-    const box = el('div', null, 'notice missing');
-    box.append(el('strong', 'Not included in the basket'), el('p', hasProducts ? 'These items could not be matched. The rest can still be added.' : 'No matching products found. Nothing will be added.'));
-    const list = el('ul');
-    for (const line of missing) list.append(el('li', `${line.item.label} · ${line.item.amount.quantity} ${line.item.amount.unit}`));
-    box.append(list); $('missing').append(box);
-  }
-  $('warnings').replaceChildren();
+  $('missing').textContent = !plan.lines.length ? 'No grocery items were understood. Describe a dish and how many people it should serve, or enter your grocery list.'
+    : !missing.length ? '' : hasProducts ? `${missing.length === 1 ? '1 item needs' : `${missing.length} items need`} attention and won’t be added until you fix ${missing.length === 1 ? 'it' : 'them'}. ${missing.length === 1 ? 'It is' : 'They are'} at the top of the list.`
+    : 'No matching products were found, so nothing will be added.';
+  $('missing').hidden = !$('missing').textContent;
+  $('notes').replaceChildren();
   if (plan.warnings.length) {
-    const box = el('div', null, 'notice'); box.append(el('strong', 'Assumptions'));
-    for (const warning of plan.warnings) box.append(el('p', warning));
-    $('warnings').append(box);
+    const list = el('ul');
+    for (const warning of plan.warnings) list.append(el('li', warning));
+    $('notes').append(el('h3', 'Assumptions'), list);
   }
-  if (plan.over_budget) $('warnings').append(el('p', `This plan exceeds your ${money({amount_minor: plan.budget_minor, currency: 'SEK'})} budget.`, 'notice'));
-  if (!plan.lines.length) $('warnings').append(el('p', 'No grocery items were understood. Describe a dish and how many people it should serve, or enter your grocery list.', 'notice'));
   $('ack-wrap').hidden = !plan.warnings.length; $('over-wrap').hidden = !plan.over_budget;
+  if (plan.over_budget) $('over-text').textContent = `Accept going ${money({amount_minor: plan.total.amount_minor - plan.budget_minor, currency: plan.total.currency})} over your ${money({amount_minor: plan.budget_minor, currency: plan.total.currency})} budget.`;
   $('total').textContent = money(plan.total);
   $('estimate').textContent = `${plan.estimated ? 'Estimated by weight. ' : ''}Delivery excluded. ${simulated ? 'Demo prices.' : 'Confirm prices at checkout.'}`;
-  $('lines').replaceChildren(...plan.lines.map(renderLine));
+  renderList();
   updateExtension();
 }
 
+function renderList() {
+  const groups = [['Needs attention', plan.lines.filter(needsAttention)], ['Matched', plan.lines.filter((line) => !line.skipped && !needsAttention(line))], ['Skipped', plan.lines.filter((line) => line.skipped)]].filter(([, lines]) => lines.length);
+  $('list').className = `list-panel${plan.lines.length ? '' : ' empty'}`;
+  $('list-empty').hidden = plan.lines.length > 0;
+  $('list-count').textContent = plan.lines.length === 1 ? '1 item' : `${plan.lines.length} items`;
+  $('lines').replaceChildren(...groups.flatMap(([title, lines]) => [...(groups.length > 1 ? [el('h3', `${title} · ${lines.length}`, 'group')] : []), ...lines.map(renderLine)]));
+}
+
 function renderLine(line) {
-  const node = el('article', null, `line${line.skipped ? ' skipped' : ''}`);
-  const top = el('div', null, 'line-top');
-  const name = el('div'); name.append(el('h3', line.item.label), el('span', `${line.item.amount.quantity} ${line.item.amount.unit}${line.item.required_traits.length ? ' · ' + line.item.required_traits.join(', ').replaceAll('_', ' ') : ''}`, 'muted'));
-  const skip = el('button', line.skipped ? 'Restore' : 'Skip'); skip.type = 'button';
-  skip.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: !line.skipped})); await history(); }));
-  top.append(name, skip); node.append(top);
-  if (line.selected && !line.skipped) {
-    const selected = line.selected;
-    const row = el('div', null, 'line-top');
-    row.append(el('p', `${selected.target_quantity} × ${selected.product.name}`, 'product'), el('p', money(selected.total), 'line-price'));
-    node.append(row, el('p', `${selected.product.pack.quantity} ${selected.product.pack.unit} / pack · ${money(selected.unit_price)} / pack`, 'muted'));
-  } else if (!line.skipped) node.append(el('p', `Not included in the basket. ${line.issue || 'No matching product found.'}`, 'notice'));
-  if (line.skipped) return node;
-  const details = el('details'); details.append(el('summary', 'Edit or change product'));
-  if (line.search_limited) details.append(el('p', `First ${line.search_limit || 500} results checked. Narrow the search for more options.`, 'muted'));
-  const form = el('form');
-  const grid = el('div', null, 'edit-grid');
-  const queryLabel = el('label', 'Search query'), query = el('input'); query.value = line.item.query; query.required = true; query.maxLength = 200; queryLabel.append(query);
+  if (line.skipped) {
+    const node = el('div', null, 'line skipped'), text = el('span', null, 'line-text');
+    text.append(el('span', line.item.label, 'line-name'), el('span', amount(line.item), 'line-detail'));
+    const restore = el('button', 'Restore'); restore.type = 'button';
+    restore.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: false})); await history(); }));
+    node.append(text, restore);
+    return node;
+  }
+  const attention = needsAttention(line), selected = line.selected;
+  const node = el('details', null, `line${attention ? ' attention' : ''}`);
+  node.open = line.id === openLine;
+  node.addEventListener('toggle', () => { if (node.open) openLine = line.id; else if (openLine === line.id) openLine = ''; });
+  const summary = el('summary'), text = el('span', null, 'line-text');
+  text.append(el('span', line.item.label, 'line-name'), el('span', attention ? `${amount(line.item)} · ${line.issue || (selected ? 'Choose another product.' : 'No matching product found.')}` : `${amount(line.item)} · ${selected.target_quantity} × ${selected.product.name}`, 'line-detail'));
+  summary.append(text, attention ? el('span', selected ? 'Check' : 'Not found', 'line-flag') : el('span', money(selected.total), 'line-price'));
+  node.append(summary, renderEditor(line));
+  return node;
+}
+
+function renderEditor(line) {
+  const panel = el('div', null, 'line-edit'), selected = line.selected;
+  if (selected) panel.append(el('p', `${selected.product.pack.quantity} ${selected.product.pack.unit} / pack · ${money(selected.unit_price)} / pack`, 'muted'));
+  const form = el('form', null, 'edit-form');
+  const queryLabel = el('label', 'Search'), query = el('input'); query.value = line.item.query; query.required = true; query.maxLength = 200; queryLabel.append(query);
   const qtyLabel = el('label', 'Quantity'), qty = el('input'); qty.type = 'number'; qty.value = line.item.amount.quantity; qty.min = 1; qty.max = 1000000; qty.step = 1; qty.required = true; qtyLabel.append(qty);
   const unitLabel = el('label', 'Unit'), unit = el('select');
   for (const [value, label] of [['pack', 'packs'], ['each', 'pieces'], ['g', 'grams'], ['ml', 'millilitres']]) { const option = el('option', label); option.value = value; unit.append(option); }
-  unit.value = line.item.amount.unit; unitLabel.append(unit); grid.append(queryLabel, qtyLabel, unitLabel);
-  const save = el('button', 'Search again', 'secondary'); save.type = 'submit'; form.append(grid, save);
+  unit.value = line.item.amount.unit; unitLabel.append(unit);
+  const save = el('button', 'Search again'); save.type = 'submit';
+  form.append(queryLabel, qtyLabel, unitLabel, save);
   form.addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
     const item = {...line.item, query: query.value.trim(), amount: {quantity: Number(qty.value), unit: unit.value}};
     showPlan(await patchLine(line, {item})); await history();
-  }); }); details.append(form);
-  if (line.observed_at) details.append(el('p', `Prices checked ${new Date(line.observed_at).toLocaleString()}`, 'muted'));
-  for (const candidate of line.candidates) {
-    const row = el('div', null, 'candidate'), description = el('div');
-    description.append(el('strong', candidate.product.name), el('p', `${candidate.target_quantity || '?'} packs · ${money(candidate.total)} · ${candidate.reasons.join(' ')}`, 'muted'));
-    const choose = el('button', line.selected?.product.id === candidate.product.id ? 'Selected' : 'Choose'); choose.type = 'button'; choose.disabled = !candidate.eligible || line.selected?.product.id === candidate.product.id;
-    choose.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {product_id: candidate.product.id})); await history(); }));
-    row.append(description, choose); details.append(row);
+  }); });
+  panel.append(form);
+  if (line.search_limited) panel.append(el('p', `First ${line.search_limit || 500} results checked. Narrow the search for more options.`, 'muted'));
+  const eligible = line.candidates.filter((candidate) => candidate.eligible), others = line.candidates.filter((candidate) => !candidate.eligible);
+  panel.append(...eligible.map((candidate) => renderCandidate(line, candidate)));
+  if (others.length) {
+    const rest = el('details', null, 'others');
+    rest.append(el('summary', `${others.length === 1 ? '1 product doesn’t' : `${others.length} products don’t`} fit`), ...others.map((candidate) => renderCandidate(line, candidate)));
+    panel.append(rest);
   }
-  node.append(details); return node;
+  const footer = el('div', null, 'line-footer');
+  footer.append(el('span', line.observed_at ? `Prices checked ${new Date(line.observed_at).toLocaleString()}` : '', 'muted'));
+  const skip = el('button', 'Skip item'); skip.type = 'button';
+  skip.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {skipped: true})); await history(); }));
+  footer.append(skip); panel.append(footer);
+  return panel;
+}
+
+function renderCandidate(line, candidate) {
+  const row = el('div', null, 'candidate'), description = el('div');
+  description.append(el('strong', candidate.product.name), el('p', `${candidate.target_quantity || '?'} × ${candidate.product.pack.quantity} ${candidate.product.pack.unit} · ${money(candidate.total)}${candidate.eligible ? '' : ` · ${candidate.reasons.join(' ')}`}`, 'muted'));
+  const chosen = line.selected?.product.id === candidate.product.id;
+  const choose = el('button', chosen ? 'Selected' : 'Choose'); choose.type = 'button'; choose.disabled = !candidate.eligible || chosen;
+  choose.addEventListener('click', () => action(async () => { showPlan(await patchLine(line, {product_id: candidate.product.id})); await history(); }));
+  row.append(description, choose);
+  return row;
 }
 
 function patchLine(line, body) { return api(`/v1/shopping-plans/${plan.id}/lines/${line.id}`, {revision: plan.revision, ...body}, 'PATCH'); }
@@ -196,10 +293,12 @@ $('ack').addEventListener('change', buttons); $('over').addEventListener('change
 $('plan-form').addEventListener('submit', (event) => { event.preventDefault(); action(async () => {
   const retailer = shoppingTarget();
   if (!token || !retailer) { $('retailer').focus(); return; }
-  message(interpreterMode === 'builtin' ? 'Finding products…' : 'Planning ingredients and finding products. Allow about a minute.');
   const required_traits = Array.from(document.querySelectorAll('.traits input:checked'), (input) => input.value);
-  const result = await api('/v1/shopping-plans', {text: $('text').value, retailer_id: retailer.id, context: retailer.context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)});
-  showPlan(result); message(''); await history();
+  startProgress(retailer.name);
+  try {
+    showPlan(await createPlan({text: $('text').value, retailer_id: retailer.id, context: retailer.context, required_traits, budget_minor: Math.round(Number($('budget').value || 0) * 100)}, updateProgress));
+  } finally { stopProgress(); }
+  await history();
   $('review').scrollIntoView({block: 'start', behavior: 'smooth'});
 }); });
 

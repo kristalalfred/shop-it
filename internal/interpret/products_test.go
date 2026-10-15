@@ -10,7 +10,7 @@ import (
 
 type generatedText string
 
-func (text generatedText) generate(context.Context, string, any, map[string]any) ([]byte, error) {
+func (text generatedText) generate(context.Context, string, any, map[string]any, shopping.Notify) ([]byte, error) {
 	return []byte(text), nil
 }
 
@@ -35,7 +35,7 @@ func TestProductMatchReferences(t *testing.T) {
 		{"extra object", `{"matches":[{"id":"rice","product_ids":[]},{"id":"onions","product_ids":[]}]} {}`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			matches, err := matchProducts(context.Background(), generatedText(tc.text), requests)
+			matches, err := matchProducts(context.Background(), generatedText(tc.text), requests, nil)
 			if tc.valid && (err != nil || len(matches) != 2) || !tc.valid && !errors.Is(err, shopping.ErrUpstream) {
 				t.Fatalf("matches: %+v, error: %v", matches, err)
 			}

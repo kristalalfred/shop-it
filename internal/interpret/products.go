@@ -13,18 +13,18 @@ Return exactly one entry for every request ID, with the IDs of all relevant prod
 Respect the requested identity and substitutions: vegan sausage requires a plant-based sausage, not meat sausage, tofu or falafel. Dairy milk or cream requires dairy products unless the query or requirements explicitly call for a plant-based substitute. Do not substitute a different ingredient. For an unspecified variety, accept sensible variants of the same ingredient. Do not assess price, availability, pack quantities, dietary certification or allergy safety; the application checks those separately. Never invent an ID or copy an ID from another request. If none of the supplied products matches, return an empty product_ids array.`
 
 type structuredGenerator interface {
-	generate(context.Context, string, any, map[string]any) ([]byte, error)
+	generate(context.Context, string, any, map[string]any, shopping.Notify) ([]byte, error)
 }
 
-func (c *Codex) MatchProducts(ctx context.Context, requests []shopping.ProductMatchRequest) ([]shopping.ProductMatch, error) {
-	return matchProducts(ctx, c, requests)
+func (c *Codex) MatchProducts(ctx context.Context, requests []shopping.ProductMatchRequest, notify shopping.Notify) ([]shopping.ProductMatch, error) {
+	return matchProducts(ctx, c, requests, notify)
 }
 
-func (o *OpenAI) MatchProducts(ctx context.Context, requests []shopping.ProductMatchRequest) ([]shopping.ProductMatch, error) {
-	return matchProducts(ctx, o, requests)
+func (o *OpenAI) MatchProducts(ctx context.Context, requests []shopping.ProductMatchRequest, notify shopping.Notify) ([]shopping.ProductMatch, error) {
+	return matchProducts(ctx, o, requests, notify)
 }
 
-func matchProducts(ctx context.Context, generator structuredGenerator, requests []shopping.ProductMatchRequest) ([]shopping.ProductMatch, error) {
+func matchProducts(ctx context.Context, generator structuredGenerator, requests []shopping.ProductMatchRequest, notify shopping.Notify) ([]shopping.ProductMatch, error) {
 	if len(requests) == 0 {
 		return []shopping.ProductMatch{}, nil
 	}
@@ -39,7 +39,7 @@ func matchProducts(ctx context.Context, generator structuredGenerator, requests 
 		"type": "object", "additionalProperties": false, "required": []string{"matches"},
 		"properties": map[string]any{"matches": map[string]any{"type": "array", "items": entry}},
 	}
-	data, err := generator.generate(ctx, productInstructions, map[string]any{"requests": requests}, schema)
+	data, err := generator.generate(ctx, productInstructions, map[string]any{"requests": requests}, schema, notify)
 	if err != nil {
 		return nil, err
 	}

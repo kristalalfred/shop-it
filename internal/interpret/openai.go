@@ -23,8 +23,8 @@ func NewOpenAI(key, model string) *OpenAI {
 	return &OpenAI{URL: "https://api.openai.com/v1/responses", Key: key, Model: model, Client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
-func (o *OpenAI) Interpret(ctx context.Context, req shopping.InterpretationRequest) (shopping.Interpretation, error) {
-	data, err := o.generate(ctx, groceryInstructions, req, grocerySchema())
+func (o *OpenAI) Interpret(ctx context.Context, req shopping.InterpretationRequest, notify shopping.Notify) (shopping.Interpretation, error) {
+	data, err := o.generate(ctx, groceryInstructions, req, grocerySchema(), notify)
 	if err != nil {
 		return shopping.Interpretation{}, err
 	}
@@ -36,7 +36,7 @@ func (o *OpenAI) Interpret(ctx context.Context, req shopping.InterpretationReque
 	return result, Validate(result)
 }
 
-func (o *OpenAI) generate(ctx context.Context, instructions string, request any, schema map[string]any) ([]byte, error) {
+func (o *OpenAI) generate(ctx context.Context, instructions string, request any, schema map[string]any, _ shopping.Notify) ([]byte, error) {
 	input, err := json.Marshal(request)
 	if err != nil {
 		return nil, err

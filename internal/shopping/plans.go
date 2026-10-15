@@ -23,8 +23,17 @@ type InterpretationRequest struct {
 	RequiredTraits []string `json:"required_traits,omitempty"`
 }
 
+type Notify func(note string)
+
+type Progress struct {
+	Stage string `json:"stage"`
+	Note  string `json:"note,omitempty"`
+	Done  int    `json:"done,omitempty"`
+	Total int    `json:"total,omitempty"`
+}
+
 type Interpreter interface {
-	Interpret(context.Context, InterpretationRequest) (Interpretation, error)
+	Interpret(context.Context, InterpretationRequest, Notify) (Interpretation, error)
 }
 
 type ProductOption struct {
@@ -45,7 +54,7 @@ type ProductMatch struct {
 }
 
 type ProductMatcher interface {
-	MatchProducts(context.Context, []ProductMatchRequest) ([]ProductMatch, error)
+	MatchProducts(context.Context, []ProductMatchRequest, Notify) ([]ProductMatch, error)
 }
 
 type PlanRequest struct {
