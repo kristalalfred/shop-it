@@ -31,6 +31,20 @@ async function openShop(input) {
   throw new Error(`${name} did not finish loading. Try again.`);
 }
 
+async function runCommand(settings, command) {
+  let reply;
+  try {
+    const origin = ShipItAdapters.origins[command.retailer_id];
+    if (!origin || !['session', 'search'].includes(command.operation)) throw new Error('Unsupported store operation.');
+    const tabs = await extension.tabs.query({url: `${origin}/*`});
+    const tabID = tabs[0]?.id ?? await openShop({retailer_id: command.retailer_id, basket_url: origin});
+    if (command.operation === 'session') await extension.tabs.update(tabID, {active: true});
+    const result = await storeCall(tabID, command.retailer_id, command.operation, {input: command.input});
+    reply = {result};
+  } catch (error) { reply = {error: error.message, status: error.status || 'failed'}; }
+  await api(settings, `/v1/client/commands/${encodeURIComponent(command.id)}/result`, 'PUT', reply);
+}
+
 function journal(settings) {
   const key = (id) => `receipt:${settings.url}:${settings.client_id}:${id}`;
   return {
@@ -52,7 +66,13 @@ async function transfer(settings, input) {
   let tabID, openError, receipt;
   const overlay = (state) => tabID === undefined ? Promise.resolve() : storeCall(tabID, input.retailer_id, 'overlay', {state}).catch(() => {});
   try {
-    try { tabID = await openShop(input); } catch (error) { openError = error; }
+    try {
+      tabID = await openShop(input);
+      if (input.context.fulfillment) {
+        const current = await storeCall(tabID, input.retailer_id, 'session');
+        if (current.status !== 'ready' || JSON.stringify(current.context) !== JSON.stringify(input.context)) throw new Error('Your store settings changed. Review a fresh comparison before filling this basket.');
+      }
+    } catch (error) { openError = error; }
     const call = (operation, body) => openError ? Promise.reject(openError) : storeCall(tabID, input.retailer_id, operation, body);
     const progress = (index) => overlay({title: `Filling your ${name} basket`, detail: `Adding ${input.items[index].name || 'item'}`, progress: index / total, count: `Item ${index + 1} of ${total}`});
     receipt = await applyTransfer(input, {read: () => call('read'), set: (item, before) => call('set', {item, before})}, journal(settings), renew, progress);
@@ -83,6 +103,8 @@ async function tick() {
         await storage.remove(activeKey);
       }
     }
+    const {commands} = await api(settings, '/v1/client/commands');
+    await Promise.all(commands.map((command) => runCommand(settings, command)));
     const input = await api(settings, '/v1/client/claims');
     connection = 'Connected to Ship It.';
     if (input) await transfer(settings, input);
@@ -92,7 +114,7 @@ async function tick() {
 
 function pageOrigin(sender) {
   const url = new URL(sender.url);
-  if (url.pathname !== '/') throw new Error('Connect from the Ship It page.');
+  if (!['/', '/plugin'].includes(url.pathname)) throw new Error('Connect from the Ship It page.');
   return localURL(url.origin);
 }
 

@@ -15,9 +15,9 @@ test case="all": build
     ./bin/test-harness -case {{quote(case)}}
 
 check: build
-    test -z "$(gofmt -l cmd internal tests extension)"
+    test -z "$(gofmt -l cmd internal tests extension plugin)"
     go vet ./...
-    for script in internal/backend/web/app.js extension/assets/*.js; do node --check "$script"; done
+    for script in internal/backend/web/app.js internal/backend/plugin/app.js extension/assets/*.js; do node --check "$script"; done
     node --test extension/tests/*.test.mjs tests/web/*.test.mjs
     hurlfmt --check tests/api/*.hurl
     ./bin/test-harness
@@ -31,3 +31,6 @@ run mode="backend" config="": build
       backend) exec ./bin/ship-it -config "${SHIP_IT_CONFIG:-.data/local.json}" ;;
       *) exit 2 ;;
     esac
+
+plugin config=".data/local.json" listen="127.0.0.1:18081": build
+    ./bin/ship-it -config {{quote(config)}} -listen {{quote(listen)}} -plugin-dir bin/ship-it-plugin

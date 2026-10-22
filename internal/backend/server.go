@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/kristalalfred/ship-it/internal/browser"
 	"github.com/kristalalfred/ship-it/internal/interpret"
 	"github.com/kristalalfred/ship-it/internal/planner"
 	"github.com/kristalalfred/ship-it/internal/retailer"
@@ -20,6 +21,8 @@ import (
 )
 
 type Server struct {
+	browser         *browser.Hub
+	plugin          *pluginService
 	config          Config
 	catalogs        map[string]shopping.Catalog
 	transfers       shopping.TransferStore
@@ -33,7 +36,7 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	s := &Server{config: config, transfers: transfers, catalogs: make(map[string]shopping.Catalog)}
+	s := &Server{browser: browser.New(), config: config, transfers: transfers, catalogs: make(map[string]shopping.Catalog)}
 	planPath := ""
 	if config.DataDir != "" {
 		planPath = filepath.Join(config.DataDir, "plans.json")
@@ -80,6 +83,10 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 	s.registerPlans(mux)
 	s.registerWeb(mux)
 	s.registerBrowser(mux)
+	s.registerCommands(mux)
+	if err := s.registerPlugin(mux); err != nil {
+		return nil, err
+	}
 	mux.HandleFunc("GET /v1/retailers", s.user(s.listRetailers))
 	mux.HandleFunc("POST /v1/catalog/search", s.user(s.search))
 	mux.HandleFunc("POST /v1/basket-transfers", s.user(s.createTransfer))

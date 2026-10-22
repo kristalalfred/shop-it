@@ -136,13 +136,25 @@ func (s *eventStream) send(event any) {
 }
 
 func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lines []shopping.PlanLine, preserve bool, report func(shopping.Progress)) ([]shopping.PlanLine, error) {
+	limit := 500
+	if s.productMatcher != nil {
+		limit = 40
+	}
+	return s.searchLinesUsing(ctx, baskets, lines, preserve, report, s.catalogs, s.productMatcher, limit, true)
+}
+
+func (s *Server) searchLinesUsing(ctx context.Context, baskets []shopping.Basket, lines []shopping.PlanLine, preserve bool, report func(shopping.Progress), catalogs map[string]shopping.Catalog, matcher shopping.ProductMatcher, searchLimit int, autoSelect bool) ([]shopping.PlanLine, error) {
 	found := make([][]shopping.BasketLine, len(lines))
 	failures := make([][]error, len(lines))
 	remaining := make([]int, len(lines))
 	for i := range lines {
 		found[i], failures[i], remaining[i] = make([]shopping.BasketLine, len(baskets)), make([]error, len(baskets)), len(baskets)
 	}
-	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	searchTimeout := 30 * time.Second
+	if !autoSelect {
+		searchTimeout = 90 * time.Second
+	}
+	searchCtx, cancel := context.WithTimeout(ctx, searchTimeout)
 	defer cancel()
 	var wg sync.WaitGroup
 	var searched sync.Mutex
@@ -150,7 +162,7 @@ func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lin
 	report(shopping.Progress{Stage: "search", Total: len(lines)})
 	for j, basket := range baskets {
 		limit := make(chan struct{}, 6)
-		catalog := s.catalogs[basket.RetailerID]
+		catalog := catalogs[basket.RetailerID]
 		for i, line := range lines {
 			wg.Go(func() {
 				var result shopping.BasketLine
@@ -161,7 +173,7 @@ func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lin
 					if catalog == nil {
 						err = shopping.ErrNotFound
 					} else {
-						result, err = s.searchItem(searchCtx, catalog, basket, line.Item)
+						result, err = s.searchItem(searchCtx, catalog, basket, line.Item, searchLimit, autoSelect && matcher == nil)
 					}
 				case <-searchCtx.Done():
 					err = searchCtx.Err()
@@ -200,8 +212,8 @@ func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lin
 		}
 		return nil, searchFailure
 	}
-	if s.productMatcher != nil {
-		if err := s.matchProducts(ctx, baskets, lines, found, failures, report); err != nil {
+	if matcher != nil {
+		if err := s.matchProducts(ctx, baskets, lines, found, failures, report, matcher); err != nil {
 			return nil, err
 		}
 	}
@@ -229,23 +241,19 @@ func (s *Server) searchLines(ctx context.Context, baskets []shopping.Basket, lin
 	return result, nil
 }
 
-func (s *Server) searchItem(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item) (shopping.BasketLine, error) {
-	limit := 40
-	if s.productMatcher == nil {
-		limit = 500
-	}
+func (s *Server) searchItem(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item, limit int, autoSelect bool) (shopping.BasketLine, error) {
 	line, err := planner.Search(ctx, catalog, basket, item, limit)
 	if broader := interpret.WithoutTraitWords(item.Query, item.RequiredTraits); err == nil && len(line.Candidates) == 0 && broader != "" && broader != item.Query {
 		item.Query = broader
 		line, err = planner.Search(ctx, catalog, basket, item, limit)
 	}
-	if err == nil && s.productMatcher == nil {
+	if err == nil && autoSelect {
 		planner.Select(&line)
 	}
 	return line, err
 }
 
-func (s *Server) matchProducts(ctx context.Context, baskets []shopping.Basket, lines []shopping.PlanLine, found [][]shopping.BasketLine, failures [][]error, report func(shopping.Progress)) error {
+func (s *Server) matchProducts(ctx context.Context, baskets []shopping.Basket, lines []shopping.PlanLine, found [][]shopping.BasketLine, failures [][]error, report func(shopping.Progress), matcher shopping.ProductMatcher) error {
 	requests := make([][]shopping.ProductMatchRequest, len(baskets))
 	for j := range baskets {
 		for i, line := range lines {
@@ -273,7 +281,7 @@ func (s *Server) matchProducts(ctx context.Context, baskets []shopping.Basket, l
 			continue
 		}
 		wg.Go(func() {
-			result, err := s.productMatcher.MatchProducts(ctx, batch, func(note string) {
+			result, err := matcher.MatchProducts(ctx, batch, func(note string) {
 				report(shopping.Progress{Stage: "match", Note: note})
 			})
 			if err != nil {
@@ -319,6 +327,20 @@ func (s *Server) listPlans(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"plans": plans})
 }
 
+type lineUpdate struct {
+	Revision  int            `json:"revision"`
+	Item      *shopping.Item `json:"item,omitempty"`
+	ProductID *string        `json:"product_id,omitempty"`
+	Skipped   *bool          `json:"skipped,omitempty"`
+}
+
+type transferOptions struct {
+	Revision            int    `json:"revision"`
+	ClientID            string `json:"client_id"`
+	AcknowledgeWarnings bool   `json:"acknowledge_warnings"`
+	AllowOverBudget     bool   `json:"allow_over_budget"`
+}
+
 func (s *Server) chooseBasket(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Revision   int    `json:"revision"`
@@ -327,13 +349,7 @@ func (s *Server) chooseBasket(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	plan, err := s.plans.Update(r.Context(), r.PathValue("id"), req.Revision, func(p *shopping.Plan) error {
-		if !slices.ContainsFunc(p.Baskets, func(basket shopping.Basket) bool { return basket.RetailerID == req.RetailerID }) {
-			return shopping.ErrInvalid
-		}
-		p.RetailerID = req.RetailerID
-		return nil
-	})
+	plan, err := s.choose(r.Context(), r.PathValue("id"), req.Revision, req.RetailerID)
 	if err != nil {
 		fail(w, err)
 		return
@@ -341,76 +357,95 @@ func (s *Server) chooseBasket(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, plan)
 }
 
+func (s *Server) choose(ctx context.Context, id string, revision int, retailerID string) (shopping.Plan, error) {
+	return s.plans.Update(ctx, id, revision, func(p *shopping.Plan) error {
+		if !slices.ContainsFunc(p.Baskets, func(b shopping.Basket) bool { return b.RetailerID == retailerID }) {
+			return shopping.ErrInvalid
+		}
+		p.RetailerID = retailerID
+		return nil
+	})
+}
+
 func (s *Server) updateLine(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision  int            `json:"revision"`
-		Item      *shopping.Item `json:"item,omitempty"`
-		ProductID *string        `json:"product_id,omitempty"`
-		Skipped   *bool          `json:"skipped,omitempty"`
-	}
+	var req lineUpdate
 	if !decode(w, r, &req) {
 		return
 	}
-	if req.Revision < 1 || req.Item == nil && req.ProductID == nil && req.Skipped == nil {
-		fail(w, shopping.ErrInvalid)
-		return
-	}
-	plan, err := s.plans.Get(r.Context(), r.PathValue("id"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	if plan.Revision != req.Revision {
-		fail(w, shopping.ErrConflict)
-		return
-	}
-	index := slices.IndexFunc(plan.Lines, func(line shopping.PlanLine) bool { return line.ID == r.PathValue("line") })
-	if index < 0 {
-		fail(w, shopping.ErrNotFound)
-		return
-	}
-	line := plan.Lines[index]
-	if req.Item != nil {
-		if !interpret.ValidItem(*req.Item) {
-			fail(w, shopping.ErrInvalid)
-			return
-		}
-		var lines []shopping.PlanLine
-		lines, err = s.searchLines(r.Context(), plan.Baskets, []shopping.PlanLine{{ID: line.ID, Item: *req.Item}}, false, ignoreProgress)
-		if err != nil {
-			fail(w, err)
-			return
-		}
-		line = lines[0]
-	}
-	if req.ProductID != nil {
-		entry := line.Baskets[plan.RetailerID]
-		entry.Selected = nil
-		if *req.ProductID != "" {
-			for _, c := range entry.Candidates {
-				if c.Product.ID == *req.ProductID && c.Eligible {
-					chosen := c
-					entry.Selected = &chosen
-					break
-				}
-			}
-			if entry.Selected == nil {
-				fail(w, shopping.ErrInvalid)
-				return
-			}
-			entry.Issue = ""
-		}
-		line.Baskets[plan.RetailerID] = entry
-	}
-	if req.Skipped != nil {
-		line.Skipped = *req.Skipped
-	}
-	plan, err = s.plans.Update(r.Context(), plan.ID, req.Revision, func(p *shopping.Plan) error { p.Lines[index] = line; return nil })
+	plan, err := s.editLine(r.Context(), r.PathValue("id"), r.PathValue("line"), req)
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	respond(w, 200, plan)
+}
+
+func (s *Server) editLine(ctx context.Context, id, lineID string, req lineUpdate) (shopping.Plan, error) {
+	if req.Revision < 1 || req.Item == nil && req.ProductID == nil && req.Skipped == nil {
+		return shopping.Plan{}, shopping.ErrInvalid
+	}
+	plan, err := s.plans.Get(ctx, id)
+	if err != nil {
+		return shopping.Plan{}, err
+	}
+	if plan.Revision != req.Revision {
+		return shopping.Plan{}, shopping.ErrConflict
+	}
+	index := slices.IndexFunc(plan.Lines, func(line shopping.PlanLine) bool { return line.ID == lineID })
+	if index < 0 {
+		return shopping.Plan{}, shopping.ErrNotFound
+	}
+	line := plan.Lines[index]
+	if req.Item != nil {
+		if !interpret.ValidItem(*req.Item) {
+			return shopping.Plan{}, shopping.ErrInvalid
+		}
+		var lines []shopping.PlanLine
+		var err error
+		if plan.InterpreterMode == "chatgpt" {
+			lines, err = s.searchPluginLines(ctx, plan, []shopping.PlanLine{{ID: line.ID, Item: *req.Item}}, false)
+		} else {
+			lines, err = s.searchLines(ctx, plan.Baskets, []shopping.PlanLine{{ID: line.ID, Item: *req.Item}}, false, ignoreProgress)
+		}
+		if err != nil {
+			return shopping.Plan{}, err
+		}
+		line = lines[0]
+	}
+
+	if req.ProductID != nil {
+		if err := selectProduct(&line, plan.RetailerID, *req.ProductID); err != nil {
+			return shopping.Plan{}, err
+		}
+	}
+
+	if req.Skipped != nil {
+		line.Skipped = *req.Skipped
+	}
+	return s.plans.Update(ctx, plan.ID, req.Revision, func(p *shopping.Plan) error { p.Lines[index] = line; return nil })
+}
+
+func selectProduct(line *shopping.PlanLine, retailerID, productID string) error {
+	entry, ok := line.Baskets[retailerID]
+	if !ok {
+		return shopping.ErrInvalid
+	}
+	entry.Selected = nil
+	if productID != "" {
+		for _, candidate := range entry.Candidates {
+			if candidate.Product.ID == productID && candidate.Eligible {
+				chosen := candidate
+				entry.Selected = &chosen
+				break
+			}
+		}
+		if entry.Selected == nil {
+			return shopping.ErrInvalid
+		}
+		entry.Issue = ""
+	}
+	line.Baskets[retailerID] = entry
+	return nil
 }
 
 func (s *Server) refreshPlan(w http.ResponseWriter, r *http.Request) {
@@ -420,22 +455,7 @@ func (s *Server) refreshPlan(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	plan, err := s.plans.Get(r.Context(), r.PathValue("id"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	if plan.Revision != req.Revision {
-		fail(w, shopping.ErrConflict)
-		return
-	}
-	baskets := s.baskets()
-	lines, err := s.searchLines(r.Context(), baskets, plan.Lines, true, ignoreProgress)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	plan, err = s.plans.Update(r.Context(), plan.ID, req.Revision, func(p *shopping.Plan) error { p.Lines, p.Baskets = lines, baskets; return nil })
+	plan, err := s.refresh(r.Context(), r.PathValue("id"), req.Revision)
 	if err != nil {
 		fail(w, err)
 		return
@@ -443,45 +463,34 @@ func (s *Server) refreshPlan(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, plan)
 }
 
-func (s *Server) transferPlan(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision            int    `json:"revision"`
-		ClientID            string `json:"client_id"`
-		AcknowledgeWarnings bool   `json:"acknowledge_warnings"`
-		AllowOverBudget     bool   `json:"allow_over_budget"`
+func (s *Server) refresh(ctx context.Context, id string, revision int) (shopping.Plan, error) {
+	plan, err := s.plans.Get(ctx, id)
+	if err != nil {
+		return shopping.Plan{}, err
 	}
+	if plan.Revision != revision {
+		return shopping.Plan{}, shopping.ErrConflict
+	}
+	baskets := s.baskets()
+	var lines []shopping.PlanLine
+	if plan.InterpreterMode == "chatgpt" {
+		baskets = plan.Baskets
+		lines, err = s.searchPluginLines(ctx, plan, plan.Lines, true)
+	} else {
+		lines, err = s.searchLines(ctx, baskets, plan.Lines, true, ignoreProgress)
+	}
+	if err != nil {
+		return shopping.Plan{}, err
+	}
+	return s.plans.Update(ctx, id, revision, func(p *shopping.Plan) error { p.Lines, p.Baskets = lines, baskets; return nil })
+}
+
+func (s *Server) transferPlan(w http.ResponseWriter, r *http.Request) {
+	var req transferOptions
 	if !decode(w, r, &req) {
 		return
 	}
-	key := r.Header.Get("Idempotency-Key")
-	if req.Revision < 1 || !validID(key) || !s.hasClient(req.ClientID) {
-		fail(w, shopping.ErrInvalid)
-		return
-	}
-	var transfer shopping.Transfer
-	var created bool
-	err := s.plans.Review(r.Context(), r.PathValue("id"), req.Revision, func(plan shopping.Plan) error {
-		basket, _ := planner.Chosen(plan)
-		if len(plan.Warnings) > 0 && !req.AcknowledgeWarnings || basket.OverBudget && !req.AllowOverBudget {
-			return shopping.ErrConflict
-		}
-		items, err := planner.BasketItems(plan)
-		if err != nil {
-			return err
-		}
-		basketURL := ""
-		for _, retailer := range s.config.Retailers {
-			if retailer.ID == basket.RetailerID {
-				basketURL = retailer.BasketURL
-			}
-		}
-		if basketURL == "" {
-			return shopping.ErrNotFound
-		}
-		input := shopping.TransferRequest{RetailerID: basket.RetailerID, ClientID: req.ClientID, Context: basket.Context, Items: items}
-		transfer, created, err = s.transfers.Create(r.Context(), input, "plan:"+plan.ID+":"+key, basketURL)
-		return err
-	})
+	transfer, created, err := s.fillPlan(r.Context(), r.PathValue("id"), req, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -492,4 +501,57 @@ func (s *Server) transferPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Location", "/v1/basket-transfers/"+transfer.ID)
 	respond(w, status, transfer)
+}
+
+func (s *Server) fillPlan(ctx context.Context, id string, req transferOptions, key string) (shopping.Transfer, bool, error) {
+	if req.Revision < 1 || !validID(key) || !s.hasClient(req.ClientID) {
+		return shopping.Transfer{}, false, shopping.ErrInvalid
+	}
+	var transfer shopping.Transfer
+	var created bool
+	err := s.plans.Review(ctx, id, req.Revision, func(plan shopping.Plan) error {
+		basket, _ := planner.Chosen(plan)
+
+		if plan.InterpreterMode == "chatgpt" {
+			if basket.Missing > 0 {
+				return shopping.ErrConflict
+			}
+			for _, line := range plan.Lines {
+				if !line.Skipped {
+					selected := line.Baskets[basket.RetailerID].Selected
+					if selected != nil && len(selected.UnmetTraits) > 0 && !req.AcknowledgeWarnings {
+						return shopping.ErrConflict
+					}
+				}
+			}
+			for _, r := range s.config.Retailers {
+				if r.ID == basket.RetailerID && r.Mode == "browser" {
+					session, err := s.browser.Session(r.ID)
+					if err != nil || session.ClientID != req.ClientID || !sameStore(session.Context, basket.Context) {
+						return shopping.ErrConflict
+					}
+				}
+			}
+		}
+		if len(plan.Warnings) > 0 && !req.AcknowledgeWarnings || basket.OverBudget && !req.AllowOverBudget {
+			return shopping.ErrConflict
+		}
+		items, err := planner.BasketItems(plan)
+		if err != nil {
+			return err
+		}
+		basketURL := ""
+		for _, r := range s.config.Retailers {
+			if r.ID == basket.RetailerID {
+				basketURL = r.BasketURL
+			}
+		}
+		if basketURL == "" {
+			return shopping.ErrNotFound
+		}
+		input := shopping.TransferRequest{RetailerID: basket.RetailerID, ClientID: req.ClientID, Context: basket.Context, Items: items}
+		transfer, created, err = s.transfers.Create(ctx, input, "plan:"+plan.ID+":"+key, basketURL)
+		return err
+	})
+	return transfer, created, err
 }

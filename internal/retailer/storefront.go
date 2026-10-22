@@ -76,6 +76,13 @@ func (s *Storefront) Search(ctx context.Context, input shopping.SearchRequest) (
 	return result, ValidateResult(input, result)
 }
 
+func ParseStorefront(retailerID string, data []byte, page int) ([]shopping.Product, bool, error) {
+	if retailerID == "mathem" {
+		return parseMathem(data, page)
+	}
+	return parseAxfood(data, page)
+}
+
 func (s *Storefront) get(ctx context.Context, path string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL+path, nil)
 	if err != nil {

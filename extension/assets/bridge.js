@@ -4,7 +4,7 @@
   if (globalThis.shipItBridgeLoaded) return;
   globalThis.shipItBridgeLoaded = true;
   const extension = globalThis.browser || globalThis.chrome;
-  if (location.hostname !== '127.0.0.1' || location.protocol !== 'http:' || location.pathname !== '/') return;
+  if (location.hostname !== '127.0.0.1' || location.protocol !== 'http:' || !['/', '/plugin'].includes(location.pathname)) return;
   async function connect() {
     let result = await extension.runtime.sendMessage({type: 'connection'});
     const token = document.getElementById('token')?.value;
