@@ -38,7 +38,8 @@ func Build(dir, configPath, address string) error {
 	if err != nil {
 		return err
 	}
-	manifest := map[string]any{"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json", "mcpServers": map[string]any{"ship-it": map[string]any{"type": "stdio", "cwd": cwd, "command": "${PLUGIN_ROOT}/bin/ship-it", "args": []string{"-mcp", "-config", path, "-listen", address}}}}
+	// Claude: Codex rejects stdio commands and cwd values outside the plugin root, so the service's working directory travels as -C.
+	manifest := map[string]any{"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json", "mcpServers": map[string]any{"ship-it": map[string]any{"type": "stdio", "cwd": "${PLUGIN_ROOT}", "command": "./bin/ship-it", "args": []string{"-C", cwd, "-mcp", "-config", path, "-listen", address}}}}
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err

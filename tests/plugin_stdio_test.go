@@ -58,7 +58,22 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 	if bytes.Contains(manifest, []byte(config.APIToken)) {
 		t.Fatal("credentials were copied into the install package")
 	}
-	command := exec.Command(filepath.Join(packageDir, "bin", "ship-it"), "-mcp", "-config", path)
+	var servers struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+			Cwd     string   `json:"cwd"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(manifest, &servers); err != nil {
+		t.Fatal(err)
+	}
+	server := servers.MCPServers["ship-it"]
+	if !strings.HasPrefix(server.Command, "./") || server.Cwd != "${PLUGIN_ROOT}" {
+		t.Fatalf("Codex only launches commands and working directories inside the plugin: %+v", server)
+	}
+	command := exec.Command(filepath.Join(packageDir, server.Command), server.Args...)
+	command.Dir = packageDir
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	client := mcp.NewClient(&mcp.Implementation{Name: "installed-plugin-test", Version: "1"}, nil)

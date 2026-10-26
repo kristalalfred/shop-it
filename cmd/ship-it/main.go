@@ -18,6 +18,7 @@ import (
 )
 
 func main() {
+	workdir := flag.String("C", "", "change to this directory before doing anything else")
 	path := flag.String("config", ".data/local.json", "service configuration file")
 	extensionDir := flag.String("extension-dir", "", "write Chromium and Firefox extension bundles and exit")
 	stdio := flag.Bool("mcp", false, "connect ChatGPT to the local service over MCP stdio")
@@ -25,6 +26,11 @@ func main() {
 	interpreter := flag.String("interpreter", "", "override the text interpreter: builtin, codex or openai")
 	listen := flag.String("listen", "", "override the local listen address")
 	flag.Parse()
+	if *workdir != "" {
+		if err := os.Chdir(*workdir); err != nil {
+			log.Fatal(err)
+		}
+	}
 	if *extensionDir != "" {
 		if err := extension.Build(*extensionDir); err != nil {
 			log.Fatal(err)
