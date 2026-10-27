@@ -474,8 +474,15 @@ func (s *Server) refresh(ctx context.Context, id string, revision int) (shopping
 	baskets := s.baskets()
 	var lines []shopping.PlanLine
 	if plan.InterpreterMode == "chatgpt" {
-		baskets = plan.Baskets
-		lines, err = s.searchPluginLines(ctx, plan, plan.Lines, true)
+		ids := make([]string, len(plan.Baskets))
+		for i, basket := range plan.Baskets {
+			ids[i] = basket.RetailerID
+		}
+		var catalogs map[string]shopping.Catalog
+		baskets, catalogs, err = s.pluginBaskets(ids)
+		if err == nil {
+			lines, err = s.searchLinesUsing(ctx, baskets, plan.Lines, true, ignoreProgress, catalogs, nil, 20, false)
+		}
 	} else {
 		lines, err = s.searchLines(ctx, baskets, plan.Lines, true, ignoreProgress)
 	}

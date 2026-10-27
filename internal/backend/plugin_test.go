@@ -123,6 +123,8 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	var searchCount atomic.Int32
+	var storeContext atomic.Value
+	storeContext.Store(shopping.StoreContext{StoreID: "store-1", PostalCode: "11122", Fulfillment: "delivery"})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -150,7 +152,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 				var reply browser.Reply
 				switch command.Operation {
 				case "session":
-					reply.Result, _ = json.Marshal(browser.Session{Status: "ready", Label: "Willys Stockholm", Context: shopping.StoreContext{StoreID: "store-1", PostalCode: "11122", Fulfillment: "delivery"}})
+					reply.Result, _ = json.Marshal(browser.Session{Status: "ready", Label: "Willys Stockholm", Context: storeContext.Load().(shopping.StoreContext)})
 				case "search":
 					searchCount.Add(1)
 					reply.Result = fixtures["willys"]
@@ -231,6 +233,22 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	completed := callTestTool(t, client, "open_ship_it", map[string]any{})
 	if completed.Transfer.State != "completed" {
 		t.Fatal("receipt not reflected in plugin")
+	}
+	nextContext := shopping.StoreContext{StoreID: "store-2", PostalCode: "99999", Fulfillment: "delivery", DeliverySlotID: "new-slot"}
+	storeContext.Store(nextContext)
+	blocked, err = client.CallTool(t.Context(), &mcp.CallToolParams{Name: "fill_basket", Arguments: map[string]any{"plan_id": plan.ID, "revision": completed.Plan.Revision, "request_id": "fill-again"}})
+	if err != nil || !blocked.IsError || !strings.Contains(blocked.Content[0].(*mcp.TextContent).Text, "Refresh prices") {
+		t.Fatalf("changed store was not detected before filling: %+v %v", blocked, err)
+	}
+	refreshed = callTestTool(t, client, "refresh_plan", map[string]any{"plan_id": plan.ID, "revision": completed.Plan.Revision})
+	if refreshed.Plan.ID != plan.ID || !sameStore(refreshed.Plan.Baskets[0].Context, nextContext) || refreshed.Plan.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" || refreshed.Transfer != nil {
+		t.Fatal("refresh did not update the existing plan for the current store")
+	}
+	args = map[string]any{"plan_id": plan.ID, "revision": refreshed.Plan.Revision, "request_id": "fill-again"}
+	fill = callTestTool(t, client, "fill_basket", args)
+	replay = callTestTool(t, client, "fill_basket", args)
+	if fill.Transfer.ID == completed.Transfer.ID || replay.Transfer.ID != fill.Transfer.ID || !sameStore(fill.Transfer.Context, nextContext) {
+		t.Fatal("fill again did not create an idempotent transfer for the refreshed store")
 	}
 	server.Close()
 	cancel()

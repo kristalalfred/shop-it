@@ -86,3 +86,49 @@ test('the embedded app initializes the MCP Apps bridge and hands the saved reque
   ui.listeners.get('message')({source: {}, data: {jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: {structuredContent: {...state, stores: [{name: 'Injected state'}]}}}});
   assert.equal(ui.root.textContent.includes('Injected state'), false);
 });
+
+function savedBasket() {
+  const state = initial();
+  const context = {store_id: 'store-1', postal_code: '99999', fulfillment: 'delivery', delivery_slot_id: 'old-slot'};
+  state.preferences = {draft: 'Mjölk', retailer_ids: ['willys']};
+  state.browser_online = true;
+  state.stores[0].selected = true;
+  state.stores[0].session = {status: 'ready', context};
+  state.plan = {id: 'saved-plan', revision: 16, text: 'Mjölk', retailer_id: 'willys', warnings: [], lines: [], baskets: [{retailer_id: 'willys', context, status: 'ready', missing: 0, over_budget: false, total: {amount_minor: 1490, currency: 'SEK'}}]};
+  state.transfer = {id: 'previous-fill', state: 'completed', basket_url: 'https://www.willys.se/varukorg'};
+  return state;
+}
+
+test('a saved basket can refresh changed delivery settings and fill again', async () => {
+  const state = savedBasket();
+  state.stores[0].session.context = {...state.stores[0].session.context, delivery_slot_id: 'new-slot'};
+  const ui = await app({snapshot: state});
+  assert.equal(ui.find('button', 'Fill again').disabled, true);
+  const updated = structuredClone(state);
+  updated.plan.baskets[0].context = updated.stores[0].session.context;
+  updated.plan.revision++;
+  delete updated.transfer;
+  ui.setState(updated);
+  await ui.find('button', 'Refresh for this store').click(); await settle();
+  assert.equal(ui.requests.at(-1).name, 'refresh_plan');
+  assert.equal(ui.requests.at(-1).args.revision, 16);
+  assert.equal(ui.find('button', 'Fill basket ↗').disabled, false);
+  await ui.find('button', 'Fill basket ↗').click(); await settle();
+  assert.equal(ui.requests.at(-1).name, 'fill_basket');
+  assert.equal(ui.requests.at(-1).args.plan_id, 'saved-plan');
+  assert.equal(ui.requests.at(-1).args.revision, 17);
+});
+
+test('reconnecting a store returns to the saved basket without creating a new plan', async () => {
+  const state = savedBasket();
+  state.stores[0].session.status = 'setup_required';
+  const ui = await app({embedded: true, snapshot: state});
+  await ui.find('button', 'Reconnect store').click(); await settle();
+  assert.equal(ui.find('button', 'Back to basket').disabled, true);
+  ui.setStatus('ready');
+  await ui.find('button', 'Check again').click(); await settle();
+  await ui.find('button', 'Back to basket').click(); await settle();
+  assert.ok(ui.find('button', 'Fill again'));
+  assert.equal(ui.requests.some((r) => r.name === 'create_shopping_plan'), false);
+  assert.equal(ui.messages.some((m) => m.method === 'ui/message'), false);
+});

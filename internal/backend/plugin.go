@@ -268,7 +268,7 @@ func (s *Server) searchPluginLines(ctx context.Context, plan shopping.Plan, line
 	}
 	for i, b := range baskets {
 		if !sameStore(b.Context, plan.Baskets[i].Context) {
-			return nil, errors.New("The store or delivery settings changed. Create a new comparison for the current store.")
+			return nil, errors.New("The store or delivery settings changed. Refresh prices before editing groceries.")
 		}
 	}
 	return s.searchLinesUsing(ctx, baskets, lines, preserve, ignoreProgress, catalogs, nil, 20, false)
@@ -473,11 +473,13 @@ func (s *Server) callPluginTool(ctx context.Context, name string, raw json.RawMe
 		for _, r := range s.config.Retailers {
 			if r.ID == basket.RetailerID && r.Mode == "browser" {
 				var session browser.Session
-				session, err = s.browser.Session(r.ID)
+				session, err = s.connectStore(ctx, r.ID)
 				if err == nil {
 					clientID = session.ClientID
-					if !sameStore(session.Context, basket.Context) {
-						err = shopping.ErrConflict
+					if session.Status != "ready" {
+						err = errors.New("Choose delivery or pickup at the store, then reconnect in Ship It.")
+					} else if !sameStore(session.Context, basket.Context) {
+						err = errors.New("The store or delivery settings changed. Refresh prices before filling the basket.")
 					}
 				}
 				break

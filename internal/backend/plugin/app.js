@@ -147,7 +147,9 @@
       list.append(row);
     }
     parent.append(list);
-    const bottom = node('div', null, 'bottom'); bottom.append(button('← Your stores', () => { view = 'stores'; render(); }, 'quiet'), button(host ? 'Find my groceries ↗' : state.demo ? 'Try sample groceries ↗' : 'Continue with ChatGPT ↗', () => action('Opening your shopping request', async () => {
+    const resumePlan = state.plan && selected().some((store) => store.id === state.plan.retailer_id);
+    const bottom = node('div', null, 'bottom'); bottom.append(button('← Your stores', () => { view = 'stores'; render(); }, 'quiet'), button(resumePlan ? 'Back to basket' : host ? 'Find my groceries ↗' : state.demo ? 'Try sample groceries ↗' : 'Continue with ChatGPT ↗', () => action('Opening your shopping request', async () => {
+      if (resumePlan) { view = 'plan'; return; }
       if (host) await rpc('ui/message', {role: 'user', content: [{type: 'text', text: `Use Ship It to plan this request with my connected stores: ${state.preferences.draft || draft}. Create a shopping plan with concrete ingredients, then choose matching products from the returned candidates. Leave uncertain choices for me to review.`}]});
       else if (state.demo) await sampleWork();
       else { view = 'chatgpt'; }
@@ -189,11 +191,12 @@
     const filling = ['pending', 'claimed'].includes(state.transfer?.state);
     const retailer = state.stores.find((store) => store.id === plan.retailer_id);
     const connected = retailer && isReady(retailer);
+    const contextChanged = connected && retailer.mode === 'browser' && JSON.stringify(retailer.session.context) !== JSON.stringify(basket.context);
     const finished = state.transfer && !filling;
     const fill = button(filling ? 'Filling your basket…' : finished ? 'Fill again' : 'Fill basket ↗', () => action('Filling your basket', async () => {
       if (finished) fillKey = crypto.randomUUID(); else fillKey ||= crypto.randomUUID(); await mutate('fill_basket', {request_id: fillKey, acknowledge_warnings: acknowledge, allow_over_budget: over}); document.dispatchEvent(new CustomEvent('ship-it-fill'));
     }), finished ? 'small' : 'primary');
-    function fillDisabled() { fill.disabled = Boolean(busy) || filling || !connected || basket.status !== 'ready' || basket.missing > 0 || Boolean(warnings) && !acknowledge || basket.over_budget && !over; }
+    function fillDisabled() { fill.disabled = Boolean(busy) || filling || !connected || contextChanged || basket.status !== 'ready' || basket.missing > 0 || Boolean(warnings) && !acknowledge || basket.over_budget && !over; }
     if (warnings) {
       for (const warning of plan.warnings || []) checkout.append(node('p', warning, 'subtle'));
       const label = node('label'), input = node('input'); input.type = 'checkbox'; input.addEventListener('change', () => { acknowledge = input.checked; fillDisabled(); }); label.append(input, node('span', uncertain ? 'I’ve reviewed unverified requirements.' : 'I’ve reviewed the assumptions.')); checkout.append(label);
@@ -201,6 +204,7 @@
     if (basket.over_budget) { const label = node('label'), input = node('input'); input.type = 'checkbox'; input.addEventListener('change', () => { over = input.checked; fillDisabled(); }); label.append(input, node('span', `Accept ${money({currency: 'SEK', amount_minor: basket.total.amount_minor - plan.budget_minor})} over budget.`)); checkout.append(label); }
     if (basket.missing) checkout.append(node('p', `Choose or skip ${basket.missing === 1 ? '1 remaining grocery' : `${basket.missing} remaining groceries`}.`, 'subtle'));
     if (!connected) checkout.append(button('Reconnect store', () => { view = 'connect'; render(); }, 'small'));
+    if (contextChanged) checkout.append(button('Refresh for this store', () => action('Refreshing prices', () => mutate('refresh_plan', {})), 'primary'));
     checkout.append(fill); fillDisabled();
     if (state.transfer) {
       const receipt = node('div', null, 'receipt'); receipt.setAttribute('aria-live', 'polite');
