@@ -42,10 +42,11 @@ type Hub struct {
 	commands map[string]*Command
 	sessions map[string]Session
 	seen     map[string]time.Time
+	changed  chan struct{}
 }
 
 func New() *Hub {
-	return &Hub{commands: map[string]*Command{}, sessions: map[string]Session{}, seen: map[string]time.Time{}}
+	return &Hub{commands: map[string]*Command{}, sessions: map[string]Session{}, seen: map[string]time.Time{}, changed: make(chan struct{})}
 }
 
 func (h *Hub) Online(clientID string) bool {
@@ -54,9 +55,36 @@ func (h *Hub) Online(clientID string) bool {
 	return time.Since(h.seen[clientID]) < 75*time.Second
 }
 
-func (h *Hub) Claim(clientID string) []Command {
+func (h *Hub) Claim(ctx context.Context, clientID string, wait time.Duration) []Command {
+	h.mu.Lock()
+	result, changed := h.claim(clientID), h.changed
+	h.mu.Unlock()
+	if len(result) > 0 || wait <= 0 {
+		return result
+	}
+	ctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	select {
+	case <-changed:
+	case <-ctx.Done():
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.claim(clientID)
+}
+
+func (h *Hub) Notify() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.notify()
+}
+
+func (h *Hub) notify() {
+	close(h.changed)
+	h.changed = make(chan struct{})
+}
+
+func (h *Hub) claim(clientID string) []Command {
 	now := time.Now()
 	h.seen[clientID] = now
 	result := []Command{}
@@ -94,6 +122,7 @@ func (h *Hub) Do(ctx context.Context, clientID, retailerID, operation string, in
 	c := &Command{ID: "command-" + rand.Text(), RetailerID: retailerID, Operation: operation, Input: input, clientID: clientID, expires: time.Now().Add(65 * time.Second), done: make(chan Reply, 1)}
 	h.mu.Lock()
 	h.commands[c.ID] = c
+	h.notify()
 	h.mu.Unlock()
 	defer func() { h.mu.Lock(); delete(h.commands, c.ID); h.mu.Unlock() }()
 	select {

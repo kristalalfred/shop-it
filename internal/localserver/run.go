@@ -25,7 +25,10 @@ func Run(address string, handler http.Handler) error {
 		}
 		handler.ServeHTTP(w, r)
 	})
-	server := &http.Server{Handler: local, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 215 * time.Second, IdleTimeout: 30 * time.Second}
+	requests, cancelRequests := context.WithCancel(context.Background())
+	defer cancelRequests()
+	server := &http.Server{Handler: local, BaseContext: func(net.Listener) context.Context { return requests }, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 215 * time.Second, IdleTimeout: 30 * time.Second}
+	server.RegisterOnShutdown(cancelRequests)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	finished := make(chan error, 1)

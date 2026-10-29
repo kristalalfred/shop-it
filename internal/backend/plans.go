@@ -560,5 +560,8 @@ func (s *Server) fillPlan(ctx context.Context, id string, req transferOptions, k
 		transfer, created, err = s.transfers.Create(ctx, input, "plan:"+plan.ID+":"+key, basketURL)
 		return err
 	})
+	if created {
+		s.browser.Notify()
+	}
 	return transfer, created, err
 }

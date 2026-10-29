@@ -2,7 +2,7 @@ import {api, applyTransfer, localURL} from './runner.js';
 import './adapters.js';
 
 const extension = globalThis.browser || globalThis.chrome;
-let running = false;
+let polling = false;
 let connection = 'Open Shop It to connect.';
 let basket = '';
 const storage = extension.storage.local;
@@ -104,11 +104,9 @@ async function transfer(settings, input) {
 }
 
 async function tick() {
-  if (running) return;
-  running = true;
   try {
     const {settings} = await storage.get('settings');
-    if (!settings) return;
+    if (!settings) return false;
     const activeKey = `active:${settings.url}:${settings.client_id}`;
     const active = (await storage.get(activeKey))[activeKey];
     if (active) {
@@ -118,13 +116,26 @@ async function tick() {
         await storage.remove(activeKey);
       }
     }
-    const {commands} = await api(settings, '/v1/client/commands');
+    const {commands} = await api(settings, '/v1/client/commands?wait=20');
     await Promise.all(commands.map((command) => runCommand(settings, command)));
     const input = await api(settings, '/v1/client/claims');
     connection = 'Connected to Shop It.';
     if (input) await transfer(settings, input);
-  } catch (error) { connection = error.message; }
-  finally { running = false; }
+    return true;
+  } catch (error) {
+    connection = error.message;
+    return false;
+  }
+}
+
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    for (let started = Date.now(); await tick(); started = Date.now()) {
+      await new Promise((resolve) => setTimeout(resolve, started + 1000 - Date.now()));
+    }
+  } finally { polling = false; }
 }
 
 function pageOrigin(sender) {
@@ -142,7 +153,7 @@ async function pair(message, sender) {
   if (!client) throw new Error('No browser client is configured.');
   const paired = await api(credentials, `/v1/clients/${encodeURIComponent(client.id)}/pair`);
   await storage.set({settings: {url, token: paired.token, client_id: paired.id}});
-  void tick();
+  void poll();
   return {client_id: paired.id};
 }
 
@@ -154,7 +165,7 @@ extension.runtime.onMessage.addListener((message, sender, respond) => {
   }
   if (message.type === 'fill' && sender.tab) {
     try { pageOrigin(sender); } catch { return false; }
-    void tick();
+    void poll();
     return false;
   }
   if (message.type === 'connection' && sender.tab) {
@@ -171,6 +182,5 @@ extension.runtime.onMessage.addListener((message, sender, respond) => {
 });
 
 extension.alarms.create('shop-it-poll', {periodInMinutes: 0.5});
-extension.alarms.onAlarm.addListener(() => { void tick(); });
-setInterval(() => { void tick(); }, 1000);
-void tick();
+extension.alarms.onAlarm.addListener(() => { void poll(); });
+void poll();

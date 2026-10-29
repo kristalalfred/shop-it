@@ -53,7 +53,10 @@ func Run(ctx context.Context, config backend.Config, scenario mockio.Scenario) e
 	if err != nil {
 		return err
 	}
-	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 215 * time.Second, IdleTimeout: 30 * time.Second}
+	requests, cancelRequests := context.WithCancel(context.Background())
+	defer cancelRequests()
+	server := &http.Server{Handler: handler, BaseContext: func(net.Listener) context.Context { return requests }, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 215 * time.Second, IdleTimeout: 30 * time.Second}
+	server.RegisterOnShutdown(cancelRequests)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	finished := make(chan error, len(config.Clients)+1)

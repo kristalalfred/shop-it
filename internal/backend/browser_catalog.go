@@ -49,7 +49,15 @@ func (c browserCatalog) Search(ctx context.Context, input shopping.SearchRequest
 
 func (s *Server) registerCommands(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/client/commands", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
-		respond(w, 200, map[string]any{"commands": s.browser.Claim(clientID)})
+		wait := 0
+		if raw := r.URL.Query().Get("wait"); raw != "" {
+			var err error
+			if wait, err = strconv.Atoi(raw); err != nil || wait < 0 || wait > 25 {
+				fail(w, shopping.ErrInvalid)
+				return
+			}
+		}
+		respond(w, 200, map[string]any{"commands": s.browser.Claim(r.Context(), clientID, time.Duration(wait)*time.Second)})
 	}))
 	mux.HandleFunc("PUT /v1/client/commands/{id}/result", s.client(func(w http.ResponseWriter, r *http.Request, clientID string) {
 		var reply browser.Reply

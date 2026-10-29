@@ -195,6 +195,7 @@ func (s *Server) createTransfer(w http.ResponseWriter, r *http.Request) {
 	}
 	status := http.StatusOK
 	if created {
+		s.browser.Notify()
 		status = http.StatusAccepted
 	}
 	w.Header().Set("Location", "/v1/basket-transfers/"+t.ID)

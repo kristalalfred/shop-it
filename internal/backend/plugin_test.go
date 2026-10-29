@@ -289,3 +289,53 @@ func TestPluginRejectsMalformedToolsAndUnauthenticatedRequests(t *testing.T) {
 		}
 	}
 }
+
+func TestNewTransferWakesTheWaitingBrowser(t *testing.T) {
+	server, _ := pluginTestServer(t, t.TempDir())
+	if status, _ := browserRequest(t, t.Context(), server.URL, "/v1/client/commands?wait=26", "POST", "client-secret", nil); status != http.StatusBadRequest {
+		t.Fatalf("out of range wait: %d", status)
+	}
+	type poll struct {
+		status  int
+		raw     []byte
+		elapsed time.Duration
+	}
+	polled := make(chan poll, 1)
+	go func() {
+		started := time.Now()
+		status, raw := browserRequest(t, t.Context(), server.URL, "/v1/client/commands?wait=20", "POST", "client-secret", nil)
+		polled <- poll{status, raw, time.Since(started)}
+	}()
+	for online := false; !online; {
+		_, raw := browserRequest(t, t.Context(), server.URL, "/v1/plugin/tools/open_shop_it", "POST", "user-secret", map[string]any{})
+		var snapshot struct {
+			BrowserOnline bool `json:"browser_online"`
+		}
+		_ = json.Unmarshal(raw, &snapshot)
+		online = snapshot.BrowserOnline
+	}
+	body, _ := json.Marshal(map[string]any{"retailer_id": "willys", "client_id": "browser", "context": map[string]any{"store_id": "willys", "postal_code": "11122"}, "items": []map[string]any{{"product_id": "101205823_ST", "target_quantity": 1}}})
+	request, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/v1/basket-transfers", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer user-secret")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "wake-test")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("create transfer: %d", response.StatusCode)
+	}
+	select {
+	case result := <-polled:
+		if result.status != http.StatusOK || string(result.raw) != `{"commands":[]}`+"\n" || result.elapsed > 5*time.Second {
+			t.Fatalf("poll returned %d %s after %v", result.status, result.raw, result.elapsed)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("waiting browser was not woken by a new transfer")
+	}
+	if status, _ := browserRequest(t, t.Context(), server.URL, "/v1/client/claims", "POST", "client-secret", nil); status != http.StatusOK {
+		t.Fatalf("claim after wake: %d", status)
+	}
+}

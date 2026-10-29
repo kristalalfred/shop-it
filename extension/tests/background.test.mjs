@@ -16,7 +16,7 @@ function load(store, tabs = {}) {
     alarms: {create() {}, onAlarm: {addListener() {}}},
     tabs,
   };
-  runInContext(source, createContext({browser: extension, ShopItAdapters, api, applyTransfer, localURL, URL, setTimeout, setInterval() {}}));
+  runInContext(source, createContext({browser: extension, ShopItAdapters, api, applyTransfer, localURL, URL, setTimeout, setInterval, clearInterval}));
   return listener;
 }
 
@@ -77,4 +77,21 @@ test('pairing from the Shop It page replaces a stale client token', async () => 
   assert.deepEqual(JSON.parse(JSON.stringify(reply)), {client_id: 'browser'});
   assert.equal(store.settings.token, 'fresh-token');
   delete store.settings;
+});
+
+test('the extension waits for work at the app and never asks more than once a second', async () => {
+  const store = {settings}, polls = [];
+  globalThis.fetch = async (url) => {
+    const {pathname, search} = new URL(url);
+    if (pathname === '/v1/client/commands') {
+      polls.push({search, at: Date.now()});
+      if (polls.length === 2) delete store.settings;
+      return Response.json({commands: []});
+    }
+    return new Response(null, {status: 204});
+  };
+  load(store);
+  await until(() => polls.length === 2);
+  assert.deepEqual(polls.map((poll) => poll.search), ['?wait=20', '?wait=20']);
+  assert.ok(polls[1].at - polls[0].at >= 990, `polled again after ${polls[1].at - polls[0].at} ms`);
 });

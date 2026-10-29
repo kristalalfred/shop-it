@@ -14,7 +14,7 @@ test('connection probe reports only whether this local page is paired and with w
     storage: {local: {get: async () => ({settings})}},
     alarms: {create() {}, onAlarm: {addListener() {}}},
   };
-  runInContext(background, createContext({browser: extension, ShopItAdapters: {origins: {}}, localURL, URL, setInterval() {}}));
+  runInContext(background, createContext({browser: extension, ShopItAdapters: {origins: {}}, localURL, URL}));
   const sender = {id: 'shop-it', tab: {id: 1}, url: 'http://127.0.0.1:24816/'};
   const probe = (source = sender) => new Promise((resolve) => {
     if (!listener({type: 'connection'}, source, (result) => resolve(JSON.parse(JSON.stringify(result))))) resolve(null);
