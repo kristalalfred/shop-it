@@ -31,7 +31,7 @@ async function openShop(input) {
   throw new Error(`${name} did not finish loading. Try again.`);
 }
 
-async function shopTab(retailerID, origin) {
+async function findShopTab(retailerID, origin) {
   for (const tab of await extension.tabs.query({url: `${origin}/*`})) {
     try {
       await storeCall(tab.id, retailerID, 'ready');
@@ -39,6 +39,12 @@ async function shopTab(retailerID, origin) {
     } catch {}
   }
   return openShop({retailer_id: retailerID, basket_url: origin});
+}
+
+const shopTabs = new Map();
+function shopTab(retailerID, origin) {
+  if (!shopTabs.has(retailerID)) shopTabs.set(retailerID, findShopTab(retailerID, origin).finally(() => shopTabs.delete(retailerID)));
+  return shopTabs.get(retailerID);
 }
 
 async function runCommand(settings, command) {
