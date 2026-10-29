@@ -265,7 +265,7 @@
         document.addEventListener('shop-it-extension-ready', () => { setTimeout(refresh, 1200); });
         document.dispatchEvent(new CustomEvent('shop-it-extension-probe'));
       } else if (host) {
-        const initialized = await rpc('ui/initialize', {protocolVersion: '2026-01-26', appInfo: {name: 'Shop It', version: '0.2.0'}, appCapabilities: {}}, 15000);
+        const initialized = await rpc('ui/initialize', {protocolVersion: '2026-01-26', appInfo: {name: 'Shop It', version: '0.3.0'}, appCapabilities: {}}, 15000);
         applyTheme(initialized.hostContext); notify('ui/notifications/initialized', {});
       } else throw new Error('Open Shop It from ChatGPT or your local setup page.');
       accept(await call('open_shop_it'));

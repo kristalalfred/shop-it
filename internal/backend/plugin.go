@@ -346,7 +346,7 @@ func (s *Server) registerPlugin(mux *http.ServeMux) error {
 }
 
 func (s *Server) mcpServer() *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: "Use open_shop_it first to resume setup or the current shopping plan. The user and ChatGPT edit the same plan. Create plans from structured ingredients; no external AI key is required. Candidate prices and quantities are calculated by Shop It. Select only matching candidates from returned IDs, respect dietary requirements, and explain unresolved items. Filling a basket changes the retailer cart; do it only when the user requests it. Checkout stays at the retailer."})
+	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: "0.3.0"}, &mcp.ServerOptions{Instructions: "Use open_shop_it first to resume setup or the current shopping plan. The user and ChatGPT edit the same plan. Create plans from structured ingredients; no external AI key is required. Candidate prices and quantities are calculated by Shop It. Select only matching candidates from returned IDs, respect dietary requirements, and explain unresolved items. Filling a basket changes the retailer cart; do it only when the user requests it. Checkout stays at the retailer."})
 	server.AddResource(&mcp.Resource{URI: pluginURI, Name: "Shop It", MIMEType: pluginMIME}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{URI: pluginURI, MIMEType: pluginMIME, Text: s.pluginHTML(false), Meta: map[string]any{"ui": map[string]any{"prefersBorder": false}}}}}, nil
 	})

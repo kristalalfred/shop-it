@@ -34,6 +34,11 @@ func (s *Server) registerWeb(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", handler)
 	mux.Handle("GET /app.js", handler)
 	mux.Handle("GET /app.css", handler)
+	mux.HandleFunc("GET /icon.png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "max-age=86400")
+		_, _ = w.Write(extension.Icon())
+	})
 	mux.HandleFunc("GET /extension/{browser}", func(w http.ResponseWriter, r *http.Request) {
 		browser := r.PathValue("browser")
 		if browser != "chromium.zip" && browser != "firefox.zip" {

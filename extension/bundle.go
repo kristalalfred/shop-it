@@ -47,6 +47,11 @@ func writeFiles(browser string, write func(string, []byte) error) error {
 	return nil
 }
 
+func Icon() []byte {
+	data, _ := assets.ReadFile("assets/icon-32.png")
+	return data
+}
+
 func Build(dir string) error {
 	for _, browser := range []string{"chromium", "firefox"} {
 		destination := filepath.Join(dir, browser)
@@ -56,6 +61,17 @@ func Build(dir string) error {
 		if err := writeFiles(browser, func(name string, data []byte) error {
 			return os.WriteFile(filepath.Join(destination, name), data, 0644)
 		}); err != nil {
+			return err
+		}
+		archive, err := os.Create(destination + ".zip")
+		if err != nil {
+			return err
+		}
+		err = Archive(archive, browser)
+		if closeErr := archive.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
 			return err
 		}
 	}

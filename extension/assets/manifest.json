@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Shop It",
-  "version": "0.2.0",
-  "description": "Connect your store session to the local Shop It grocery planner.",
+  "version": "0.3.0",
+  "description": "Fills your Mathem, Willys or Hemköp cart with the groceries you plan in the Shop It app on your computer.",
+  "icons": {"16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png"},
   "permissions": ["storage", "alarms"],
   "host_permissions": ["http://127.0.0.1/*", "https://www.mathem.se/*", "https://www.willys.se/*", "https://www.hemkop.se/*"],
   "background": {"service_worker": "background.js", "type": "module"},
-  "action": {"default_popup": "popup.html"},
+  "action": {"default_popup": "popup.html", "default_icon": {"16": "icon-16.png", "32": "icon-32.png"}},
   "content_scripts": [
     {"matches": ["https://www.mathem.se/*", "https://www.willys.se/*", "https://www.hemkop.se/*"], "js": ["adapters.js", "overlay.js", "content.js"]},
     {"matches": ["http://127.0.0.1/*"], "js": ["bridge.js"]}
