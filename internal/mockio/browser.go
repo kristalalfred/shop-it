@@ -45,17 +45,18 @@ func (b *Browser) Apply(t shopping.Transfer) shopping.Receipt {
 	}
 	receipt := shopping.Receipt{Lines: make([]shopping.LineResult, 0, len(t.Items))}
 	for _, item := range t.Items {
-		line := shopping.LineResult{ProductID: item.ProductID, Status: "applied", Quantity: item.Quantity}
+		quantity := max(item.Quantity, b.baskets[key][item.ProductID])
+		line := shopping.LineResult{ProductID: item.ProductID, Status: "applied", Quantity: quantity}
 		switch {
 		case b.scenario.LoginRequired:
 			line.Status, line.Quantity = "login_required", 0
 		case slices.Contains(b.scenario.Unavailable, item.ProductID):
 			line.Status, line.Quantity = "unavailable", 0
 		case slices.Contains(b.scenario.Uncertain, item.ProductID):
-			b.baskets[key][item.ProductID] = item.Quantity
+			b.baskets[key][item.ProductID] = quantity
 			line.Status, line.Quantity = "uncertain", 0
 		default:
-			b.baskets[key][item.ProductID] = item.Quantity
+			b.baskets[key][item.ProductID] = quantity
 		}
 		receipt.Lines = append(receipt.Lines, line)
 	}

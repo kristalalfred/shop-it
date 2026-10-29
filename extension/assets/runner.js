@@ -14,7 +14,7 @@ export async function applyTransfer(transfer, adapter, journal, renew, progress 
     try {
       const basket = await adapter.read();
       const current = basket[item.product_id] || 0;
-      if (current === item.target_quantity) {
+      if (current >= item.target_quantity) {
         result = {product_id: item.product_id, status: 'applied', confirmed_quantity: current};
       } else if (started) {
         result = {product_id: item.product_id, status: 'uncertain', confirmed_quantity: 0, message: 'An interrupted update could not be confirmed. Review this item at the store.'};
@@ -25,7 +25,7 @@ export async function applyTransfer(transfer, adapter, journal, renew, progress 
         started = true;
         await adapter.set(item, current);
         const confirmed = (await adapter.read())[item.product_id] || 0;
-        result = {product_id: item.product_id, status: confirmed === item.target_quantity ? 'applied' : 'uncertain', confirmed_quantity: confirmed === item.target_quantity ? confirmed : 0, ...(confirmed !== item.target_quantity ? {message: 'The store did not confirm the requested quantity. Review this item at the store.'} : {})};
+        result = confirmed >= item.target_quantity ? {product_id: item.product_id, status: 'applied', confirmed_quantity: confirmed} : {product_id: item.product_id, status: 'uncertain', confirmed_quantity: 0, message: 'The store did not confirm the requested quantity. Review this item at the store.'};
       }
     } catch (error) {
       result = {product_id: item.product_id, status: error.status === 'unavailable' ? 'unavailable' : started ? 'uncertain' : error.status === 'login_required' ? 'login_required' : 'failed', confirmed_quantity: 0, message: String(error.message || 'Store operation failed.').slice(0, 500)};

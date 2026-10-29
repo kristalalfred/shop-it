@@ -122,3 +122,13 @@ func TestUnclaimedTransfersExpireInsteadOfFillingLater(t *testing.T) {
 		t.Fatalf("expiry was not persisted: %+v", got)
 	}
 }
+
+func TestAppliedLinesMayKeepMoreThanRequested(t *testing.T) {
+	items := []shopping.BasketItem{{ProductID: "milk", Quantity: 2}}
+	for quantity, valid := range map[int]bool{1: false, 2: true, 5: true} {
+		state, err := receiptState(items, shopping.Receipt{Lines: []shopping.LineResult{{ProductID: "milk", Status: "applied", Quantity: quantity}}})
+		if valid != (err == nil) || valid && state != "completed" {
+			t.Errorf("applied %d of 2: %q, %v", quantity, state, err)
+		}
+	}
+}

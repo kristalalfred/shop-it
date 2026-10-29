@@ -217,7 +217,7 @@ func receiptState(items []shopping.BasketItem, receipt shopping.Receipt) (string
 		delete(expected, line.ProductID)
 		switch line.Status {
 		case "applied":
-			if line.Quantity != quantity {
+			if line.Quantity < quantity {
 				return "", shopping.ErrInvalid
 			}
 			applied++

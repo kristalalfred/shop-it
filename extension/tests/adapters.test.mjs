@@ -77,8 +77,15 @@ test('the transfer reports progress before each item', async () => {
   assert.deepEqual(seen, [0, 1]);
 });
 
+test('a fill never lowers a quantity already in the basket', async () => {
+  let writes = 0;
+  const adapter = {read: async () => ({'2183': 5}), set: async () => { writes++; }};
+  assert.deepEqual(await applyTransfer(input, adapter, memoryJournal(), async () => {}), {lines: [{product_id: '2183', status: 'applied', confirmed_quantity: 5}]});
+  assert.equal(writes, 0);
+});
+
 test('receipt replay never mutates the basket again', async () => {
-  let quantity = 5, writes = 0;
+  let quantity = 1, writes = 0;
   const journal = memoryJournal();
   const adapter = {read: async () => ({'2183': quantity}), set: async (item) => { writes++; quantity = item.target_quantity; }};
   const expected = {lines: [{product_id: '2183', status: 'applied', confirmed_quantity: 2}]};
