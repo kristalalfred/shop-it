@@ -95,3 +95,16 @@ test('the extension waits for work at the app and never asks more than once a se
   assert.deepEqual(polls.map((poll) => poll.search), ['?wait=20', '?wait=20']);
   assert.ok(polls[1].at - polls[0].at >= 990, `polled again after ${polls[1].at - polls[0].at} ms`);
 });
+
+test('an unreachable app is retried every second until it comes back', async () => {
+  const store = {settings}, attempts = [];
+  globalThis.fetch = async (url) => {
+    attempts.push(Date.now());
+    if (attempts.length <= 2) throw new TypeError('Failed to fetch');
+    delete store.settings;
+    return new URL(url).pathname === '/v1/client/commands' ? Response.json({commands: []}) : new Response(null, {status: 204});
+  };
+  load(store);
+  await until(() => attempts.length >= 3);
+  assert.ok(attempts[1] - attempts[0] >= 990, `retried after ${attempts[1] - attempts[0]} ms`);
+});

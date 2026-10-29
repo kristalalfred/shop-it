@@ -121,11 +121,8 @@ async function tick() {
     const input = await api(settings, '/v1/client/claims');
     connection = 'Connected to Shop It.';
     if (input) await transfer(settings, input);
-    return true;
-  } catch (error) {
-    connection = error.message;
-    return false;
-  }
+  } catch (error) { connection = error.message; }
+  return true;
 }
 
 async function poll() {
