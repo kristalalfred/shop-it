@@ -27,7 +27,6 @@ func main() {
 	extensionDir := flag.String("extension-dir", "", "write Chromium and Firefox extension bundles and exit")
 	stdio := flag.Bool("mcp", false, "connect ChatGPT to the local service over MCP stdio")
 	writePlugin := flag.Bool("plugin", false, "write the ChatGPT plugin next to the configuration and exit")
-	interpreter := flag.String("interpreter", "", "override the text interpreter: auto, builtin, codex or openai")
 	listen := flag.String("listen", "", "override the local listen address")
 	flag.Parse()
 	if *extensionDir != "" {
@@ -47,9 +46,6 @@ func main() {
 	}
 	if *listen != "" {
 		config.Listen = *listen
-	}
-	if *interpreter != "" {
-		config.Interpreter.Mode = *interpreter
 	}
 	if err := config.Validate(); err != nil {
 		log.Fatal(err)

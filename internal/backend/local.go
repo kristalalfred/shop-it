@@ -24,7 +24,7 @@ func EnsureConfig(path string) error {
 	}
 	config := Config{
 		Listen: "127.0.0.1:24816", APIToken: rand.Text(), AdapterTimeoutMS: 25000,
-		DataDir: "data", Interpreter: InterpreterConfig{Mode: "auto"},
+		DataDir: "data",
 		Retailers: []RetailerConfig{
 			{ID: "mathem", Name: "Mathem", Mode: "browser", BasketURL: BasketURLs["mathem"]},
 			{ID: "willys", Name: "Willys", Mode: "browser", BasketURL: BasketURLs["willys"]},

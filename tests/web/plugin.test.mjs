@@ -20,9 +20,9 @@ class Element {
 }
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r)); };
 function initial() {
-  return {preferences: {draft: '', retailer_ids: []}, browser_online: false, setup_url: 'http://127.0.0.1:24816/plugin', demo: false, stores: [{id: 'willys', name: 'Willys', mode: 'browser', url: 'https://www.willys.se/varukorg', selected: false}]};
+  return {preferences: {draft: '', retailer_ids: []}, browser_online: false, setup_url: 'http://127.0.0.1:24816/', demo: false, stores: [{id: 'willys', name: 'Willys', mode: 'browser', url: 'https://www.willys.se/varukorg', selected: false}]};
 }
-async function app({embedded = false, snapshot = initial()} = {}) {
+async function app({snapshot = initial()} = {}) {
   const root = new Element(), token = new Element('input'), listeners = new Map(), messages = [], requests = [], intervals = [];
   let state = structuredClone(snapshot), storeStatus = 'setup_required';
   const service = (name, args) => {
@@ -38,11 +38,10 @@ async function app({embedded = false, snapshot = initial()} = {}) {
     messages.push(structuredClone(message));
     if (message.id != null) queueMicrotask(() => listeners.get('message')?.({source: parent, data: {jsonrpc: '2.0', id: message.id, result: message.method === 'tools/call' ? {structuredContent: service(message.params.name, message.params.arguments)} : message.method === 'ui/initialize' ? {hostContext: {theme: 'light'}} : {}}}));
   }};
-  const window = {SHOP_IT: embedded ? {} : {token: 'local-user'}, parent, addEventListener: (name, fn) => listeners.set(name, fn)};
+  const window = {parent, addEventListener: (name, fn) => listeners.set(name, fn)};
   const context = createContext({window, document: {getElementById: (id) => id === 'app' ? root : token, createElement: (tag) => new Element(tag), documentElement: {dataset: {}, scrollHeight: 600}, activeElement: null, addEventListener() {}, dispatchEvent() {}},
     CustomEvent: class {constructor(type) {this.type = type;}}, crypto: {randomUUID: () => 'stable-request'},
     setInterval: (fn) => { intervals.push(fn); return intervals.length; }, clearInterval() {}, setTimeout: () => 1, clearTimeout() {},
-    fetch: async (url, options) => ({ok: true, json: async () => service(url.split('/').at(-1), JSON.parse(options.body))}),
   });
   runInContext(source, context); await settle();
   return {root, requests, messages, listeners, parent, intervals,
@@ -61,20 +60,22 @@ test('onboarding saves the request, retains store choices, and resumes a store t
   await ui.find('button', 'Willys').click(); await settle();
   await ui.find('button', 'Connect stores ↗').click(); await settle();
   assert.match(ui.root.textContent, /Connect your browser/);
+  await ui.find('a', 'Open browser setup ↗').listeners.click({preventDefault() {}}); await settle();
+  assert.equal(ui.messages.find((m) => m.method === 'ui/open-link').params.url, 'http://127.0.0.1:24816/');
   assert.equal(ui.find('button', 'Connect').disabled, true);
   ui.setOnline(true); await ui.intervals[0](); await settle();
   await ui.find('button', 'Connect').click(); await settle();
   assert.match(ui.root.textContent, /Choose your store or delivery/);
-  assert.equal(ui.find('button', 'Continue with ChatGPT ↗').disabled, true);
+  assert.equal(ui.find('button', 'Find my groceries ↗').disabled, true);
   ui.setStatus('ready'); await ui.find('button', 'Check again').click(); await settle();
   assert.match(ui.root.textContent, /You’re ready to shop/);
-  assert.equal(ui.find('button', 'Continue with ChatGPT ↗').disabled, false);
+  assert.equal(ui.find('button', 'Find my groceries ↗').disabled, false);
   assert.equal(ui.requests.find((r) => r.name === 'configure_shop_it').args.draft, 'Five dinners for two, under 800 kr');
 });
 
 test('the embedded app initializes the MCP Apps bridge and hands the saved request to the conversation', async () => {
   const state = initial(); state.preferences = {draft: 'Vegetarian dinners for two', retailer_ids: ['willys']}; state.browser_online = true; state.stores[0].selected = true; state.stores[0].session = {status: 'ready'};
-  const ui = await app({embedded: true, snapshot: state});
+  const ui = await app({snapshot: state});
   assert.equal(ui.messages[0].method, 'ui/initialize');
   assert.equal(ui.messages[0].params.protocolVersion, '2026-01-26');
   assert.ok(ui.messages.some((m) => m.method === 'ui/notifications/initialized'));
@@ -95,40 +96,39 @@ function savedBasket() {
   state.stores[0].selected = true;
   state.stores[0].session = {status: 'ready', context};
   state.plan = {id: 'saved-plan', revision: 16, text: 'Mjölk', retailer_id: 'willys', warnings: [], lines: [], baskets: [{retailer_id: 'willys', context, status: 'ready', missing: 0, over_budget: false, total: {amount_minor: 1490, currency: 'SEK'}}]};
-  state.transfer = {id: 'previous-fill', state: 'completed', basket_url: 'https://www.willys.se/varukorg'};
+  state.review_url = 'http://127.0.0.1:24816/?plan=saved-plan';
   return state;
 }
 
-test('a saved basket can refresh changed delivery settings and fill again', async () => {
+test('a saved basket refreshes changed delivery settings and sends you to the page to fill it', async () => {
   const state = savedBasket();
   state.stores[0].session.context = {...state.stores[0].session.context, delivery_slot_id: 'new-slot'};
   const ui = await app({snapshot: state});
-  assert.equal(ui.find('button', 'Fill again').disabled, true);
+  assert.equal(ui.root.querySelectorAll('button').some((n) => /Fill/.test(n.textContent)), false);
+  assert.equal(ui.find('a', 'Review and fill ↗').className, 'button small');
   const updated = structuredClone(state);
   updated.plan.baskets[0].context = updated.stores[0].session.context;
   updated.plan.revision++;
-  delete updated.transfer;
   ui.setState(updated);
   await ui.find('button', 'Refresh for this store').click(); await settle();
   assert.equal(ui.requests.at(-1).name, 'refresh_plan');
   assert.equal(ui.requests.at(-1).args.revision, 16);
-  assert.equal(ui.find('button', 'Fill basket ↗').disabled, false);
-  await ui.find('button', 'Fill basket ↗').click(); await settle();
-  assert.equal(ui.requests.at(-1).name, 'fill_basket');
-  assert.equal(ui.requests.at(-1).args.plan_id, 'saved-plan');
-  assert.equal(ui.requests.at(-1).args.revision, 17);
+  const review = ui.find('a', 'Review and fill ↗');
+  assert.equal(review.className, 'button primary');
+  await review.listeners.click({preventDefault() {}}); await settle();
+  assert.equal(ui.messages.find((m) => m.method === 'ui/open-link').params.url, 'http://127.0.0.1:24816/?plan=saved-plan');
 });
 
 test('reconnecting a store returns to the saved basket without creating a new plan', async () => {
   const state = savedBasket();
   state.stores[0].session.status = 'setup_required';
-  const ui = await app({embedded: true, snapshot: state});
+  const ui = await app({snapshot: state});
   await ui.find('button', 'Reconnect store').click(); await settle();
   assert.equal(ui.find('button', 'Back to basket').disabled, true);
   ui.setStatus('ready');
   await ui.find('button', 'Check again').click(); await settle();
   await ui.find('button', 'Back to basket').click(); await settle();
-  assert.ok(ui.find('button', 'Fill again'));
+  assert.ok(ui.find('a', 'Review and fill ↗'));
   assert.equal(ui.requests.some((r) => r.name === 'create_shopping_plan'), false);
   assert.equal(ui.messages.some((m) => m.method === 'ui/message'), false);
 });

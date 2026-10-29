@@ -2,112 +2,21 @@ package retailer
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"math"
-	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/kristalalfred/shop-it/internal/shopping"
 )
-
-var Storefronts = map[string]string{
-	"mathem": "https://www.mathem.se",
-	"willys": "https://www.willys.se",
-	"hemkop": "https://www.hemkop.se",
-}
-
-type Storefront struct {
-	retailerID string
-	baseURL    string
-	client     *http.Client
-}
-
-func NewStorefront(retailerID, baseURL string, timeout time.Duration) *Storefront {
-	return &Storefront{retailerID: retailerID, baseURL: strings.TrimRight(baseURL, "/"), client: &http.Client{
-		Timeout:       timeout,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}}
-}
-
-func (s *Storefront) Search(ctx context.Context, input shopping.SearchRequest) (shopping.SearchResult, error) {
-	page := 0
-	if input.Cursor != "" {
-		var err error
-		page, err = strconv.Atoi(input.Cursor)
-		if err != nil || page < 1 || page > 24 {
-			return shopping.SearchResult{}, shopping.ErrInvalid
-		}
-	}
-	query := url.Values{"q": {input.Query}}
-	path := "/axfood/rest/v2/search"
-	if s.retailerID == "mathem" {
-		path = "/api/v1/search/"
-		query.Set("page", strconv.Itoa(page+1))
-	} else {
-		query.Set("page", strconv.Itoa(page))
-		query.Set("size", "40")
-	}
-	body, err := s.get(ctx, path+"?"+query.Encode())
-	if err != nil {
-		return shopping.SearchResult{}, err
-	}
-	var products []shopping.Product
-	var more bool
-	if s.retailerID == "mathem" {
-		products, more, err = parseMathem(body, page)
-	} else {
-		products, more, err = parseAxfood(body, page)
-	}
-	if err != nil {
-		return shopping.SearchResult{}, err
-	}
-	result := shopping.SearchResult{RetailerID: s.retailerID, Context: input.Context, ObservedAt: time.Now().UTC(), Products: products}
-	if more && page < 24 {
-		result.NextCursor = strconv.Itoa(page + 1)
-	}
-	return result, ValidateResult(input, result)
-}
 
 func ParseStorefront(retailerID string, data []byte, page int) ([]shopping.Product, bool, error) {
 	if retailerID == "mathem" {
 		return parseMathem(data, page)
 	}
 	return parseAxfood(data, page)
-}
-
-func (s *Storefront) get(ctx context.Context, path string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL+path, nil)
-	if err != nil {
-		return nil, shopping.ErrUpstream
-	}
-	req.Header.Set("Accept", "application/json")
-	res, err := s.client.Do(req)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, shopping.ErrTimeout
-		}
-		return nil, shopping.ErrUpstream
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, shopping.ErrUpstream
-	}
-	body, err := io.ReadAll(io.LimitReader(res.Body, (4<<20)+1))
-	if errors.Is(err, context.DeadlineExceeded) {
-		return nil, shopping.ErrTimeout
-	}
-	if err != nil || len(body) > 4<<20 {
-		return nil, shopping.ErrUpstream
-	}
-	return body, nil
 }
 
 type flexible string

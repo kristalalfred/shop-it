@@ -137,7 +137,7 @@ async function poll() {
 
 function pageOrigin(sender) {
   const url = new URL(sender.url);
-  if (!['/', '/plugin'].includes(url.pathname)) throw new Error('Connect from the Shop It page.');
+  if (url.pathname !== '/') throw new Error('Connect from the Shop It page.');
   return localURL(url.origin);
 }
 

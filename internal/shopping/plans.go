@@ -1,60 +1,12 @@
 package shopping
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 type Item struct {
 	Label          string   `json:"label"`
 	Query          string   `json:"query"`
 	Amount         Pack     `json:"amount"`
 	RequiredTraits []string `json:"required_traits"`
-}
-
-type Interpretation struct {
-	Mode     string   `json:"mode"`
-	Items    []Item   `json:"items"`
-	Warnings []string `json:"warnings"`
-}
-
-type InterpretationRequest struct {
-	Text string `json:"text"`
-}
-
-type Notify func(note string)
-
-type Progress struct {
-	Stage string `json:"stage"`
-	Note  string `json:"note,omitempty"`
-	Done  int    `json:"done,omitempty"`
-	Total int    `json:"total,omitempty"`
-}
-
-type Interpreter interface {
-	Interpret(context.Context, InterpretationRequest, Notify) (Interpretation, error)
-}
-
-type ProductOption struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Brand string `json:"brand"`
-}
-
-type ProductMatchRequest struct {
-	ID       string          `json:"id"`
-	Item     Item            `json:"item"`
-	Products []ProductOption `json:"products"`
-}
-
-type ProductMatch struct {
-	ID              string   `json:"id"`
-	ProductIDs      []string `json:"product_ids"`
-	RequirementsMet []string `json:"requirements_met"`
-}
-
-type ProductMatcher interface {
-	MatchProducts(context.Context, []ProductMatchRequest, Notify) ([]ProductMatch, error)
 }
 
 type PlanRequest struct {
@@ -110,11 +62,10 @@ type Plan struct {
 	ID       string `json:"id"`
 	Revision int    `json:"revision"`
 	PlanRequest
-	RetailerID      string     `json:"retailer_id"`
-	InterpreterMode string     `json:"interpreter_mode"`
-	Lines           []PlanLine `json:"lines"`
-	Baskets         []Basket   `json:"baskets"`
-	Warnings        []string   `json:"warnings"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	RetailerID string     `json:"retailer_id"`
+	Lines      []PlanLine `json:"lines"`
+	Baskets    []Basket   `json:"baskets"`
+	Warnings   []string   `json:"warnings"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }

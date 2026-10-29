@@ -20,9 +20,8 @@ The extension communicates only with the store websites listed above and with th
 
 - The app accepts connections only from your own computer, and every request needs a token from its configuration file.
 - Plans, settings and basket results are stored in the app's data folder on your computer.
-- To search store catalogs, the app sends search terms to the store websites.
-- If you configure an AI interpreter, your shopping request and product names are sent to that provider: OpenAI through the Codex CLI or the OpenAI API, under your own account. The `builtin` interpreter sends nothing.
-- With the ChatGPT plugin, ChatGPT receives your shopping request, your plan and product search results, as part of your conversation.
+- The app does not contact the stores itself. Store searches run in your browser through the extension.
+- ChatGPT receives your shopping request, your plan and product search results, as part of your conversation.
 
 ## Contact
 

@@ -27,7 +27,7 @@ func TestDefaultConfigKeepsDataNextToIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.DataDir != filepath.Join(dir, "shop-it", "data") || config.PluginDir() != filepath.Join(dir, "shop-it", "plugin") || config.Interpreter.Mode != "auto" {
+	if config.DataDir != filepath.Join(dir, "shop-it", "data") || config.PluginDir() != filepath.Join(dir, "shop-it", "plugin") {
 		t.Fatalf("config: %+v", config)
 	}
 }

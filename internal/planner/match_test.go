@@ -65,39 +65,20 @@ func TestRepeatedCursorStillFails(t *testing.T) {
 	}
 }
 
-func TestProductIdentityBeforePrice(t *testing.T) {
+func TestSearchLeavesTheChoiceOpen(t *testing.T) {
 	pages := catalogPages{{Products: []shopping.Product{catalogProduct("rice-flour", 1000), catalogProduct("basmati", 3000)}, ObservedAt: time.Now()}}
 	line, err := Search(context.Background(), pages, shopping.Basket{}, shopping.Item{Query: "ris", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}}, 40)
-	if err != nil || line.Selected != nil {
-		t.Fatalf("search selected before matching: %+v, %v", line, err)
-	}
-	ApplyMatches(&line, shopping.ProductMatch{ProductIDs: []string{"basmati"}})
-	if line.Selected == nil || line.Selected.Product.ID != "basmati" || line.Candidates[1].Eligible {
-		t.Fatalf("cheaper unrelated product selected: %+v", line)
-	}
-	ApplyMatches(&line, shopping.ProductMatch{ProductIDs: []string{}})
-	if line.Selected != nil || line.Issue == "" {
-		t.Fatalf("unmatched ingredient selected: %+v", line)
+	if err != nil || line.Selected != nil || len(line.Candidates) != 2 {
+		t.Fatalf("search chose a product: %+v, %v", line, err)
 	}
 }
 
-func TestUnmetRequirementsAreOfferedUnlessTheMatchConfirmsThem(t *testing.T) {
-	product := catalogProduct("milk", 1000)
-	pages := catalogPages{{Products: []shopping.Product{product}, ObservedAt: time.Now()}}
+func TestUnmetRequirementsAreOfferedAsAlternatives(t *testing.T) {
+	pages := catalogPages{{Products: []shopping.Product{catalogProduct("milk", 1000)}, ObservedAt: time.Now()}}
 	item := shopping.Item{Query: "mjölk", Amount: shopping.Pack{Quantity: 1, Unit: "pack"}, RequiredTraits: []string{"lactose_free"}}
 	line, err := Search(context.Background(), pages, shopping.Basket{}, item, 40)
-	if err != nil {
-		t.Fatal(err)
-	}
-	unconfirmed := line
-	unconfirmed.Candidates = slices.Clone(line.Candidates)
-	ApplyMatches(&unconfirmed, shopping.ProductMatch{ProductIDs: []string{"milk"}})
-	if unconfirmed.Selected != nil || !unconfirmed.Candidates[0].Eligible || !slices.Equal(unconfirmed.Candidates[0].UnmetTraits, []string{"lactose_free"}) || unconfirmed.Issue != "No product meets every requirement." {
-		t.Fatalf("AI identity match bypassed dietary evidence or hid the alternative: %+v", unconfirmed)
-	}
-	ApplyMatches(&line, shopping.ProductMatch{ProductIDs: []string{"milk"}, RequirementsMet: []string{"milk"}})
-	if line.Selected == nil || len(line.Selected.UnmetTraits) != 0 {
-		t.Fatalf("requirements confirmed by the product match were ignored: %+v", line)
+	if err != nil || line.Selected != nil || !line.Candidates[0].Eligible || !slices.Equal(line.Candidates[0].UnmetTraits, []string{"lactose_free"}) {
+		t.Fatalf("an unlabelled product was hidden or chosen: %+v, %v", line, err)
 	}
 }
 

@@ -96,7 +96,7 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 	}
 	defer session.Close()
 	tools, err := session.ListTools(t.Context(), nil)
-	if err != nil || len(tools.Tools) != 9 {
+	if err != nil || len(tools.Tools) != 8 {
 		t.Fatalf("tools: %v %s", err, stderr.String())
 	}
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "open_shop_it", Arguments: map[string]any{}})

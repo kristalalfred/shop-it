@@ -1,10 +1,8 @@
 package tests_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -13,10 +11,81 @@ import (
 
 	"github.com/kristalalfred/shop-it/internal/mockio"
 	"github.com/kristalalfred/shop-it/internal/shopping"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func planRequest(text string) shopping.PlanRequest {
-	return shopping.PlanRequest{Text: text}
+var everyShop = []string{"ica", "mathem", "willys", "coop", "hemkop", "citygross"}
+
+type bearer string
+
+func (token bearer) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+string(token))
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+func chatgpt(t *testing.T, s system) *mcp.ClientSession {
+	t.Helper()
+	client := mcp.NewClient(&mcp.Implementation{Name: "chatgpt-test", Version: "1"}, nil)
+	session, err := client.Connect(t.Context(), &mcp.StreamableClientTransport{Endpoint: s.url + "/mcp", HTTPClient: &http.Client{Transport: bearer(userToken)}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { session.Close() })
+	return session
+}
+
+func call(t *testing.T, session *mcp.ClientSession, name string, args map[string]any) (shopping.Plan, error) {
+	t.Helper()
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		return shopping.Plan{}, fmt.Errorf("%s: %v", name, result.Content[0].(*mcp.TextContent).Text)
+	}
+	var snapshot struct {
+		Plan *shopping.Plan `json:"plan"`
+	}
+	raw, _ := json.Marshal(result.StructuredContent)
+	if err := json.Unmarshal(raw, &snapshot); err != nil || snapshot.Plan == nil {
+		t.Fatalf("%s returned no plan: %s %v", name, raw, err)
+	}
+	return *snapshot.Plan, nil
+}
+
+func must(t *testing.T) func(shopping.Plan, error) shopping.Plan {
+	return func(plan shopping.Plan, err error) shopping.Plan {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return plan
+	}
+}
+
+func item(label, query string, quantity int64, unit string, traits ...string) shopping.Item {
+	return shopping.Item{Label: label, Query: query, Amount: shopping.Pack{Quantity: quantity, Unit: unit}, RequiredTraits: append([]string{}, traits...)}
+}
+
+var breakfast = []shopping.Item{item("Organic milk", "mjölk", 2000, "ml", "organic"), item("Eggs", "ägg", 12, "each"), item("Bananas", "bananer", 500, "g")}
+
+func createPlan(t *testing.T, session *mcp.ClientSession, shops []string, budget int64, items ...shopping.Item) (shopping.Plan, error) {
+	t.Helper()
+	return call(t, session, "create_shopping_plan", map[string]any{"text": "Groceries", "items": items, "retailer_ids": shops, "budget_minor": budget})
+}
+
+func choose(t *testing.T, session *mcp.ClientSession, plan shopping.Plan, products ...string) shopping.Plan {
+	t.Helper()
+	selections := []map[string]string{}
+	for i, line := range plan.Lines {
+		for retailer, entry := range line.Baskets {
+			if slices.ContainsFunc(entry.Candidates, func(c shopping.Candidate) bool { return c.Eligible && c.Product.ID == products[i] }) {
+				selections = append(selections, map[string]string{"line_id": line.ID, "retailer_id": retailer, "product_id": products[i]})
+			}
+		}
+	}
+	return must(t)(call(t, session, "select_products", map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "selections": selections}))
 }
 
 func chosen(t *testing.T, plan shopping.Plan) shopping.Basket {
@@ -54,110 +123,39 @@ func decodePlan(t *testing.T, res response) shopping.Plan {
 	return plan
 }
 
-func createPlan(t *testing.T, s system, req shopping.PlanRequest) shopping.Plan {
+func fill(t *testing.T, s system, plan shopping.Plan, key string, options map[string]any) response {
 	t.Helper()
-	res, err := s.request("POST", "/v1/shopping-plans", req, userToken, "")
-	if err != nil || res.status != 201 {
-		t.Fatalf("create plan: %+v, %v", res, err)
+	body := map[string]any{"revision": plan.Revision}
+	for name, value := range options {
+		body[name] = value
 	}
-	return decodePlan(t, res)
-}
-
-func streamPlan(t *testing.T, s system, req shopping.PlanRequest) []map[string]json.RawMessage {
-	t.Helper()
-	body, err := json.Marshal(req)
+	res, err := s.request("POST", "/v1/shopping-plans/"+plan.ID+"/transfer", body, userToken, key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	httpReq, err := http.NewRequest("POST", s.url+"/v1/shopping-plans", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+userToken)
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "application/json, application/x-ndjson")
-	res, err := s.client.Do(httpReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "application/x-ndjson" {
-		t.Fatalf("stream response: %d %s", res.StatusCode, res.Header.Get("Content-Type"))
-	}
-	events := []map[string]json.RawMessage{}
-	decoder := json.NewDecoder(res.Body)
-	for {
-		var event map[string]json.RawMessage
-		if err := decoder.Decode(&event); err == io.EOF {
-			return events
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		events = append(events, event)
-	}
-}
-
-func TestPlanCreationStreamsProgress(t *testing.T) {
-	scenario := demoScenario(t)
-	s := startSystem(t, scenario)
-	events := streamPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
-	stages := []string{}
-	for _, event := range events[:len(events)-1] {
-		var progress shopping.Progress
-		if err := json.Unmarshal(event["progress"], &progress); err != nil {
-			t.Fatalf("progress event: %s", event)
-		}
-		if progress.Stage == "search" && (progress.Total != 3 || progress.Done != len(stages)-1) {
-			t.Fatalf("search progress out of order: %+v after %v", progress, stages)
-		}
-		stages = append(stages, progress.Stage)
-	}
-	if !slices.Equal(stages, []string{"interpret", "search", "search", "search", "search"}) {
-		t.Fatalf("stages: %v", stages)
-	}
-	var plan shopping.Plan
-	if err := json.Unmarshal(events[len(events)-1]["plan"], &plan); err != nil || plan.ID == "" || chosen(t, plan).Status != "ready" || len(plan.Lines) != 3 {
-		t.Fatalf("streamed plan: %+v, %v", plan, err)
-	}
-	if res, err := s.request("GET", "/v1/shopping-plans/"+plan.ID, nil, userToken, ""); err != nil || res.status != 200 {
-		t.Fatalf("streamed plan was not saved: %+v, %v", res, err)
-	}
-	failEverywhere(scenario, "mjölk", "ägg", "bananer")
-	s = startSystem(t, scenario)
-	events = streamPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
-	var failure struct {
-		Status int    `json:"status"`
-		Error  string `json:"error"`
-	}
-	last, _ := json.Marshal(events[len(events)-1])
-	if err := json.Unmarshal(last, &failure); err != nil || failure.Status != 502 || failure.Error == "" {
-		t.Fatalf("stream failure: %s", last)
-	}
+	return res
 }
 
 func TestShoppingPlanToBasket(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	plan := createPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
-	if basket := chosen(t, plan); plan.RetailerID != "ica" || basket.Status != "ready" || len(plan.Lines) != 3 || basket.Total.AmountMinor != 9650 || !basket.Estimated {
-		t.Fatalf("wrong plan: %+v", plan)
+	session := chatgpt(t, s)
+	plan := must(t)(createPlan(t, session, []string{"ica"}, 0, breakfast...))
+	if selected(plan, 0) != nil || chosen(t, plan).Missing != 3 {
+		t.Fatalf("Shop It chose products on its own: %+v", plan)
 	}
-	for i, id := range []string{"milk-organic", "eggs", "bananas"} {
-		if selected(plan, i) == nil || selected(plan, i).Product.ID != id {
-			t.Fatalf("wrong choice: %+v", plan.Lines[i])
-		}
+	plan = choose(t, session, plan, "milk-organic", "eggs", "bananas")
+	if basket := chosen(t, plan); plan.RetailerID != "ica" || basket.Status != "ready" || basket.Missing != 0 || basket.Total.AmountMinor != 9650 || !basket.Estimated {
+		t.Fatalf("wrong plan: %+v", plan)
 	}
 	if selected(plan, 0).Quantity != 2 || selected(plan, 1).Quantity != 2 {
 		t.Fatal("wrong pack conversion")
 	}
-	path := "/v1/shopping-plans/" + plan.ID + "/transfer"
-	input := map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}
-	created, err := s.request("POST", path, input, userToken, "reviewed-plan")
-	if err != nil || created.status != 202 {
-		t.Fatalf("transfer: %+v, %v", created, err)
+	created := fill(t, s, plan, "reviewed-plan", nil)
+	if created.status != 202 {
+		t.Fatalf("transfer: %+v", created)
 	}
-	retry, err := s.request("POST", path, input, userToken, "reviewed-plan")
-	if err != nil || retry.status != 200 || retry.data["id"] != created.data["id"] {
-		t.Fatalf("duplicate handoff: %+v, %v", retry, err)
+	if retry := fill(t, s, plan, "reviewed-plan", nil); retry.status != 200 || retry.data["id"] != created.data["id"] {
+		t.Fatalf("duplicate handoff: %+v", retry)
 	}
 	claim, err := s.request("POST", "/v1/client/claims", nil, clientToken, "")
 	if err != nil || claim.status != 200 || claim.data["id"] != created.data["id"] {
@@ -177,11 +175,9 @@ func TestShoppingPlanToBasket(t *testing.T) {
 
 func TestConstraintsReviewAndBudget(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	plan := createPlan(t, s, planRequest("2 l lactose-free milk\n500 g bananas"))
+	session := chatgpt(t, s)
+	plan := must(t)(createPlan(t, session, []string{"ica"}, 0, item("Lactose-free milk", "mjölk", 2000, "ml", "lactose_free"), item("Bananas", "bananer", 500, "g")))
 	milk := plan.Lines[0].Baskets[plan.RetailerID]
-	if chosen(t, plan).Status != "ready" || selected(plan, 0) != nil || milk.Issue != "No product meets every requirement." {
-		t.Fatalf("unsafe dietary choice: %+v", plan)
-	}
 	if closest := milk.Candidates[0]; closest.Product.ID != "milk-basic" || !closest.Eligible || !slices.Equal(closest.UnmetTraits, []string{"lactose_free"}) {
 		t.Fatalf("closest alternative: %+v", closest)
 	}
@@ -190,114 +186,84 @@ func TestConstraintsReviewAndBudget(t *testing.T) {
 			t.Fatalf("unsafe candidate: %+v", candidate)
 		}
 	}
-	path := "/v1/shopping-plans/" + plan.ID
-	res, err := s.request("POST", path+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "unresolved")
-	if err != nil || res.status != 202 {
-		t.Fatalf("available groceries blocked: %+v, %v", res, err)
+	plan = choose(t, session, plan, "", "bananas")
+	res := fill(t, s, plan, "unresolved", nil)
+	if res.status != 202 {
+		t.Fatalf("available groceries blocked: %+v", res)
 	}
-	items := res.data["items"].([]any)
-	if len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
-		t.Fatalf("unverified dietary product transferred: %+v", items)
+	if items := res.data["items"].([]any); len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
+		t.Fatalf("an unchosen product was transferred: %+v", items)
 	}
-	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "product_id": "milk-lactose-free"}, userToken, "")
-	if err != nil || res.status != 400 {
-		t.Fatalf("unavailable product accepted: %+v, %v", res, err)
+	if _, err := call(t, session, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "line_id": plan.Lines[0].ID, "product_id": "milk-lactose-free"}); err == nil {
+		t.Fatal("unavailable product accepted")
 	}
-	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "product_id": "milk-basic"}, userToken, "")
-	if err != nil || res.status != 200 {
-		t.Fatalf("chosen alternative rejected: %+v, %v", res, err)
-	}
-	plan = decodePlan(t, res)
-	if alternative := selected(plan, 0); alternative == nil || alternative.Product.ID != "milk-basic" || !slices.Equal(alternative.UnmetTraits, []string{"lactose_free"}) || chosen(t, plan).Missing != 0 {
+	plan = must(t)(call(t, session, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "line_id": plan.Lines[0].ID, "product_id": "milk-basic"}))
+	if alternative := selected(plan, 0); alternative == nil || !slices.Equal(alternative.UnmetTraits, []string{"lactose_free"}) || chosen(t, plan).Missing != 0 {
 		t.Fatalf("chosen alternative: %+v", plan)
 	}
-	res, err = s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": plan.Revision, "skipped": true}, userToken, "")
-	if err != nil || res.status != 200 || chosen(t, decodePlan(t, res)).Status != "ready" {
-		t.Fatalf("skip: %+v, %v", res, err)
+	if res := fill(t, s, plan, "unverified", nil); res.status != 409 {
+		t.Fatalf("an unverified requirement was filled without review: %+v", res)
 	}
-	req := planRequest("milk")
-	req.BudgetMinor = 100
-	plan = createPlan(t, s, req)
-	if !chosen(t, plan).OverBudget || len(plan.Warnings) == 0 {
-		t.Fatalf("assumptions missing: %+v", plan)
+	if res := fill(t, s, plan, "unverified", map[string]any{"acknowledge_warnings": true}); res.status != 202 {
+		t.Fatalf("reviewed requirement: %+v", res)
 	}
-	path = "/v1/shopping-plans/" + plan.ID + "/transfer"
-	for _, body := range []map[string]any{
-		{"revision": plan.Revision, "client_id": "demo-browser"},
-		{"revision": plan.Revision, "client_id": "demo-browser", "acknowledge_warnings": true},
-	} {
-		res, err = s.request("POST", path, body, userToken, "budget")
-		if err != nil || res.status != 409 {
-			t.Fatalf("unreviewed handoff: %+v, %v", res, err)
-		}
+	plan = choose(t, session, must(t)(createPlan(t, session, []string{"ica"}, 100, item("Milk", "mjölk", 1, "pack"))), "milk-basic")
+	if !chosen(t, plan).OverBudget {
+		t.Fatalf("budget ignored: %+v", plan)
 	}
-	res, err = s.request("POST", path, map[string]any{"revision": plan.Revision, "client_id": "demo-browser", "acknowledge_warnings": true, "allow_over_budget": true}, userToken, "budget")
-	if err != nil || res.status != 202 {
-		t.Fatalf("reviewed budget: %+v, %v", res, err)
+	if res := fill(t, s, plan, "budget", nil); res.status != 409 {
+		t.Fatalf("over budget handoff: %+v", res)
+	}
+	if res := fill(t, s, plan, "budget", map[string]any{"allow_over_budget": true}); res.status != 202 {
+		t.Fatalf("reviewed budget: %+v", res)
 	}
 }
 
 func TestRequirementWordsBroadenAnEmptySearch(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	plan := createPlan(t, s, planRequest("2 packs organic milk"))
-	path := "/v1/shopping-plans/" + plan.ID + "/lines/" + plan.Lines[0].ID
-	item := plan.Lines[0].Item
-	item.Query = "ekologisk mjölk"
-	res, err := s.request("PATCH", path, map[string]any{"revision": plan.Revision, "item": item}, userToken, "")
-	if err != nil || res.status != 200 {
-		t.Fatalf("search with requirement words: %+v, %v", res, err)
-	}
-	plan = decodePlan(t, res)
-	if milk := selected(plan, 0); milk == nil || milk.Product.ID != "milk-organic" || plan.Lines[0].Item.Query != "ekologisk mjölk" {
+	session := chatgpt(t, s)
+	plan := must(t)(createPlan(t, session, []string{"ica"}, 0, item("Organic milk", "ekologisk mjölk", 2, "pack", "organic")))
+	if !slices.ContainsFunc(plan.Lines[0].Baskets["ica"].Candidates, func(c shopping.Candidate) bool { return c.Product.ID == "milk-organic" }) || plan.Lines[0].Item.Query != "ekologisk mjölk" {
 		t.Fatalf("broader search: %+v", plan.Lines[0])
 	}
-	item.RequiredTraits = []string{}
-	res, err = s.request("PATCH", path, map[string]any{"revision": plan.Revision, "item": item}, userToken, "")
-	if err != nil || res.status != 200 {
-		t.Fatalf("search without requirements: %+v, %v", res, err)
-	}
-	if plan = decodePlan(t, res); len(plan.Lines[0].Baskets[plan.RetailerID].Candidates) != 0 {
+	plain := plan.Lines[0].Item
+	plain.RequiredTraits = []string{}
+	plan = must(t)(call(t, session, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "line_id": plan.Lines[0].ID, "item": plain}))
+	if len(plan.Lines[0].Baskets["ica"].Candidates) != 0 {
 		t.Fatalf("search was broadened without a requirement: %+v", plan.Lines[0])
 	}
 }
 
 func TestConcurrentPlanEditsAndRefresh(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	plan := createPlan(t, s, planRequest("2 packs organic milk"))
-	path := "/v1/shopping-plans/" + plan.ID
+	session := chatgpt(t, s)
+	plan := must(t)(createPlan(t, session, []string{"ica"}, 0, item("Organic milk", "mjölk", 2, "pack", "organic")))
 	var wg sync.WaitGroup
-	statuses := make(chan int, 2)
+	results := make(chan error, 2)
 	for _, quantity := range []int64{3, 4} {
 		wg.Go(func() {
-			item := plan.Lines[0].Item
-			item.Amount.Quantity = quantity
-			res, err := s.request("PATCH", path+"/lines/"+plan.Lines[0].ID, map[string]any{"revision": 1, "item": item}, userToken, "")
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			statuses <- res.status
+			changed := plan.Lines[0].Item
+			changed.Amount.Quantity = quantity
+			_, err := call(t, session, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": 1, "line_id": plan.Lines[0].ID, "item": changed})
+			results <- err
 		})
 	}
 	wg.Wait()
-	close(statuses)
-	got := []int{}
-	for status := range statuses {
-		got = append(got, status)
+	close(results)
+	failed := 0
+	for err := range results {
+		if err != nil {
+			failed++
+		}
 	}
-	slices.Sort(got)
-	if !slices.Equal(got, []int{200, 409}) {
-		t.Fatalf("lost update: %v", got)
+	if failed != 1 {
+		t.Fatalf("lost update: %d edits failed", failed)
 	}
-	res, err := s.request("GET", path, nil, userToken, "")
-	if err != nil || res.status != 200 {
-		t.Fatal(err)
+	res, err := s.request("GET", "/v1/shopping-plans/"+plan.ID, nil, userToken, "")
+	if err != nil || res.status != 200 || decodePlan(t, res).Revision != 2 {
+		t.Fatalf("wrong revision: %+v, %v", res, err)
 	}
-	plan = decodePlan(t, res)
-	if plan.Revision != 2 {
-		t.Fatalf("wrong revision: %+v", plan)
-	}
-	res, err = s.request("POST", path+"/refresh", map[string]int{"revision": plan.Revision}, userToken, "")
+	res, err = s.request("POST", "/v1/shopping-plans/"+plan.ID+"/refresh", map[string]int{"revision": 2}, userToken, "")
 	if err != nil || res.status != 200 || decodePlan(t, res).Revision != 3 {
 		t.Fatalf("refresh: %+v, %v", res, err)
 	}
@@ -305,38 +271,38 @@ func TestConcurrentPlanEditsAndRefresh(t *testing.T) {
 
 func TestMissingGroceriesDoNotBlockBasket(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	plan := createPlan(t, s, planRequest("500 g sallad\n500 g bananer"))
-	if chosen(t, plan).Status != "ready" || len(plan.Lines) != 2 || selected(plan, 0) != nil || plan.Lines[0].Skipped || plan.Lines[0].Baskets[plan.RetailerID].Issue == "" {
+	session := chatgpt(t, s)
+	plan := choose(t, session, must(t)(createPlan(t, session, []string{"ica"}, 0, item("Salad", "sallad", 500, "g"), item("Bananas", "bananer", 500, "g"))), "", "bananas")
+	if chosen(t, plan).Status != "ready" || selected(plan, 0) != nil || plan.Lines[0].Skipped || plan.Lines[0].Baskets["ica"].Issue == "" {
 		t.Fatalf("missing salad blocks or disappears: %+v", plan)
 	}
-	res, err := s.request("POST", "/v1/shopping-plans/"+plan.ID+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "missing-salad")
-	if err != nil || res.status != 202 {
-		t.Fatalf("available groceries blocked: %+v, %v", res, err)
+	res := fill(t, s, plan, "missing-salad", nil)
+	if res.status != 202 {
+		t.Fatalf("available groceries blocked: %+v", res)
 	}
-	items := res.data["items"].([]any)
-	if len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
+	if items := res.data["items"].([]any); len(items) != 1 || items[0].(map[string]any)["product_id"] != "bananas" {
 		t.Fatalf("unexpected basket items: %+v", items)
 	}
-	plan = createPlan(t, s, planRequest("500 g sallad"))
-	res, err = s.request("POST", "/v1/shopping-plans/"+plan.ID+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "empty-basket")
-	if err != nil || res.status != 409 {
-		t.Fatalf("empty basket accepted: %+v, %v", res, err)
+	plan = must(t)(createPlan(t, session, []string{"ica"}, 0, item("Salad", "sallad", 500, "g")))
+	if res := fill(t, s, plan, "empty-basket", nil); res.status != 409 {
+		t.Fatalf("empty basket accepted: %+v", res)
 	}
 }
 
 func TestPlanAuthenticationAndInput(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	res, err := s.request("POST", "/v1/shopping-plans", planRequest("milk"), clientToken, "")
-	if err != nil || res.status != 401 {
-		t.Fatalf("client accessed user API: %+v, %v", res, err)
-	}
-	for _, text := range []string{"", "0 l milk", "1000001 g bananas"} {
-		res, err = s.request("POST", "/v1/shopping-plans", planRequest(text), userToken, "")
-		if err != nil || res.status != 400 {
-			t.Fatalf("invalid text accepted: %q, %+v, %v", text, res, err)
+	for _, path := range []string{"/v1/shopping-plans", "/v1/clients"} {
+		if res, err := s.request("GET", path, nil, clientToken, ""); err != nil || res.status != 401 {
+			t.Fatalf("client accessed %s: %+v, %v", path, res, err)
 		}
 	}
-	res, err = s.request("GET", "/v1/clients", nil, userToken, "")
+	session := chatgpt(t, s)
+	for _, invalid := range []shopping.Item{item("Milk", "mjölk", 0, "ml"), item("Bananas", "bananer", 1000001, "g"), item("", "mjölk", 1, "pack"), item("Milk", "mjölk", 1, "pack", "kosher")} {
+		if _, err := createPlan(t, session, []string{"ica"}, 0, invalid); err == nil {
+			t.Fatalf("invalid item accepted: %+v", invalid)
+		}
+	}
+	res, err := s.request("GET", "/v1/clients", nil, userToken, "")
 	if err != nil || res.status != 200 {
 		t.Fatal(err)
 	}
@@ -353,7 +319,8 @@ func TestFailedSearchesOnlyAffectTheirOwnLines(t *testing.T) {
 	ica.FailQueries = []string{"ägg"}
 	scenario.Retailers["ica"] = ica
 	s := startSystem(t, scenario)
-	plan := createPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
+	session := chatgpt(t, s)
+	plan := choose(t, session, must(t)(createPlan(t, session, everyShop, 0, breakfast...)), "milk-organic", "eggs", "bananas")
 	if plan.RetailerID != "mathem" || chosen(t, plan).Missing != 0 || len(plan.Lines) != 3 {
 		t.Fatalf("a basket with a failed search was preferred: %+v", plan)
 	}
@@ -371,21 +338,22 @@ func TestFailedSearchesOnlyAffectTheirOwnLines(t *testing.T) {
 	ica.FailQueries = []string{"mjölk", "ägg", "bananer"}
 	scenario.Retailers["ica"] = ica
 	s = startSystem(t, scenario)
-	plan = createPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
+	session = chatgpt(t, s)
+	plan = choose(t, session, must(t)(createPlan(t, session, everyShop, 0, breakfast...)), "milk-organic", "eggs", "bananas")
 	if plan.RetailerID != "mathem" || plan.Baskets[len(plan.Baskets)-1].RetailerID != "ica" || plan.Baskets[len(plan.Baskets)-1].Missing != 3 {
 		t.Fatalf("one unreachable shop blocked the others: %+v", plan.Baskets)
 	}
 	failEverywhere(scenario, "mjölk", "ägg", "bananer")
 	s = startSystem(t, scenario)
-	res, err := s.request("POST", "/v1/shopping-plans", planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."), userToken, "")
-	if err != nil || res.status != 502 {
-		t.Fatalf("plan without any searchable line: %+v, %v", res, err)
+	if _, err := createPlan(t, chatgpt(t, s), everyShop, 0, breakfast...); err == nil {
+		t.Fatal("a plan without any searchable line was created")
 	}
 }
 
 func TestPlanComparesEveryShopAndFillsTheChosenBasket(t *testing.T) {
 	s := startSystem(t, demoScenario(t))
-	plan := createPlan(t, s, planRequest("We need 2 litres of organic milk, 12 eggs and 500 g bananas."))
+	session := chatgpt(t, s)
+	plan := choose(t, session, must(t)(createPlan(t, session, everyShop, 0, breakfast...)), "milk-organic", "eggs", "bananas")
 	order := []string{}
 	for i, basket := range plan.Baskets {
 		order = append(order, basket.RetailerID)
@@ -393,7 +361,7 @@ func TestPlanComparesEveryShopAndFillsTheChosenBasket(t *testing.T) {
 			t.Fatalf("baskets are not ranked by price: %+v", plan.Baskets)
 		}
 	}
-	if !slices.Equal(order, []string{"ica", "mathem", "willys", "coop", "hemkop", "citygross"}) || plan.RetailerID != "ica" {
+	if !slices.Equal(order, everyShop) || plan.RetailerID != "ica" {
 		t.Fatalf("baskets: %v, chosen %q", order, plan.RetailerID)
 	}
 	path := "/v1/shopping-plans/" + plan.ID
@@ -412,24 +380,15 @@ func TestPlanComparesEveryShopAndFillsTheChosenBasket(t *testing.T) {
 	if plan.RetailerID != "hemkop" || plan.Revision != stale+1 {
 		t.Fatalf("chosen basket: %q at revision %d", plan.RetailerID, plan.Revision)
 	}
-	res, err = s.request("PATCH", path, map[string]any{"revision": stale, "retailer_id": "willys"}, userToken, "")
-	if err != nil || res.status != 409 {
+	if res, err := s.request("PATCH", path, map[string]any{"revision": stale, "retailer_id": "willys"}, userToken, ""); err != nil || res.status != 409 {
 		t.Fatalf("stale choice: %+v, %v", res, err)
 	}
 	line := plan.Lines[1]
-	res, err = s.request("PATCH", path+"/lines/"+line.ID, map[string]any{"revision": plan.Revision, "product_id": "eggs-organic"}, userToken, "")
-	if err != nil || res.status != 200 {
-		t.Fatalf("choose product: %+v, %v", res, err)
-	}
-	plan = decodePlan(t, res)
+	plan = must(t)(call(t, session, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "line_id": line.ID, "product_id": "eggs-organic"}))
 	if selected(plan, 1).Product.ID != "eggs-organic" || plan.Lines[1].Baskets["ica"].Selected.Product.ID != "eggs" {
 		t.Fatalf("product choice leaked to another shop: %+v", plan.Lines[1].Baskets)
 	}
-	res, err = s.request("PATCH", path+"/lines/"+line.ID, map[string]any{"revision": plan.Revision, "skipped": true}, userToken, "")
-	if err != nil || res.status != 200 {
-		t.Fatalf("skip: %+v, %v", res, err)
-	}
-	plan = decodePlan(t, res)
+	plan = must(t)(call(t, session, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "line_id": line.ID, "skipped": true}))
 	if plan.RetailerID != "hemkop" || len(plan.Baskets) != 6 {
 		t.Fatalf("skipping changed the chosen shop: %+v", plan)
 	}
@@ -438,9 +397,9 @@ func TestPlanComparesEveryShopAndFillsTheChosenBasket(t *testing.T) {
 			t.Fatalf("skipped line still counts in %s: %+v", basket.RetailerID, basket)
 		}
 	}
-	transfer, err := s.request("POST", path+"/transfer", map[string]any{"revision": plan.Revision, "client_id": "demo-browser"}, userToken, "chosen-shop")
-	if err != nil || transfer.status != 202 || transfer.data["retailer_id"] != "hemkop" || transfer.data["basket_url"] != "https://www.hemkop.se/handla" {
-		t.Fatalf("transfer: %+v, %v", transfer, err)
+	transfer := fill(t, s, plan, "chosen-shop", nil)
+	if transfer.status != 202 || transfer.data["retailer_id"] != "hemkop" || transfer.data["basket_url"] != "https://www.hemkop.se/handla" {
+		t.Fatalf("transfer: %+v", transfer)
 	}
 	if context := transfer.data["context"].(map[string]any); context["store_id"] != "hemkop-demo" {
 		t.Fatalf("transfer context: %+v", context)

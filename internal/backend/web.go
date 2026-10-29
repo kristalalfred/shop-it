@@ -26,7 +26,10 @@ func (s *Server) registerWeb(mux *http.ServeMux) {
 				return
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_ = page.Execute(w, s.config)
+			_ = page.Execute(w, struct {
+				Token   string
+				ChatURL template.URL
+			}{s.config.APIToken, template.URL(s.chatURL(""))})
 			return
 		}
 		http.FileServer(http.FS(files)).ServeHTTP(w, r)

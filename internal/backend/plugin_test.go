@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -91,11 +92,33 @@ func callTestTool(t *testing.T, c *mcp.ClientSession, name string, args any) plu
 	return snapshot
 }
 
-func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
+func fillRequest(t *testing.T, url, planID string, revision int, key string) (int, shopping.Transfer, string) {
+	t.Helper()
+	body, _ := json.Marshal(fillOptions{Revision: revision})
+	request, _ := http.NewRequestWithContext(t.Context(), "POST", url+"/v1/shopping-plans/"+planID+"/transfer", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer user-secret")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", key)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	raw, _ := io.ReadAll(response.Body)
+	var transfer shopping.Transfer
+	_ = json.Unmarshal(raw, &transfer)
+	var failure struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &failure)
+	return response.StatusCode, transfer, failure.Error
+}
+
+func TestChatGPTMakesThePlanAndThePageFillsIt(t *testing.T) {
 	server, config := pluginTestServer(t, t.TempDir())
 	client := pluginClient(t, server.URL)
 	tools, err := client.ListTools(t.Context(), nil)
-	if err != nil || len(tools.Tools) != 9 {
+	if err != nil || len(tools.Tools) != 8 || slices.ContainsFunc(tools.Tools, func(tool *mcp.Tool) bool { return tool.Name == "fill_basket" }) {
 		t.Fatalf("tools: %+v %v", tools, err)
 	}
 	resource, err := client.ReadResource(t.Context(), &mcp.ReadResourceParams{URI: pluginURI})
@@ -177,12 +200,11 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	}
 	created := callTestTool(t, client, "create_shopping_plan", map[string]any{"text": "Milk for breakfast", "items": []shopping.Item{{Label: "Milk", Query: "mjölk", Amount: shopping.Pack{Quantity: 2000, Unit: "ml"}, RequiredTraits: []string{}}}})
 	plan := created.Plan
-	if plan == nil || plan.InterpreterMode != "chatgpt" || searchCount.Load() < 1 || plan.Lines[0].Baskets["willys"].Selected != nil {
-		t.Fatalf("structured plan: %+v", plan)
+	if plan == nil || searchCount.Load() < 1 || plan.Lines[0].Baskets["willys"].Selected != nil || created.ReviewURL != "http://127.0.0.1:24816/?plan="+plan.ID || len(created.SavedPlans) != 1 || created.SavedPlans[0].ID != plan.ID {
+		t.Fatalf("structured plan: %+v", created)
 	}
-	blocked, err := client.CallTool(t.Context(), &mcp.CallToolParams{Name: "fill_basket", Arguments: map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "request_id": "first"}})
-	if err != nil || !blocked.IsError {
-		t.Fatalf("unresolved transfer allowed: %+v %v", blocked, err)
+	if status, _, _ := fillRequest(t, server.URL, plan.ID, plan.Revision, "first"); status != http.StatusConflict {
+		t.Fatalf("a basket with nothing chosen was filled: %d", status)
 	}
 	line := plan.Lines[0]
 	invalid, err := client.CallTool(t.Context(), &mcp.CallToolParams{Name: "select_products", Arguments: map[string]any{"plan_id": plan.ID, "revision": plan.Revision, "selections": []productSelection{{LineID: line.ID, RetailerID: "willys", ProductID: "101476218_ST"}, {LineID: line.ID, RetailerID: "invented-store", ProductID: "invented-product"}}}})
@@ -201,23 +223,21 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	if err != nil || !stale.IsError {
 		t.Fatal("stale revision accepted")
 	}
-	status, raw := browserRequest(t, t.Context(), server.URL, "/v1/shopping-plans/"+plan.ID+"/lines/"+line.ID, "PATCH", "user-secret", map[string]any{"revision": chosen.Plan.Revision, "product_id": "101205823_ST"})
-	if status != 200 {
-		t.Fatalf("shared web edit: %d %s", status, raw)
+	edited := callTestTool(t, client, "update_plan_line", map[string]any{"plan_id": plan.ID, "revision": chosen.Plan.Revision, "line_id": line.ID, "product_id": "101205823_ST"})
+	status, raw := browserRequest(t, t.Context(), server.URL, "/v1/shopping-plans/"+plan.ID, "GET", "user-secret", nil)
+	var viewed shopping.Plan
+	_ = json.Unmarshal(raw, &viewed)
+	if status != 200 || viewed.Revision != edited.Plan.Revision || viewed.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" {
+		t.Fatalf("the page did not see the ChatGPT edit: %d %s", status, raw)
 	}
-	current := callTestTool(t, client, "open_shop_it", map[string]any{})
-	if current.Plan.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" {
-		t.Fatal("MCP did not observe the web edit")
-	}
-	refreshed := callTestTool(t, client, "refresh_plan", map[string]any{"plan_id": plan.ID, "revision": current.Plan.Revision})
+	refreshed := callTestTool(t, client, "refresh_plan", map[string]any{"plan_id": plan.ID, "revision": edited.Plan.Revision})
 	if refreshed.Plan.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" {
 		t.Fatal("refresh lost the selection")
 	}
-	args := map[string]any{"plan_id": plan.ID, "revision": refreshed.Plan.Revision, "request_id": "verified-fill"}
-	fill := callTestTool(t, client, "fill_basket", args)
-	replay := callTestTool(t, client, "fill_basket", args)
-	if fill.Transfer == nil || replay.Transfer.ID != fill.Transfer.ID || fill.Transfer.Context.StoreID != "store-1" {
-		t.Fatal("transfer retry or store context failed")
+	status, fill, _ := fillRequest(t, server.URL, plan.ID, refreshed.Plan.Revision, "verified-fill")
+	replayStatus, replay, _ := fillRequest(t, server.URL, plan.ID, refreshed.Plan.Revision, "verified-fill")
+	if status != http.StatusAccepted || replayStatus != http.StatusOK || replay.ID != fill.ID || fill.Context.StoreID != "store-1" {
+		t.Fatalf("transfer retry or store context failed: %d %d %+v", status, replayStatus, fill)
 	}
 	status, raw = browserRequest(t, t.Context(), server.URL, "/v1/client/claims", "POST", "client-secret", nil)
 	if status != 200 {
@@ -226,28 +246,27 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	var transfer shopping.Transfer
 	json.Unmarshal(raw, &transfer)
 	receipt := shopping.Receipt{Lines: []shopping.LineResult{{ProductID: transfer.Items[0].ProductID, Status: "applied", Quantity: transfer.Items[0].Quantity}}}
-	status, _ = browserRequest(t, t.Context(), server.URL, "/v1/client/transfers/"+transfer.ID+"/result", "PUT", "client-secret", receipt)
-	if status != 200 {
+	if status, _ = browserRequest(t, t.Context(), server.URL, "/v1/client/transfers/"+transfer.ID+"/result", "PUT", "client-secret", receipt); status != 200 {
 		t.Fatal(status)
 	}
-	completed := callTestTool(t, client, "open_shop_it", map[string]any{})
-	if completed.Transfer.State != "completed" {
-		t.Fatal("receipt not reflected in plugin")
+	status, raw = browserRequest(t, t.Context(), server.URL, "/v1/basket-transfers/"+fill.ID, "GET", "user-secret", nil)
+	if status != 200 || !strings.Contains(string(raw), `"state":"completed"`) {
+		t.Fatalf("the page cannot see the finished fill: %d %s", status, raw)
 	}
 	nextContext := shopping.StoreContext{StoreID: "store-2", PostalCode: "99999", Fulfillment: "delivery", DeliverySlotID: "new-slot"}
 	storeContext.Store(nextContext)
-	blocked, err = client.CallTool(t.Context(), &mcp.CallToolParams{Name: "fill_basket", Arguments: map[string]any{"plan_id": plan.ID, "revision": completed.Plan.Revision, "request_id": "fill-again"}})
-	if err != nil || !blocked.IsError || !strings.Contains(blocked.Content[0].(*mcp.TextContent).Text, "Refresh prices") {
-		t.Fatalf("changed store was not detected before filling: %+v %v", blocked, err)
+	if status, _, message := fillRequest(t, server.URL, plan.ID, refreshed.Plan.Revision, "fill-again"); status != http.StatusConflict || !strings.Contains(message, "Refresh prices") {
+		t.Fatalf("changed store was not detected before filling: %d %q", status, message)
 	}
-	refreshed = callTestTool(t, client, "refresh_plan", map[string]any{"plan_id": plan.ID, "revision": completed.Plan.Revision})
-	if refreshed.Plan.ID != plan.ID || !sameStore(refreshed.Plan.Baskets[0].Context, nextContext) || refreshed.Plan.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" || refreshed.Transfer != nil {
-		t.Fatal("refresh did not update the existing plan for the current store")
+	status, raw = browserRequest(t, t.Context(), server.URL, "/v1/shopping-plans/"+plan.ID+"/refresh", "POST", "user-secret", map[string]any{"revision": refreshed.Plan.Revision})
+	var repriced shopping.Plan
+	_ = json.Unmarshal(raw, &repriced)
+	if status != 200 || repriced.ID != plan.ID || !sameStore(repriced.Baskets[0].Context, nextContext) || repriced.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" {
+		t.Fatalf("the page could not refresh the plan for the current store: %d %s", status, raw)
 	}
-	args = map[string]any{"plan_id": plan.ID, "revision": refreshed.Plan.Revision, "request_id": "fill-again"}
-	fill = callTestTool(t, client, "fill_basket", args)
-	replay = callTestTool(t, client, "fill_basket", args)
-	if fill.Transfer.ID == completed.Transfer.ID || replay.Transfer.ID != fill.Transfer.ID || !sameStore(fill.Transfer.Context, nextContext) {
+	status, again, _ := fillRequest(t, server.URL, plan.ID, repriced.Revision, "fill-again")
+	_, againReplay, _ := fillRequest(t, server.URL, plan.ID, repriced.Revision, "fill-again")
+	if status != http.StatusAccepted || again.ID == fill.ID || againReplay.ID != again.ID || !sameStore(again.Context, nextContext) {
 		t.Fatal("fill again did not create an idempotent transfer for the refreshed store")
 	}
 	server.Close()
@@ -262,7 +281,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 
 func TestPluginRejectsMalformedToolsAndUnauthenticatedRequests(t *testing.T) {
 	server, _ := pluginTestServer(t, t.TempDir())
-	for _, path := range []string{"/mcp", "/v1/plugin/tools/open_shop_it", "/v1/client/commands"} {
+	for _, path := range []string{"/mcp", "/v1/shopping-plans/plan-x/transfer", "/v1/client/commands"} {
 		response, err := http.Post(server.URL+path, "application/json", strings.NewReader("{}"))
 		if err != nil {
 			t.Fatal(err)
@@ -306,13 +325,8 @@ func TestNewTransferWakesTheWaitingBrowser(t *testing.T) {
 		status, raw := browserRequest(t, t.Context(), server.URL, "/v1/client/commands?wait=20", "POST", "client-secret", nil)
 		polled <- poll{status, raw, time.Since(started)}
 	}()
-	for online := false; !online; {
-		_, raw := browserRequest(t, t.Context(), server.URL, "/v1/plugin/tools/open_shop_it", "POST", "user-secret", map[string]any{})
-		var snapshot struct {
-			BrowserOnline bool `json:"browser_online"`
-		}
-		_ = json.Unmarshal(raw, &snapshot)
-		online = snapshot.BrowserOnline
+	client := pluginClient(t, server.URL)
+	for !callTestTool(t, client, "open_shop_it", map[string]any{}).BrowserOnline {
 	}
 	body, _ := json.Marshal(map[string]any{"retailer_id": "willys", "client_id": "browser", "context": map[string]any{"store_id": "willys", "postal_code": "11122"}, "items": []map[string]any{{"product_id": "101205823_ST", "target_quantity": 1}}})
 	request, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/v1/basket-transfers", bytes.NewReader(body))

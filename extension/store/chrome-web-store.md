@@ -17,11 +17,12 @@ Upload `bin/extension/chromium.zip`, built by `just build`.
 Description:
 
 ```
-Shop It turns a meal idea or a grocery list into a basket at Swedish online grocery stores. It compares what the basket costs at Mathem, Willys and Hemköp, and this extension adds the basket you choose to the store's cart in your browser. You review the cart and check out at the store.
+Shop It turns a meal idea or a grocery list into a basket at Swedish online grocery stores. You plan the groceries with ChatGPT, Shop It compares what the basket costs at Mathem, Willys and Hemköp, and this extension adds the basket you choose to the store's cart in your browser. You review the cart and check out at the store.
 
-The extension works together with the free Shop It app, which runs on your computer. Install the app from https://github.com/kristalalfred/shop-it and open it in your browser. The extension connects to it automatically.
+The extension works together with the free Shop It app, which runs on your computer, and its ChatGPT plugin. Install the app from https://github.com/kristalalfred/shop-it and open it in your browser. The extension connects to it automatically.
 
 - Uses your existing sign-in at Mathem, Willys and Hemköp.
+- Searches the stores in your browser, so prices match your own store and delivery address.
 - Shows progress on the store page while it adds items, and lists any item it could not add.
 - Never checks out or pays.
 - Sends no data to the developer. The extension talks only to the stores and to the Shop It app on your computer.
@@ -34,13 +35,13 @@ Shop It is an independent open-source project and is not affiliated with Mathem 
 Single purpose:
 
 ```
-Adds the groceries planned in the Shop It app on the user's computer to the user's cart at Mathem, Willys or Hemköp.
+Finds and adds the groceries planned with the Shop It app on the user's computer to the user's cart at Mathem, Willys or Hemköp.
 ```
 
 | Permission | Justification |
 | --- | --- |
 | `storage` | Stores the pairing token for the Shop It app on the user's computer, and a record of items added during a fill so an interrupted fill does not add items twice. |
-| `alarms` | Wakes the extension every 30 seconds to check whether the Shop It app has a basket to fill. |
+| `alarms` | Wakes the extension every 30 seconds to check whether the Shop It app has a store search or a basket to fill. |
 | Host permission `http://127.0.0.1/*` | Connects to the Shop It app running on the user's own computer. |
 | Host permissions for mathem.se, willys.se and hemkop.se | Reads and updates the user's cart, searches products and reads the selected store or delivery address at these grocery stores. |
 
@@ -55,11 +56,14 @@ Privacy policy URL: https://github.com/kristalalfred/shop-it/blob/main/PRIVACY.m
 ```
 The extension is the browser half of Shop It, an open-source app that runs locally: https://github.com/kristalalfred/shop-it. It talks only to that app on http://127.0.0.1 and to mathem.se, willys.se and hemkop.se.
 
-To test without a store account:
+Lists are made in ChatGPT, so testing needs Codex signed in with a ChatGPT account. No store account is needed:
 1. Install Go 1.26 or newer, then run: go install github.com/kristalalfred/shop-it/cmd/shop-it@latest
-2. Run shop-it and open http://127.0.0.1:24816 in Chrome with the extension installed.
-3. Enter "2 litres milk and 12 eggs", select Find groceries, choose Willys, and select Fill Willys basket.
-4. The extension opens willys.se, adds the items to the cart and shows a progress dialog. Willys accepts items in an anonymous cart.
+2. Run shop-it -plugin and install the plugin it prints with: codex plugin marketplace add <printed directory> and codex plugin add shop-it@shop-it-local
+3. Run shop-it and open http://127.0.0.1:24816 in Chrome with the extension installed.
+4. Open willys.se in the same browser and choose a store for pickup.
+5. In Codex, ask: "Use Shop It to plan 2 litres of milk and 12 eggs at Willys." The extension searches willys.se and Codex shows the list.
+6. Select Review and fill, then Fill Willys basket on the Shop It page.
+7. The extension adds the items to the Willys cart and shows a progress dialog. Willys accepts items in an anonymous cart.
 
 The source in this package is not minified or generated.
 ```

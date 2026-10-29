@@ -7,29 +7,24 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/kristalalfred/shop-it/internal/browser"
-	"github.com/kristalalfred/shop-it/internal/interpret"
 	"github.com/kristalalfred/shop-it/internal/planner"
 	"github.com/kristalalfred/shop-it/internal/retailer"
 	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type Server struct {
-	browser         *browser.Hub
-	plugin          *pluginService
-	config          Config
-	catalogs        map[string]shopping.Catalog
-	transfers       shopping.TransferStore
-	plans           *planner.Store
-	interpreter     shopping.Interpreter
-	productMatcher  shopping.ProductMatcher
-	interpreterMode string
+	browser   *browser.Hub
+	plugin    *pluginService
+	config    Config
+	catalogs  map[string]shopping.Catalog
+	transfers shopping.TransferStore
+	plans     *planner.Store
 }
 
 func New(config Config, transfers shopping.TransferStore) (http.Handler, error) {
@@ -46,40 +41,17 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 	if err != nil {
 		return nil, err
 	}
-	s.interpreter, s.interpreterMode = interpret.Builtin{}, "builtin"
-	if config.Interpreter.Mode == "codex" || config.Interpreter.Mode == "auto" {
-		provider, err := interpret.NewCodex(config.Interpreter.Model)
-		if err == nil {
-			s.interpreter, s.productMatcher = provider, provider
-			s.interpreterMode = "codex"
-		} else if config.Interpreter.Mode == "codex" {
-			return nil, err
-		}
-	}
-	if config.Interpreter.Mode == "openai" {
-		key := os.Getenv("OPENAI_API_KEY")
-		if strings.TrimSpace(key) == "" {
-			return nil, errors.New("OPENAI_API_KEY is required for the openai interpreter")
-		}
-		provider := interpret.NewOpenAI(key, config.Interpreter.Model)
-		s.interpreter, s.productMatcher = provider, provider
-		s.interpreterMode = "openai"
-	}
 	timeout := time.Duration(config.AdapterTimeoutMS) * time.Millisecond
 	for _, r := range config.Retailers {
 		if r.Mode == "browser" {
-			gateway := r.GatewayURL
-			if gateway == "" {
-				gateway = retailer.Storefronts[r.ID]
-			}
-			s.catalogs[r.ID] = retailer.NewStorefront(r.ID, gateway, timeout)
+			s.catalogs[r.ID] = browserCatalog{s.browser, r.ID}
 		} else {
 			s.catalogs[r.ID] = retailer.NewHTTP(r.GatewayURL, timeout)
 		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, http.StatusOK, map[string]any{"status": "ok", "mode": "service", "interpreter": s.interpreterMode, "persistent": config.DataDir != ""})
+		respond(w, http.StatusOK, map[string]any{"status": "ok", "mode": "service", "persistent": config.DataDir != ""})
 	})
 	s.registerPlans(mux)
 	s.registerWeb(mux)
@@ -263,15 +235,6 @@ func validContext(c shopping.StoreContext) bool {
 	return true
 }
 
-func accepts(r *http.Request, mediaType string) bool {
-	for _, value := range strings.Split(r.Header.Get("Accept"), ",") {
-		if media, _, err := mime.ParseMediaType(value); err == nil && media == mediaType {
-			return true
-		}
-	}
-	return false
-}
-
 func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
@@ -302,6 +265,10 @@ func fail(w http.ResponseWriter, err error) {
 }
 
 func failure(err error) (int, string) {
+	var p problem
+	if errors.As(err, &p) {
+		return p.status, p.message
+	}
 	status := http.StatusInternalServerError
 	message := "internal error"
 	for _, pair := range []struct {

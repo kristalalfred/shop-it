@@ -84,23 +84,6 @@ func rank(a, b shopping.Candidate) int {
 	return strings.Compare(a.Product.ID, b.Product.ID)
 }
 
-func ApplyMatches(line *shopping.BasketLine, match shopping.ProductMatch) {
-	for i := range line.Candidates {
-		candidate := &line.Candidates[i]
-		if slices.Contains(match.RequirementsMet, candidate.Product.ID) {
-			candidate.UnmetTraits = nil
-		}
-		if !slices.Contains(match.ProductIDs, candidate.Product.ID) {
-			if candidate.Eligible {
-				candidate.Reasons = []string{}
-			}
-			candidate.Eligible = false
-			candidate.Reasons = append(candidate.Reasons, "This product does not match the requested ingredient.")
-		}
-	}
-	Select(line)
-}
-
 func candidate(product shopping.Product, item shopping.Item, memberships []string) shopping.Candidate {
 	c := shopping.Candidate{Product: product, UnitPrice: product.Price, Total: shopping.Money{Currency: "SEK"}, Reasons: []string{}}
 	if item.Amount.Unit == "pack" {

@@ -1,10 +1,9 @@
 'use strict';
 (() => {
   const root = document.getElementById('app');
-  const local = Boolean(window.SHOP_IT?.token);
-  const host = !local && window.parent !== window;
+  const host = window.parent !== window;
   const pending = new Map();
-  let sequence = 0, state = null, view = '', busy = '', error = '', draft = null, browser = 'chromium', fillKey = '', lastRevision = '', poll;
+  let sequence = 0, state = null, view = '', busy = '', error = '', draft = null, poll;
   const money = (value) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: value.currency, maximumFractionDigits: 2}).format(value.amount_minor / 100);
   const node = (tag, text, className) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n; };
   function button(text, fn, className = '', disabled = false) {
@@ -42,12 +41,6 @@
     else delete document.documentElement.dataset.hostTheme;
   }
   async function call(name, args = {}) {
-    if (local) {
-      const response = await fetch(`/v1/plugin/tools/${name}`, {method: 'POST', headers: {Authorization: `Bearer ${window.SHOP_IT.token}`, 'Content-Type': 'application/json'}, body: JSON.stringify(args)});
-      const value = await response.json();
-      if (!response.ok) throw new Error(value.error || 'Shop It could not complete this action.');
-      return value;
-    }
     const result = await rpc('tools/call', {name, arguments: args});
     if (result.isError) throw new Error(result.content?.find((c) => c.type === 'text')?.text || 'Shop It could not complete this action.');
     return result.structuredContent;
@@ -58,7 +51,6 @@
     state = value;
     if (draft === null) draft = state.preferences.draft || '';
     if (!view || state.plan?.id && oldPlan !== state.plan.id) view = state.plan ? 'plan' : !state.preferences.draft ? 'request' : !state.preferences.retailer_ids.length ? 'stores' : 'connect';
-    if (lastRevision !== `${state.plan?.id}:${state.plan?.revision}`) { fillKey = ''; lastRevision = `${state.plan?.id}:${state.plan?.revision}`; }
     render();
     if (host) rpc('ui/update-model-context', {content: [{type: 'text', text: JSON.stringify({plan_id: state.plan?.id, revision: state.plan?.revision, retailer_ids: state.preferences.retailer_ids, draft: state.preferences.draft, setup_ready: ready()})}]}).catch(() => {});
   }
@@ -119,18 +111,7 @@
   }
   function installView(parent) {
     const box = node('section', null, 'install'); box.append(node('h2', 'Connect your browser'));
-    if (host) {
-      box.append(link('Open browser setup ↗', state.setup_url, 'button primary'), node('p', 'Your store logins stay in your browser.', 'subtle'));
-    } else {
-      const tabs = node('div', null, 'tabs');
-      for (const [id, label] of [['chromium', 'Chrome / Edge / Brave'], ['firefox', 'Firefox / Zen']]) { const tab = button(label, () => { browser = id; render(); }, 'small'); tab.setAttribute('aria-pressed', String(browser === id)); tabs.append(tab); }
-      box.append(tabs);
-      const steps = node('ol'), download = node('li'); download.append(link('Download browser extension ↓', `/extension/${browser}.zip`, 'button small')); steps.append(download);
-      const extensions = node('li', 'Open your browser’s extension manager.');
-      const address = node('input', null, 'copyfield'); address.readOnly = true; address.value = browser === 'firefox' ? 'about:debugging#/runtime/this-firefox' : 'chrome://extensions'; address.setAttribute('aria-label', 'Extension manager address'); address.addEventListener('click', () => address.select()); extensions.append(address); steps.append(extensions);
-      const load = node('li', browser === 'firefox' ? 'Choose Load Temporary Add-on, then select the downloaded file.' : 'Extract the download, enable Developer mode, then choose Load unpacked and select the folder.'); steps.append(load); box.append(steps);
-      box.append(button('Check connection', () => action('Connecting browser', async () => { document.dispatchEvent(new CustomEvent('shop-it-extension-probe')); accept(await call('open_shop_it')); if (!state.browser_online) throw new Error('Load the extension, then reload this page to connect.'); }), 'primary'));
-    }
+    box.append(link('Open browser setup ↗', state.setup_url, 'button primary'), node('p', 'Your store logins stay in your browser.', 'subtle'));
     parent.append(box);
   }
   function connectView(parent) {
@@ -148,20 +129,10 @@
     }
     parent.append(list);
     const resumePlan = state.plan && selected().some((store) => store.id === state.plan.retailer_id);
-    const bottom = node('div', null, 'bottom'); bottom.append(button('← Your stores', () => { view = 'stores'; render(); }, 'quiet'), button(resumePlan ? 'Back to basket' : host ? 'Find my groceries ↗' : state.demo ? 'Try sample groceries ↗' : 'Continue with ChatGPT ↗', () => action('Opening your shopping request', async () => {
+    const bottom = node('div', null, 'bottom'); bottom.append(button('← Your stores', () => { view = 'stores'; render(); }, 'quiet'), button(resumePlan ? 'Back to basket' : 'Find my groceries ↗', () => action('Opening your shopping request', async () => {
       if (resumePlan) { view = 'plan'; return; }
-      if (host) await rpc('ui/message', {role: 'user', content: [{type: 'text', text: `Use Shop It to plan this request with my connected stores: ${state.preferences.draft || draft}. Create a shopping plan with concrete ingredients, then choose matching products from the returned candidates. Leave uncertain choices for me to review.`}]});
-      else if (state.demo) await sampleWork();
-      else { view = 'chatgpt'; }
+      await rpc('ui/message', {role: 'user', content: [{type: 'text', text: `Use Shop It to plan this request with my connected stores: ${state.preferences.draft || draft}. Create a shopping plan with concrete ingredients, then choose matching products from the returned candidates. Leave uncertain choices for me to review.`}]});
     }), 'primary', !ready())); parent.append(bottom);
-  }
-  function chatgptView(parent) {
-    intro(parent, 'Browser connected', 'Meet you in ChatGPT.', 'Install Shop It, then continue your saved request.');
-    const box = node('section', null, 'install'); box.append(node('h2', 'Shop It for ChatGPT'), node('p', state.preferences.draft, 'subtle'), link('Install in ChatGPT ↗', state.install_url || 'https://chatgpt.com/plugins', 'button primary'));
-    box.append(node('p', 'Desktop plugin package', 'eyebrow'));
-    if (state.plugin_path) { const path = node('input', null, 'copyfield'); path.readOnly = true; path.value = state.plugin_path; path.setAttribute('aria-label', 'Local plugin package'); path.addEventListener('click', () => path.select()); box.append(path); }
-    if (state.chat_url) box.append(link('Continue my request ↗', state.chat_url));
-    parent.append(box, button('← Connections', () => { view = 'connect'; render(); }, 'quiet'));
   }
   async function sampleWork() {
     const choices = selected().filter((s) => s.mode === 'mock');
@@ -186,33 +157,13 @@
     const body = node('div', null, 'plan-body'), list = node('div', null, 'grocery-list');
     for (const line of plan.lines) list.append(grocery(line));
     const checkout = node('aside', null, 'checkout'); checkout.append(node('h3', `${shopName(plan.retailer_id)} subtotal`), node('div', money(basket.total), 'amount'), node('p', `${state.demo ? 'Demo prices. ' : ''}${basket.estimated ? 'Estimated by weight. ' : ''}Delivery excluded.`, 'subtle'));
-    const uncertain = plan.lines.some((line) => !line.skipped && line.baskets[plan.retailer_id]?.selected?.unmet_traits?.length), warnings = plan.warnings?.length || uncertain;
-    let acknowledge = false, over = false;
-    const filling = ['pending', 'claimed'].includes(state.transfer?.state);
     const retailer = state.stores.find((store) => store.id === plan.retailer_id);
     const connected = retailer && isReady(retailer);
     const contextChanged = connected && retailer.mode === 'browser' && JSON.stringify(retailer.session.context) !== JSON.stringify(basket.context);
-    const finished = state.transfer && !filling;
-    const fill = button(filling ? 'Filling your basket…' : finished ? 'Fill again' : 'Fill basket ↗', () => action('Filling your basket', async () => {
-      if (finished) fillKey = crypto.randomUUID(); else fillKey ||= crypto.randomUUID(); await mutate('fill_basket', {request_id: fillKey, acknowledge_warnings: acknowledge, allow_over_budget: over}); document.dispatchEvent(new CustomEvent('shop-it-fill'));
-    }), finished ? 'small' : 'primary');
-    function fillDisabled() { fill.disabled = Boolean(busy) || filling || !connected || contextChanged || basket.status !== 'ready' || basket.missing > 0 || Boolean(warnings) && !acknowledge || basket.over_budget && !over; }
-    if (warnings) {
-      for (const warning of plan.warnings || []) checkout.append(node('p', warning, 'subtle'));
-      const label = node('label'), input = node('input'); input.type = 'checkbox'; input.addEventListener('change', () => { acknowledge = input.checked; fillDisabled(); }); label.append(input, node('span', uncertain ? 'I’ve reviewed unverified requirements.' : 'I’ve reviewed the assumptions.')); checkout.append(label);
-    }
-    if (basket.over_budget) { const label = node('label'), input = node('input'); input.type = 'checkbox'; input.addEventListener('change', () => { over = input.checked; fillDisabled(); }); label.append(input, node('span', `Accept ${money({currency: 'SEK', amount_minor: basket.total.amount_minor - plan.budget_minor})} over budget.`)); checkout.append(label); }
     if (basket.missing) checkout.append(node('p', `Choose or skip ${basket.missing === 1 ? '1 remaining grocery' : `${basket.missing} remaining groceries`}.`, 'subtle'));
     if (!connected) checkout.append(button('Reconnect store', () => { view = 'connect'; render(); }, 'small'));
     if (contextChanged) checkout.append(button('Refresh for this store', () => action('Refreshing prices', () => mutate('refresh_plan', {})), 'primary'));
-    checkout.append(fill); fillDisabled();
-    if (state.transfer) {
-      const receipt = node('div', null, 'receipt'); receipt.setAttribute('aria-live', 'polite');
-      const labels = {completed: 'Your basket is ready', partial: 'Some groceries need attention', failed: 'Basket needs review', pending: 'Waiting for your browser', claimed: 'Adding and checking groceries'};
-      receipt.append(node('strong', labels[state.transfer.state] || state.transfer.state));
-      if (state.transfer.receipt) { const lines = node('ul'); for (const result of state.transfer.receipt.lines) if (result.status !== 'applied') lines.append(node('li', `${plan.lines.find((line) => line.baskets[plan.retailer_id]?.selected?.product.id === result.product_id)?.item.label || result.product_id}: ${result.message || result.status}`)); receipt.append(lines); }
-      receipt.append(link('Review at store ↗', state.transfer.basket_url, finished ? 'button primary' : 'button small')); checkout.append(receipt);
-    }
+    checkout.append(link('Review and fill ↗', state.review_url, contextChanged ? 'button small' : 'button primary'));
     body.append(list, checkout); shell.append(body);
     const footer = node('div', null, 'plan-footer'); footer.append(button('↻ Refresh prices', () => action('Refreshing prices', () => mutate('refresh_plan', {})), 'quiet small'), node('span', `Saved · revision ${plan.revision}`, 'subtle')); shell.append(footer);
   }
@@ -244,9 +195,9 @@
     if (error) { const status = node('div', error, 'error'); status.setAttribute('role', 'alert'); status.append(button('Refresh connection', () => action('Reconnecting', async () => accept(await call('open_shop_it'))), 'quiet small')); shell.append(status); }
     if (view === 'plan' && state.plan) planView(shell);
     else {
-      if (view !== 'chatgpt') stepper(shell);
+      stepper(shell);
       const panel = node('section', null, 'onboarding');
-      ({request: requestView, stores: storesView, connect: connectView, chatgpt: chatgptView}[view] || requestView)(panel); shell.append(panel);
+      ({request: requestView, stores: storesView, connect: connectView}[view] || requestView)(panel); shell.append(panel);
     }
     if (busy) { const status = node('div', null, 'notice'); status.setAttribute('role', 'status'); status.append(node('span', '', 'spinner'), node('span', ` ${busy}…`)); shell.append(status); }
 
@@ -260,14 +211,9 @@
   }
   async function boot() {
     try {
-      if (local) {
-        document.getElementById('token').value = window.SHOP_IT.token;
-        document.addEventListener('shop-it-extension-ready', () => { setTimeout(refresh, 1200); });
-        document.dispatchEvent(new CustomEvent('shop-it-extension-probe'));
-      } else if (host) {
-        const initialized = await rpc('ui/initialize', {protocolVersion: '2026-01-26', appInfo: {name: 'Shop It', version: '0.3.0'}, appCapabilities: {}}, 15000);
-        applyTheme(initialized.hostContext); notify('ui/notifications/initialized', {});
-      } else throw new Error('Open Shop It from ChatGPT or your local setup page.');
+      if (!host) throw new Error('Open Shop It from ChatGPT.');
+      const initialized = await rpc('ui/initialize', {protocolVersion: '2026-01-26', appInfo: {name: 'Shop It', version: '0.3.0'}, appCapabilities: {}}, 15000);
+      applyTheme(initialized.hostContext); notify('ui/notifications/initialized', {});
       accept(await call('open_shop_it'));
       poll = setInterval(refresh, 4000);
     } catch (e) { root.replaceChildren(node('div', e.message, 'error'), button('Try again', boot, 'primary')); }

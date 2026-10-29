@@ -20,7 +20,7 @@ type browserCatalog struct {
 func (c browserCatalog) Search(ctx context.Context, input shopping.SearchRequest) (shopping.SearchResult, error) {
 	session, err := c.hub.Session(c.retailerID)
 	if err != nil {
-		return shopping.SearchResult{}, err
+		return shopping.SearchResult{}, problem{http.StatusConflict, err.Error()}
 	}
 	if !retailer.SameContext(session.Context, input.Context) {
 		return shopping.SearchResult{}, shopping.ErrConflict
@@ -95,7 +95,7 @@ func (s *Server) connectStore(ctx context.Context, retailerID string) (browser.S
 		}
 	}
 	if clientID == "" {
-		return browser.Session{}, shopping.ErrConflict
+		return browser.Session{}, problem{http.StatusConflict, "Connect the Shop It browser extension, then try again."}
 	}
 	raw, err := s.browser.Do(ctx, clientID, retailerID, "session", nil)
 	if err != nil {

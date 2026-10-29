@@ -4,7 +4,7 @@
   if (globalThis.shopItBridgeLoaded) return;
   globalThis.shopItBridgeLoaded = true;
   const extension = globalThis.browser || globalThis.chrome;
-  if (location.hostname !== '127.0.0.1' || location.protocol !== 'http:' || !['/', '/plugin'].includes(location.pathname)) return;
+  if (location.hostname !== '127.0.0.1' || location.protocol !== 'http:' || location.pathname !== '/') return;
   async function connect() {
     const token = document.getElementById('token')?.value;
     const result = await extension.runtime.sendMessage(token ? {type: 'pair', url: location.origin, token} : {type: 'connection'});

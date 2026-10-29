@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/kristalalfred/shop-it/internal/shopping"
@@ -39,19 +38,13 @@ type ClientConfig struct {
 }
 
 type Config struct {
-	Listen           string            `json:"listen"`
-	APIToken         string            `json:"api_token"`
-	AdapterTimeoutMS int               `json:"adapter_timeout_ms"`
-	Retailers        []RetailerConfig  `json:"retailers"`
-	Clients          []ClientConfig    `json:"clients"`
-	DataDir          string            `json:"data_dir,omitempty"`
-	Interpreter      InterpreterConfig `json:"interpreter,omitempty"`
+	Listen           string           `json:"listen"`
+	APIToken         string           `json:"api_token"`
+	AdapterTimeoutMS int              `json:"adapter_timeout_ms"`
+	Retailers        []RetailerConfig `json:"retailers"`
+	Clients          []ClientConfig   `json:"clients"`
+	DataDir          string           `json:"data_dir,omitempty"`
 	path             string
-}
-
-type InterpreterConfig struct {
-	Mode  string `json:"mode"`
-	Model string `json:"model,omitempty"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -98,19 +91,13 @@ func (c Config) Validate() error {
 	if len(c.Retailers) == 0 || len(c.Clients) == 0 {
 		return fmt.Errorf("at least one retailer and client are required")
 	}
-	if !slices.Contains([]string{"", "auto", "builtin", "openai", "codex"}, c.Interpreter.Mode) {
-		return fmt.Errorf("interpreter mode must be auto, builtin, openai or codex")
-	}
-	if c.Interpreter.Mode == "openai" && strings.TrimSpace(c.Interpreter.Model) == "" {
-		return fmt.Errorf("openai interpreter requires a model")
-	}
 	ids, tokens := map[string]bool{}, map[string]bool{c.APIToken: true}
 	for _, r := range c.Retailers {
 		if !validID(r.ID) || ids[r.ID] || strings.TrimSpace(r.Name) == "" || (r.Mode != "mock" && r.Mode != "gateway" && r.Mode != "browser") {
 			return fmt.Errorf("retailer IDs must be unique, named, and use mock, gateway or browser mode")
 		}
-		if !validURL(r.BasketURL) || (r.Mode != "browser" || r.GatewayURL != "") && !validURL(r.GatewayURL) {
-			return fmt.Errorf("retailer %s requires absolute HTTP gateway and basket URLs", r.ID)
+		if !validURL(r.BasketURL) || (r.Mode == "browser") != (r.GatewayURL == "") || r.Mode != "browser" && !validURL(r.GatewayURL) {
+			return fmt.Errorf("retailer %s requires an absolute HTTP basket URL, and a gateway URL unless it uses the browser", r.ID)
 		}
 		if r.Mode == "browser" && BasketURLs[r.ID] != r.BasketURL {
 			return fmt.Errorf("retailer %s has no supported browser adapter or an incorrect basket URL", r.ID)

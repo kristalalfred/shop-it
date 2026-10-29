@@ -11,7 +11,8 @@
 <body>
   <header>
     <a href="/" class="brand">shop it</a>
-    <nav aria-label="Saved lists">
+    <nav aria-label="Lists">
+      {{if .ChatURL}}<a class="button" href="{{.ChatURL}}">New list in ChatGPT ↗</a>{{end}}
       <details id="saved-lists" class="menu">
         <summary>Saved lists</summary>
         <div class="menu-panel" id="history">No saved lists.</div>
@@ -19,53 +20,35 @@
     </nav>
   </header>
   <main>
+    <input id="token" type="hidden" value="{{.Token}}">
+    <section id="extension-setup" class="notice" hidden>
+      <p id="extension-status" role="status">Install the Shop It extension to fill your basket, then reload this page.</p>
+      <details id="extension-install">
+        <summary>Install extension</summary>
+        <p><a href="/extension/firefox.zip">Firefox / Zen</a>: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select the downloaded file.</p>
+        <p><a href="/extension/chromium.zip">Chrome / Edge / Brave</a>: unzip the download, open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the folder.</p>
+      </details>
+    </section>
     <div class="intro">
-      <h1>Make a grocery list.</h1>
-      <p class="instruction">Enter a meal and portions, or a grocery list. You’ll get a basket from every shop to choose from.</p>
+      <h1 id="title">Groceries</h1>
+      <p id="subtitle" class="muted"></p>
+      {{if .ChatURL}}<a id="start" class="button primary" href="{{.ChatURL}}" hidden>Make a list in ChatGPT ↗</a>{{end}}
     </div>
-    <section class="input-panel" aria-label="Grocery request">
-      <form id="plan-form">
-        <input id="token" type="hidden" value="{{.APIToken}}">
-        <label for="text">What do you need?</label>
-        <textarea id="text" maxlength="16000" required placeholder="Korvstroganoff för 5 personer. Vi har redan salt och peppar."></textarea>
-        <div class="examples" aria-label="Example requests"><span>Try:</span><button type="button" data-example="dinner">Dinner for 5</button><button type="button" data-example="breakfast">Grocery list</button><button type="button" data-example="diet">Dietary needs</button></div>
-        <details class="options">
-          <summary id="options-summary">Options</summary>
-          <label class="budget">Budget in SEK <span class="muted">optional</span><input id="budget" type="number" min="0" max="1000000" step="0.01" placeholder="250"></label>
-        </details>
-        <div class="submit-row"><p id="connection" class="muted" role="status">Connecting…</p><button id="reconnect" type="button" hidden>Reconnect</button><button id="create" class="primary" type="submit" disabled>Find groceries</button></div>
-        <p id="mode-note" class="muted" hidden></p>
-      </form>
-    </section>
-    <section id="progress" class="progress" aria-label="Progress" hidden>
-      <div class="progress-head"><strong>Finding groceries</strong><span id="progress-time" class="muted"></span></div>
-      <ol id="progress-steps" aria-live="polite"></ol>
-    </section>
     <div id="message" role="status" aria-live="polite"></div>
     <section id="review" class="review" aria-label="Review" hidden>
-      <div class="review-heading"><h2>Review groceries</h2><span id="plan-state" class="status"></span></div>
       <div id="shops" class="shops"><h3 id="shops-title">Choose a shop</h3><div id="baskets" class="baskets" role="group" aria-labelledby="shops-title"></div></div>
       <p id="missing" class="callout"></p>
       <div id="notes"></div>
-      <label id="ack-wrap" class="check"><input type="checkbox" id="ack">I’ve reviewed the assumptions.</label>
+      <label id="ack-wrap" class="check"><input type="checkbox" id="ack"><span id="ack-text">I’ve reviewed the assumptions.</span></label>
     </section>
-    <aside id="list" class="list-panel empty" aria-label="Grocery list">
+    <aside id="list" class="list-panel" aria-label="Grocery list" hidden>
       <div class="list-head"><h2>Groceries</h2><span id="list-count" class="muted"></span></div>
-      <p id="list-empty" class="muted">Your groceries will be listed here.</p>
       <div id="lines"></div>
     </aside>
     <section id="checkout" class="checkout" aria-label="Basket" hidden>
       <div class="total"><div><span>Subtotal</span><p id="estimate" class="muted"></p></div><strong id="total"></strong></div>
       <label id="over-wrap" class="check"><input type="checkbox" id="over"><span id="over-text">Accept the amount over budget.</span></label>
-      <div id="extension-setup" class="notice" hidden>
-        <p id="extension-status" role="status">Install the Shop It extension to fill your basket, then reload this page.</p>
-        <details id="extension-install">
-          <summary>Install extension</summary>
-          <p><a href="/extension/firefox.zip">Firefox / Zen</a>: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select the downloaded file.</p>
-          <p><a href="/extension/chromium.zip">Chrome / Edge / Brave</a>: unzip the download, open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the folder.</p>
-        </details>
-      </div>
-      <div class="actions"><button id="refresh" type="button">Refresh prices</button><span id="filled" class="filled" hidden></span><button id="transfer" class="primary" type="button">Fill basket</button><button id="new-list" type="button" hidden>New list</button></div>
+      <div class="actions"><button id="refresh" type="button">Refresh prices</button><span id="filled" class="filled" hidden></span><a id="review-store" class="button" target="_blank" rel="noopener noreferrer" hidden>Review at store ↗</a><button id="transfer" class="primary" type="button">Fill basket</button></div>
       <div id="receipt" aria-live="polite"></div>
     </section>
   </main>

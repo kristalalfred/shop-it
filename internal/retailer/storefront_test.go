@@ -1,14 +1,9 @@
 package retailer
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/kristalalfred/shop-it/internal/shopping"
 )
@@ -75,62 +70,5 @@ func TestStorefrontProductsPreserveIdentifiersPricesPacksAndDietaryEvidence(t *t
 		if got, ok := pack(text); !ok || got != want {
 			t.Errorf("pack(%q) = %+v", text, got)
 		}
-	}
-}
-
-func TestStorefrontSearchesShopsWithoutABrowserSession(t *testing.T) {
-	data := fixtures(t)
-	var requests []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests = append(requests, r.URL.String())
-		if r.Header.Get("Cookie") != "" || r.Header.Get("Accept") != "application/json" {
-			http.Error(w, "unexpected headers", http.StatusBadRequest)
-			return
-		}
-		var payload map[string]any
-		switch r.URL.Path {
-		case "/axfood/rest/v2/search":
-			_ = json.Unmarshal(data["willys"], &payload)
-			payload["pagination"] = map[string]int{"currentPage": 0, "numberOfPages": 2}
-		case "/api/v1/search/":
-			_ = json.Unmarshal(data["mathem"], &payload)
-			payload["attributes"] = map[string]int{"total_hits": 100}
-		default:
-			http.NotFound(w, r)
-			return
-		}
-		_ = json.NewEncoder(w).Encode(payload)
-	}))
-	defer server.Close()
-	store := shopping.StoreContext{StoreID: "willys", PostalCode: "00000"}
-	result, err := NewStorefront("willys", server.URL, time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "willys", Context: store, Query: "röda linser"})
-	if err != nil || len(result.Products) != 3 || result.NextCursor != "1" || !SameContext(result.Context, store) {
-		t.Fatalf("willys: %+v, %v", result, err)
-	}
-	if requests[0] != "/axfood/rest/v2/search?page=0&q=r%C3%B6da+linser&size=40" {
-		t.Fatalf("willys request: %s", requests[0])
-	}
-	store.StoreID = "mathem"
-	result, err = NewStorefront("mathem", server.URL, time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "mathem", Context: store, Query: "mjölk", Cursor: "1"})
-	if err != nil || result.NextCursor != "2" || result.Products[0].ID != "2183" {
-		t.Fatalf("mathem: %+v, %v", result, err)
-	}
-	if requests[1] != "/api/v1/search/?page=2&q=mj%C3%B6lk" {
-		t.Fatalf("mathem request: %s", requests[1])
-	}
-	if _, err := NewStorefront("mathem", server.URL, time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "mathem", Context: store, Query: "mjölk", Cursor: "x"}); !errors.Is(err, shopping.ErrInvalid) {
-		t.Fatalf("invalid cursor: %v", err)
-	}
-	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"results":null,"pagination":{"pageSize":40,"currentPage":0,"numberOfPages":0,"totalNumberOfResults":0}}`))
-	}))
-	defer empty.Close()
-	store.StoreID = "hemkop"
-	result, err = NewStorefront("hemkop", empty.URL, time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "hemkop", Context: store, Query: "xqzvwy"})
-	if err != nil || len(result.Products) != 0 || result.Products == nil || result.NextCursor != "" {
-		t.Fatalf("search without hits: %+v, %v", result, err)
-	}
-	if _, err := NewStorefront("hemkop", server.URL+"/missing", time.Second).Search(context.Background(), shopping.SearchRequest{RetailerID: "hemkop", Context: store, Query: "mjölk"}); !errors.Is(err, shopping.ErrUpstream) {
-		t.Fatalf("failed shop: %v", err)
 	}
 }
