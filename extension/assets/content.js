@@ -1,10 +1,10 @@
 'use strict';
 
 (() => {
-  if (globalThis.shipItContentLoaded) return;
-  globalThis.shipItContentLoaded = true;
+  if (globalThis.shopItContentLoaded) return;
+  globalThis.shopItContentLoaded = true;
   const extension = globalThis.browser || globalThis.chrome;
-  const id = Object.keys(ShipItAdapters.origins).find((key) => ShipItAdapters.origins[key] === location.origin);
+  const id = Object.keys(ShopItAdapters.origins).find((key) => ShopItAdapters.origins[key] === location.origin);
   if (!id) return;
   const nativeFetch = globalThis.fetch.bind(globalThis);
   async function request(path, options = {}) {
@@ -31,10 +31,10 @@
     }
     return response.json();
   }
-  const adapter = ShipItAdapters.create(id, {request});
+  const adapter = ShopItAdapters.create(id, {request});
   extension.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== extension.runtime.id || message?.type !== 'store-operation' || message.retailer_id !== id) return false;
-    const methods = {ready: () => true, session: () => adapter.session(), search: () => adapter.search(message.input), read: () => adapter.read(), set: () => adapter.set(message.item, message.before), overlay: () => message.state ? ShipItOverlay.show(message.state) : ShipItOverlay.remove()};
+    const methods = {ready: () => true, session: () => adapter.session(), search: () => adapter.search(message.input), read: () => adapter.read(), set: () => adapter.set(message.item, message.before), overlay: () => message.state ? ShopItOverlay.show(message.state) : ShopItOverlay.remove()};
     if (!Object.hasOwn(methods, message.operation)) return false;
     Promise.resolve().then(methods[message.operation]).then((result) => respond({result}), (error) => respond({error: error.message, status: error.status || 'failed'}));
     return true;

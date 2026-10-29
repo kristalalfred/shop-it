@@ -10,20 +10,20 @@ const bridge = await readFile(new URL('../assets/bridge.js', import.meta.url), '
 test('connection probe reports only whether this local page is paired and with which client', async () => {
   let listener, settings;
   const extension = {
-    runtime: {id: 'ship-it', getURL: () => 'moz-extension://ship-it/', onMessage: {addListener: (callback) => { listener = callback; }}},
+    runtime: {id: 'shop-it', getURL: () => 'moz-extension://shop-it/', onMessage: {addListener: (callback) => { listener = callback; }}},
     storage: {local: {get: async () => ({settings})}},
     alarms: {create() {}, onAlarm: {addListener() {}}},
   };
-  runInContext(background, createContext({browser: extension, ShipItAdapters: {origins: {}}, localURL, URL, setInterval() {}}));
-  const sender = {id: 'ship-it', tab: {id: 1}, url: 'http://127.0.0.1:18080/'};
+  runInContext(background, createContext({browser: extension, ShopItAdapters: {origins: {}}, localURL, URL, setInterval() {}}));
+  const sender = {id: 'shop-it', tab: {id: 1}, url: 'http://127.0.0.1:24816/'};
   const probe = (source = sender) => new Promise((resolve) => {
     if (!listener({type: 'connection'}, source, (result) => resolve(JSON.parse(JSON.stringify(result))))) resolve(null);
   });
   assert.deepEqual(await probe(), {connected: false});
-  settings = {url: 'http://127.0.0.1:18080', token: 'private-client-token', client_id: 'browser'};
+  settings = {url: 'http://127.0.0.1:24816', token: 'private-client-token', client_id: 'browser'};
   assert.deepEqual(await probe(), {connected: true, client_id: 'browser'});
   assert.deepEqual(await probe({...sender, url: 'http://127.0.0.1:19090/'}), {connected: false});
-  for (const url of ['https://example.com/', 'http://localhost:18080/', 'http://127.0.0.1:18080/other']) {
+  for (const url of ['https://example.com/', 'http://localhost:24816/', 'http://127.0.0.1:24816/other']) {
     assert.equal(await probe({...sender, url}), null);
   }
   assert.equal(await probe({...sender, id: 'other-extension'}), null);
@@ -39,25 +39,25 @@ test('page bridge pairs automatically and announces the paired client', async ()
       if (pairing instanceof Error) throw pairing;
       return pairing;
     }}},
-    location: {hostname: '127.0.0.1', protocol: 'http:', pathname: '/', origin: 'http://127.0.0.1:18080'},
+    location: {hostname: '127.0.0.1', protocol: 'http:', pathname: '/', origin: 'http://127.0.0.1:24816'},
     document: {getElementById: () => ({value: 'user-token'}), addEventListener: (name, callback) => listeners.set(name, callback), dispatchEvent: (event) => events.push(event)},
     CustomEvent: class { constructor(type, {detail}) { this.type = type; this.detail = detail; } },
   });
   runInContext(bridge, context);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(events[0].type, 'ship-it-extension-ready');
+  assert.equal(events[0].type, 'shop-it-extension-ready');
   assert.deepEqual(JSON.parse(events[0].detail), {connected: true, client_id: 'browser', error: ''});
   assert.deepEqual(sent.map((message) => message.type), ['connection']);
   connection = {connected: false};
-  await listeners.get('ship-it-extension-probe')();
-  assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), {type: 'pair', url: 'http://127.0.0.1:18080', token: 'user-token'});
+  await listeners.get('shop-it-extension-probe')();
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), {type: 'pair', url: 'http://127.0.0.1:24816', token: 'user-token'});
   assert.deepEqual(JSON.parse(events.at(-1).detail), {connected: true, client_id: 'browser', error: ''});
   pairing = {error: 'Pairing failed.'};
-  await listeners.get('ship-it-extension-probe')();
+  await listeners.get('shop-it-extension-probe')();
   assert.deepEqual(JSON.parse(events.at(-1).detail), {connected: false, client_id: '', error: 'Pairing failed.'});
-  listeners.get('ship-it-fill')();
+  listeners.get('shop-it-fill')();
   assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), {type: 'fill'});
   pairing = new Error('Extension context invalidated.');
-  await listeners.get('ship-it-extension-probe')();
+  await listeners.get('shop-it-extension-probe')();
   assert.deepEqual(JSON.parse(events.at(-1).detail), {connected: false, client_id: '', error: 'Reload the extension and this page.'});
 });

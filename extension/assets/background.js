@@ -3,7 +3,7 @@ import './adapters.js';
 
 const extension = globalThis.browser || globalThis.chrome;
 let running = false;
-let connection = 'Open Ship It to connect.';
+let connection = 'Open Shop It to connect.';
 let basket = '';
 const storage = extension.storage.local;
 if (storage.setAccessLevel) storage.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
@@ -16,9 +16,9 @@ async function storeCall(tabID, retailerID, operation, body = {}) {
 }
 
 async function openShop(input) {
-  const name = ShipItAdapters.names[input.retailer_id];
+  const name = ShopItAdapters.names[input.retailer_id];
   const url = new URL(input.basket_url);
-  if (!name || url.origin !== ShipItAdapters.origins[input.retailer_id]) throw new Error('Unsupported shop.');
+  if (!name || url.origin !== ShopItAdapters.origins[input.retailer_id]) throw new Error('Unsupported shop.');
   const tab = await extension.tabs.create({url: url.href, active: true});
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
@@ -34,7 +34,7 @@ async function openShop(input) {
 async function runCommand(settings, command) {
   let reply;
   try {
-    const origin = ShipItAdapters.origins[command.retailer_id];
+    const origin = ShopItAdapters.origins[command.retailer_id];
     if (!origin || !['session', 'search'].includes(command.operation)) throw new Error('Unsupported store operation.');
     const tabs = await extension.tabs.query({url: `${origin}/*`});
     const tabID = tabs[0]?.id ?? await openShop({retailer_id: command.retailer_id, basket_url: origin});
@@ -62,7 +62,7 @@ async function transfer(settings, input) {
     await api(settings, `/v1/client/transfers/${input.id}/renew`);
   };
   const heartbeat = setInterval(() => renew().catch((error) => { leaseError = error; }), 10000);
-  const name = ShipItAdapters.names[input.retailer_id], total = input.items.length;
+  const name = ShopItAdapters.names[input.retailer_id], total = input.items.length;
   let tabID, openError, receipt;
   const overlay = (state) => tabID === undefined ? Promise.resolve() : storeCall(tabID, input.retailer_id, 'overlay', {state}).catch(() => {});
   try {
@@ -78,7 +78,7 @@ async function transfer(settings, input) {
     receipt = await applyTransfer(input, {read: () => call('read'), set: (item, before) => call('set', {item, before})}, journal(settings), renew, progress);
   } finally { clearInterval(heartbeat); }
   const added = receipt.lines.filter((line) => line.status === 'applied').length;
-  await overlay({title: added === total ? 'Your basket is filled' : 'Some items need review', detail: added === total ? `All ${total} items are in your ${name} basket.` : 'Ship It lists the items that were not added.', progress: added / total, count: `${added} of ${total} added`, finished: true});
+  await overlay({title: added === total ? 'Your basket is filled' : 'Some items need review', detail: added === total ? `All ${total} items are in your ${name} basket.` : 'Shop It lists the items that were not added.', progress: added / total, count: `${added} of ${total} added`, finished: true});
   await api(settings, `/v1/client/transfers/${input.id}/result`, 'PUT', receipt);
   await storage.remove(activeKey);
   if (tabID !== undefined) {
@@ -106,7 +106,7 @@ async function tick() {
     const {commands} = await api(settings, '/v1/client/commands');
     await Promise.all(commands.map((command) => runCommand(settings, command)));
     const input = await api(settings, '/v1/client/claims');
-    connection = 'Connected to Ship It.';
+    connection = 'Connected to Shop It.';
     if (input) await transfer(settings, input);
   } catch (error) { connection = error.message; }
   finally { running = false; }
@@ -114,13 +114,13 @@ async function tick() {
 
 function pageOrigin(sender) {
   const url = new URL(sender.url);
-  if (!['/', '/plugin'].includes(url.pathname)) throw new Error('Connect from the Ship It page.');
+  if (!['/', '/plugin'].includes(url.pathname)) throw new Error('Connect from the Shop It page.');
   return localURL(url.origin);
 }
 
 async function pair(message, sender) {
   const url = localURL(message.url);
-  if (pageOrigin(sender) !== url) throw new Error('Pair from the Ship It page.');
+  if (pageOrigin(sender) !== url) throw new Error('Pair from the Shop It page.');
   const credentials = {url, token: message.token};
   const {clients} = await api(credentials, '/v1/clients', 'GET');
   const client = clients.find((client) => client.id === 'browser') || clients[0];
@@ -149,13 +149,13 @@ extension.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (message.type === 'status' && sender.url?.startsWith(extension.runtime.getURL(''))) {
-    storage.get('settings').then(({settings}) => respond({status: [connection, basket].filter(Boolean).join(' '), url: settings?.url || 'http://127.0.0.1:18080'}));
+    storage.get('settings').then(({settings}) => respond({status: [connection, basket].filter(Boolean).join(' '), url: settings?.url || 'http://127.0.0.1:24816'}));
     return true;
   }
   return false;
 });
 
-extension.alarms.create('ship-it-poll', {periodInMinutes: 0.5});
+extension.alarms.create('shop-it-poll', {periodInMinutes: 0.5});
 extension.alarms.onAlarm.addListener(() => { void tick(); });
 setInterval(() => { void tick(); }, 1000);
 void tick();

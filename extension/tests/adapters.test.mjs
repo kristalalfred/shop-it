@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import '../assets/adapters.js';
 import {applyTransfer, localURL} from '../assets/runner.js';
 
-const adapters = globalThis.ShipItAdapters;
+const adapters = globalThis.ShopItAdapters;
 const context = {store_id: 'mathem', postal_code: '00000', fulfillment: ''};
 function memoryJournal(initial = {}) {
   const records = structuredClone(initial);
@@ -120,14 +120,14 @@ test('failed read-back produces uncertainty and failed login produces login_requ
 });
 
 test('connection settings reject redirects, remote hosts and embedded credentials', () => {
-  assert.equal(localURL('http://127.0.0.1:18080'), 'http://127.0.0.1:18080');
+  assert.equal(localURL('http://127.0.0.1:24816'), 'http://127.0.0.1:24816');
   for (const url of ['https://example.com/', 'http://127.0.0.1.evil.test/', 'http://user:pass@127.0.0.1/', 'http://127.0.0.1/path', 'http://127.0.0.1/?token=x']) assert.throws(() => localURL(url));
 });
 
 test('session checks require an observed store and searches reject changes to the delivery context', async () => {
   let storeID = 'store-1';
   const calls = [];
-  const adapter = ShipItAdapters.create('willys', {request: async (path) => {
+  const adapter = ShopItAdapters.create('willys', {request: async (path) => {
     calls.push(path);
     if (path.endsWith('/store/active')) return {storeId: storeID, name: 'Willys Stockholm', activelySelected: true};
     if (path.endsWith('/cart')) return {products: [], deliveryAddress: {postalCode: '111 22'}, deliveryModeCode: 'homeDelivery'};
@@ -140,15 +140,15 @@ test('session checks require an observed store and searches reject changes to th
   assert.ok(calls.some((path) => path.startsWith('/axfood/rest/v2/search?')));
   storeID = 'different-store';
   await assert.rejects(adapter.search({query: 'mjölk', page: 0, context: session.context}), /settings changed/);
-  const unconfigured = ShipItAdapters.create('willys', {request: async () => ({products: []})});
+  const unconfigured = ShopItAdapters.create('willys', {request: async () => ({products: []})});
   assert.equal((await unconfigured.session()).status, 'setup_required');
-  const signedOut = ShipItAdapters.create('mathem', {request: async () => { throw Object.assign(new Error('Sign in'), {status: 'login_required'}); }});
+  const signedOut = ShopItAdapters.create('mathem', {request: async () => { throw Object.assign(new Error('Sign in'), {status: 'login_required'}); }});
   assert.equal((await signedOut.session()).status, 'login_required');
 });
 
 test('a store change while reading search results is never accepted as a price observation', async () => {
   let selected = 'store-1';
-  const adapter = ShipItAdapters.create('willys', {request: async (path) => {
+  const adapter = ShopItAdapters.create('willys', {request: async (path) => {
     if (path.endsWith('/store/active')) return {storeId: selected, activelySelected: true};
     if (path.endsWith('/cart')) return {deliveryAddress: {postalCode: '11122'}, deliveryModeCode: 'homeDelivery'};
     selected = 'store-2';
@@ -160,7 +160,7 @@ test('a store change while reading search results is never accepted as a price o
 
 test('Mathem uses the selected delivery address and exposes only its postcode and identifiers', async () => {
   const paths = [];
-  const adapter = ShipItAdapters.create('mathem', {request: async (path) => {
+  const adapter = ShopItAdapters.create('mathem', {request: async (path) => {
     paths.push(path);
     if (path.includes('/slot-picker/slots/')) return {cartInfo: {deliveryAddress: {id: 42}, deliverySlot: {id: 123}}};
     if (path.includes('/user/addresses/address/')) return {zipCode: '111 22', addressDisplay: 'Private address', additionalInfo: {doorCode: 'private'}};
@@ -174,6 +174,6 @@ test('Mathem uses the selected delivery address and exposes only its postcode an
 });
 
 test('default Axfood stores do not count as a user connection', async () => {
-  const adapter = ShipItAdapters.create('hemkop', {request: async (path) => path.endsWith('/store/active') ? {storeId: '4003', activelySelected: false, address: {postalCode: '74634'}} : {deliveryModeCode: 'pickupInStore'}});
+  const adapter = ShopItAdapters.create('hemkop', {request: async (path) => path.endsWith('/store/active') ? {storeId: '4003', activelySelected: false, address: {postalCode: '74634'}} : {deliveryModeCode: 'pickupInStore'}});
   assert.equal((await adapter.session()).status, 'setup_required');
 });

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type Codex struct {
@@ -35,7 +35,7 @@ func (c *Codex) Interpret(ctx context.Context, req shopping.InterpretationReques
 func (c *Codex) generate(ctx context.Context, instructions, input string, schemaObject map[string]any, notify shopping.Notify) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
-	dir, err := os.MkdirTemp("", "ship-it-interpret-")
+	dir, err := os.MkdirTemp("", "shop-it-interpret-")
 	if err != nil {
 		return nil, err
 	}

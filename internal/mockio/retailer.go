@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type Fault struct {

@@ -26,7 +26,7 @@ function load() {
     clearTimeout: (id) => timers.delete(id),
   });
   runInContext(source, context);
-  return {overlay: context.ShipItOverlay, documentElement, timers};
+  return {overlay: context.ShopItOverlay, documentElement, timers};
 }
 
 test('the overlay shows progress on the shop page and is removed when done', () => {
@@ -34,7 +34,7 @@ test('the overlay shows progress on the shop page and is removed when done', () 
   overlay.show({title: 'Filling your Willys basket', detail: 'Adding Röda Linser', progress: 0.25, count: 'Item 2 of 8'});
   assert.equal(documentElement.children.length, 1);
   const host = documentElement.children[0];
-  assert.equal(host.tag, 'ship-it-overlay');
+  assert.equal(host.tag, 'shop-it-overlay');
   const card = host.find('card');
   assert.equal(card.tag, 'dialog');
   assert.equal(card.modal, true);

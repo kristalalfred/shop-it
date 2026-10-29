@@ -1,10 +1,10 @@
 {
-  "name": "ship-it-local",
-  "interface": {"displayName": "Ship It"},
+  "name": "shop-it-local",
+  "interface": {"displayName": "Shop It"},
   "plugins": [
     {
-      "name": "ship-it",
-      "source": {"source": "local", "path": "./ship-it"},
+      "name": "shop-it",
+      "source": {"source": "local", "path": "./shop-it"},
       "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
       "category": "Productivity"
     }

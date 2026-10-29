@@ -27,12 +27,12 @@ func Run(ctx context.Context, address, token, configPath string) error {
 	if err := ensureService(ctx, client, endpoint, address, configPath); err != nil {
 		return err
 	}
-	remote, err := mcp.NewClient(&mcp.Implementation{Name: "ship-it-desktop", Version: "0.2.0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint + "/mcp", HTTPClient: client}, nil)
+	remote, err := mcp.NewClient(&mcp.Implementation{Name: "shop-it-desktop", Version: "0.2.0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint + "/mcp", HTTPClient: client}, nil)
 	if err != nil {
 		return err
 	}
 	defer remote.Close()
-	server := mcp.NewServer(&mcp.Implementation{Name: "ship-it", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: "Use open_ship_it to resume setup or the current grocery plan. ChatGPT supplies the shopping reasoning and structured ingredients. Select matching candidate IDs from the returned plan. Only fill a retailer basket when requested by the user; checkout stays at the store."})
+	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: "Use open_shop_it to resume setup or the current grocery plan. ChatGPT supplies the shopping reasoning and structured ingredients. Select matching candidate IDs from the returned plan. Only fill a retailer basket when requested by the user; checkout stays at the store."})
 	tools, err := remote.ListTools(ctx, nil)
 	if err != nil {
 		return err
@@ -98,10 +98,10 @@ func ensureService(ctx context.Context, client *http.Client, endpoint, address, 
 		case <-ctx.Done():
 			return ctx.Err()
 		case err := <-done:
-			return fmt.Errorf("Ship It could not start: %v. Check %s", err, log.Name())
+			return fmt.Errorf("Shop It could not start: %v. Check %s", err, log.Name())
 		case <-timeout.C:
 			_ = command.Process.Kill()
-			return errors.New("Ship It did not start within ten seconds")
+			return errors.New("Shop It did not start within ten seconds")
 		case <-ticker.C:
 			if ready() {
 				return nil

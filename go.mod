@@ -1,4 +1,4 @@
-module github.com/kristalalfred/ship-it
+module github.com/kristalalfred/shop-it
 
 go 1.26
 

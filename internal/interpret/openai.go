@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 const providerTimeout = 90 * time.Second

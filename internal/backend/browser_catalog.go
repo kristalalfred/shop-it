@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/browser"
-	"github.com/kristalalfred/ship-it/internal/retailer"
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/browser"
+	"github.com/kristalalfred/shop-it/internal/retailer"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type browserCatalog struct {

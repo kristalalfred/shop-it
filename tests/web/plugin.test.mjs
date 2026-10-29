@@ -20,14 +20,14 @@ class Element {
 }
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r)); };
 function initial() {
-  return {preferences: {draft: '', retailer_ids: []}, browser_online: false, setup_url: 'http://127.0.0.1:18081/plugin', demo: false, stores: [{id: 'willys', name: 'Willys', mode: 'browser', url: 'https://www.willys.se/varukorg', selected: false}]};
+  return {preferences: {draft: '', retailer_ids: []}, browser_online: false, setup_url: 'http://127.0.0.1:24816/plugin', demo: false, stores: [{id: 'willys', name: 'Willys', mode: 'browser', url: 'https://www.willys.se/varukorg', selected: false}]};
 }
 async function app({embedded = false, snapshot = initial()} = {}) {
   const root = new Element(), token = new Element('input'), listeners = new Map(), messages = [], requests = [], intervals = [];
   let state = structuredClone(snapshot), storeStatus = 'setup_required';
   const service = (name, args) => {
     requests.push({name, args: structuredClone(args)});
-    if (name === 'configure_ship_it') {
+    if (name === 'configure_shop_it') {
       if (args.draft !== undefined) state.preferences.draft = args.draft;
       if (args.retailer_ids) { state.preferences.retailer_ids = args.retailer_ids; state.stores.forEach((s) => { s.selected = args.retailer_ids.includes(s.id); }); }
     }
@@ -38,7 +38,7 @@ async function app({embedded = false, snapshot = initial()} = {}) {
     messages.push(structuredClone(message));
     if (message.id != null) queueMicrotask(() => listeners.get('message')?.({source: parent, data: {jsonrpc: '2.0', id: message.id, result: message.method === 'tools/call' ? {structuredContent: service(message.params.name, message.params.arguments)} : message.method === 'ui/initialize' ? {hostContext: {theme: 'light'}} : {}}}));
   }};
-  const window = {SHIP_IT: embedded ? {} : {token: 'local-user'}, parent, addEventListener: (name, fn) => listeners.set(name, fn)};
+  const window = {SHOP_IT: embedded ? {} : {token: 'local-user'}, parent, addEventListener: (name, fn) => listeners.set(name, fn)};
   const context = createContext({window, document: {getElementById: (id) => id === 'app' ? root : token, createElement: (tag) => new Element(tag), documentElement: {dataset: {}, scrollHeight: 600}, activeElement: null, addEventListener() {}, dispatchEvent() {}},
     CustomEvent: class {constructor(type) {this.type = type;}}, crypto: {randomUUID: () => 'stable-request'},
     setInterval: (fn) => { intervals.push(fn); return intervals.length; }, clearInterval() {}, setTimeout: () => 1, clearTimeout() {},
@@ -69,7 +69,7 @@ test('onboarding saves the request, retains store choices, and resumes a store t
   ui.setStatus('ready'); await ui.find('button', 'Check again').click(); await settle();
   assert.match(ui.root.textContent, /You’re ready to shop/);
   assert.equal(ui.find('button', 'Continue with ChatGPT ↗').disabled, false);
-  assert.equal(ui.requests.find((r) => r.name === 'configure_ship_it').args.draft, 'Five dinners for two, under 800 kr');
+  assert.equal(ui.requests.find((r) => r.name === 'configure_shop_it').args.draft, 'Five dinners for two, under 800 kr');
 });
 
 test('the embedded app initializes the MCP Apps bridge and hands the saved request to the conversation', async () => {

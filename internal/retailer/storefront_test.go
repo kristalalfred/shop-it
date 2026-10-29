@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 func fixtures(t *testing.T) map[string]json.RawMessage {

@@ -1,9 +1,9 @@
 ---
 name: setup
-description: Set up Ship It grocery planning or resume an interrupted store connection after installing the Ship It plugin.
+description: Set up Shop It grocery planning or resume an interrupted store connection after installing the Shop It plugin.
 ---
 
-Call `open_ship_it` to read the real setup state and display the app. If the user already supplied a shopping request, save it with `configure_ship_it` before starting setup. Keep it through reconnects.
+Call `open_shop_it` to read the real setup state and display the app. If the user already supplied a shopping request, save it with `configure_shop_it` before starting setup. Keep it through reconnects.
 
 Use the returned stores and connection status. Let the user choose their stores in the app or conversation. Save only their chosen retailer IDs. Ask only for missing shopping constraints that affect the requested plan.
 

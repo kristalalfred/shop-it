@@ -1,16 +1,16 @@
 {
-  "listen": "127.0.0.1:18080",
+  "listen": "127.0.0.1:24817",
   "api_token": "local-demo-api-token",
   "adapter_timeout_ms": 500,
   "data_dir": "../.data",
   "interpreter": {"mode": "builtin"},
   "retailers": [
-    {"id": "ica", "name": "ICA", "gateway_url": "http://127.0.0.1:18081/retailers/ica", "basket_url": "https://handla.ica.se/", "mode": "mock"},
-    {"id": "mathem", "name": "Mathem", "gateway_url": "http://127.0.0.1:18081/retailers/mathem", "basket_url": "https://www.mathem.se/se/cart/", "mode": "mock"},
-    {"id": "willys", "name": "Willys", "gateway_url": "http://127.0.0.1:18081/retailers/willys", "basket_url": "https://www.willys.se/", "mode": "mock"},
-    {"id": "coop", "name": "Coop", "gateway_url": "http://127.0.0.1:18081/retailers/coop", "basket_url": "https://www.coop.se/handla/", "mode": "mock"},
-    {"id": "hemkop", "name": "Hemköp", "gateway_url": "http://127.0.0.1:18081/retailers/hemkop", "basket_url": "https://www.hemkop.se/handla", "mode": "mock"},
-    {"id": "citygross", "name": "City Gross", "gateway_url": "http://127.0.0.1:18081/retailers/citygross", "basket_url": "https://www.citygross.se/", "mode": "mock"}
+    {"id": "ica", "name": "ICA", "gateway_url": "http://127.0.0.1:24818/retailers/ica", "basket_url": "https://handla.ica.se/", "mode": "mock"},
+    {"id": "mathem", "name": "Mathem", "gateway_url": "http://127.0.0.1:24818/retailers/mathem", "basket_url": "https://www.mathem.se/se/cart/", "mode": "mock"},
+    {"id": "willys", "name": "Willys", "gateway_url": "http://127.0.0.1:24818/retailers/willys", "basket_url": "https://www.willys.se/", "mode": "mock"},
+    {"id": "coop", "name": "Coop", "gateway_url": "http://127.0.0.1:24818/retailers/coop", "basket_url": "https://www.coop.se/handla/", "mode": "mock"},
+    {"id": "hemkop", "name": "Hemköp", "gateway_url": "http://127.0.0.1:24818/retailers/hemkop", "basket_url": "https://www.hemkop.se/handla", "mode": "mock"},
+    {"id": "citygross", "name": "City Gross", "gateway_url": "http://127.0.0.1:24818/retailers/citygross", "basket_url": "https://www.citygross.se/", "mode": "mock"}
   ],
   "clients": [
     {"id": "demo-browser", "token": "local-demo-client-token"}

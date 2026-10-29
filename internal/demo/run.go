@@ -10,10 +10,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
-	"github.com/kristalalfred/ship-it/internal/mockio"
-	"github.com/kristalalfred/ship-it/internal/persistence"
-	"github.com/kristalalfred/ship-it/internal/transfers"
+	"github.com/kristalalfred/shop-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/persistence"
+	"github.com/kristalalfred/shop-it/internal/transfers"
 )
 
 func Run(ctx context.Context, config backend.Config, scenario mockio.Scenario) error {

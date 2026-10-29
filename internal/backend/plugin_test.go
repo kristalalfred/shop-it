@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/browser"
-	"github.com/kristalalfred/ship-it/internal/shopping"
-	"github.com/kristalalfred/ship-it/internal/transfers"
+	"github.com/kristalalfred/shop-it/internal/browser"
+	"github.com/kristalalfred/shop-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/transfers"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,7 +30,7 @@ func (testAuth) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func pluginTestServer(t *testing.T, dir string) (*httptest.Server, Config) {
 	t.Helper()
-	config := Config{Listen: "127.0.0.1:18081", APIToken: "user-secret", AdapterTimeoutMS: 1000, DataDir: dir, Clients: []ClientConfig{{ID: "browser", Token: "client-secret"}, {ID: "other", Token: "other-secret"}}, Retailers: []RetailerConfig{{ID: "willys", Name: "Willys", Mode: "browser", BasketURL: BasketURLs["willys"]}}}
+	config := Config{Listen: "127.0.0.1:24816", APIToken: "user-secret", AdapterTimeoutMS: 1000, DataDir: dir, Clients: []ClientConfig{{ID: "browser", Token: "client-secret"}, {ID: "other", Token: "other-secret"}}, Retailers: []RetailerConfig{{ID: "willys", Name: "Willys", Mode: "browser", BasketURL: BasketURLs["willys"]}}}
 	store, err := transfers.Open(filepath.Join(dir, "transfers.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -105,11 +105,11 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	if resource.Contents[0].MIMEType != pluginMIME || strings.Contains(resource.Contents[0].Text, config.APIToken) || strings.Contains(resource.Contents[0].Text, "client-secret") {
 		t.Fatal("UI resource has wrong MIME type or leaked credentials")
 	}
-	fresh := callTestTool(t, client, "open_ship_it", map[string]any{})
+	fresh := callTestTool(t, client, "open_shop_it", map[string]any{})
 	if fresh.BrowserOnline || fresh.Plan != nil || len(fresh.Preferences.RetailerIDs) != 0 {
 		t.Fatalf("fresh setup: %+v", fresh)
 	}
-	callTestTool(t, client, "configure_ship_it", map[string]any{"retailer_ids": []string{"willys"}, "draft": "Milk for breakfast"})
+	callTestTool(t, client, "configure_shop_it", map[string]any{"retailer_ids": []string{"willys"}, "draft": "Milk for breakfast"})
 	status, _ := browserRequest(t, t.Context(), server.URL, "/v1/client/commands", "POST", "client-secret", nil)
 	if status != 200 {
 		t.Fatal(status)
@@ -189,7 +189,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	if err != nil || !invalid.IsError {
 		t.Fatal("invalid batch was accepted")
 	}
-	unchanged := callTestTool(t, client, "open_ship_it", map[string]any{})
+	unchanged := callTestTool(t, client, "open_shop_it", map[string]any{})
 	if unchanged.Plan.Revision != plan.Revision || unchanged.Plan.Lines[0].Baskets["willys"].Selected != nil {
 		t.Fatal("invalid batch partially changed the plan")
 	}
@@ -205,7 +205,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("shared web edit: %d %s", status, raw)
 	}
-	current := callTestTool(t, client, "open_ship_it", map[string]any{})
+	current := callTestTool(t, client, "open_shop_it", map[string]any{})
 	if current.Plan.Lines[0].Baskets["willys"].Selected.Product.ID != "101205823_ST" {
 		t.Fatal("MCP did not observe the web edit")
 	}
@@ -230,7 +230,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	if status != 200 {
 		t.Fatal(status)
 	}
-	completed := callTestTool(t, client, "open_ship_it", map[string]any{})
+	completed := callTestTool(t, client, "open_shop_it", map[string]any{})
 	if completed.Transfer.State != "completed" {
 		t.Fatal("receipt not reflected in plugin")
 	}
@@ -254,7 +254,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 	cancel()
 	<-done
 	restarted, _ := pluginTestServer(t, config.DataDir)
-	resumed := callTestTool(t, pluginClient(t, restarted.URL), "open_ship_it", map[string]any{})
+	resumed := callTestTool(t, pluginClient(t, restarted.URL), "open_shop_it", map[string]any{})
 	if resumed.Preferences.Draft != "Milk for breakfast" || resumed.Plan.ID != plan.ID || resumed.BrowserOnline {
 		t.Fatal("setup did not resume safely after restart")
 	}
@@ -262,7 +262,7 @@ func TestPluginOnboardingSharedPlanAndVerifiedTransfer(t *testing.T) {
 
 func TestPluginRejectsMalformedToolsAndUnauthenticatedRequests(t *testing.T) {
 	server, _ := pluginTestServer(t, t.TempDir())
-	for _, path := range []string{"/mcp", "/v1/plugin/tools/open_ship_it", "/v1/client/commands"} {
+	for _, path := range []string{"/mcp", "/v1/plugin/tools/open_shop_it", "/v1/client/commands"} {
 		response, err := http.Post(server.URL+path, "application/json", strings.NewReader("{}"))
 		if err != nil {
 			t.Fatal(err)
@@ -277,9 +277,9 @@ func TestPluginRejectsMalformedToolsAndUnauthenticatedRequests(t *testing.T) {
 		name string
 		args any
 	}{
-		{"configure_ship_it", map[string]any{"retailer_ids": []string{"willys", "willys"}}},
-		{"configure_ship_it", map[string]any{"retailer_ids": []string{"unknown"}}},
-		{"configure_ship_it", map[string]any{"api_token": "leak"}},
+		{"configure_shop_it", map[string]any{"retailer_ids": []string{"willys", "willys"}}},
+		{"configure_shop_it", map[string]any{"retailer_ids": []string{"unknown"}}},
+		{"configure_shop_it", map[string]any{"api_token": "leak"}},
 		{"create_shopping_plan", map[string]any{"text": "dinner", "items": []any{}}},
 		{"connect_store", map[string]any{}},
 	} {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/persistence"
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/persistence"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 const savedPlans = 30

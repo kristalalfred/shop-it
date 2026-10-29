@@ -12,8 +12,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
-	"github.com/kristalalfred/ship-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/mockio"
 )
 
 type Case struct {
@@ -39,14 +39,14 @@ func Run(ctx context.Context, selection string, output io.Writer) (err error) {
 			return fmt.Errorf("hurl is required; install it with brew install hurl")
 		}
 	}
-	dir, err := os.MkdirTemp("", "ship-it-test-suite-")
+	dir, err := os.MkdirTemp("", "shop-it-test-suite-")
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, os.RemoveAll(dir)) }()
-	binary := filepath.Join(dir, "ship-it")
+	binary := filepath.Join(dir, "shop-it")
 	fmt.Fprintln(output, "Building backend with race detection...")
-	build := exec.CommandContext(ctx, "go", "build", "-race", "-o", binary, "./cmd/ship-it")
+	build := exec.CommandContext(ctx, "go", "build", "-race", "-o", binary, "./cmd/shop-it")
 	if data, err := build.CombinedOutput(); err != nil {
 		return fmt.Errorf("build backend: %w\n%s", err, data)
 	}
@@ -57,7 +57,7 @@ func Run(ctx context.Context, selection string, output io.Writer) (err error) {
 			packages = "./tests"
 		}
 		cmd := exec.CommandContext(ctx, "go", "test", "-race", "-count=1", packages)
-		cmd.Env = append(os.Environ(), "SHIP_IT_TEST_BINARY="+binary)
+		cmd.Env = append(os.Environ(), "SHOP_IT_TEST_BINARY="+binary)
 		if data, err := cmd.CombinedOutput(); err != nil {
 			failures++
 			fmt.Fprintf(output, "FAIL concurrency\n%s", data)

@@ -13,7 +13,7 @@ func DefaultConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "ship-it", "config.json"), nil
+	return filepath.Join(dir, "shop-it", "config.json"), nil
 }
 
 func EnsureConfig(path string) error {
@@ -23,7 +23,7 @@ func EnsureConfig(path string) error {
 		return err
 	}
 	config := Config{
-		Listen: "127.0.0.1:18080", APIToken: rand.Text(), AdapterTimeoutMS: 25000,
+		Listen: "127.0.0.1:24816", APIToken: rand.Text(), AdapterTimeoutMS: 25000,
 		DataDir: "data", Interpreter: InterpreterConfig{Mode: "auto"},
 		Retailers: []RetailerConfig{
 			{ID: "mathem", Name: "Mathem", Mode: "browser", BasketURL: BasketURLs["mathem"]},

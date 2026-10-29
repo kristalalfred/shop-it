@@ -8,7 +8,7 @@ default:
 
 build:
     go build -o bin/ ./cmd/...
-    ./bin/ship-it -extension-dir bin/extension
+    ./bin/shop-it -extension-dir bin/extension
 
 test case="all": build
     if [ {{quote(case)}} = all ]; then node --test extension/tests/*.test.mjs tests/web/*.test.mjs; fi
@@ -24,11 +24,11 @@ check: build
 
 run mode="app": build
     case {{quote(mode)}} in \
-      app) exec ./bin/ship-it ;; \
+      app) exec ./bin/shop-it ;; \
       demo) exec ./bin/test-harness -mode demo ;; \
       *) echo "mode must be app or demo" >&2; exit 2 ;; \
     esac
 
 install:
-    go install ./cmd/ship-it
-    bin="$(go env GOBIN)"; "${bin:-$(go env GOPATH)/bin}/ship-it" -plugin
+    go install ./cmd/shop-it
+    bin="$(go env GOBIN)"; "${bin:-$(go env GOPATH)/bin}/shop-it" -plugin

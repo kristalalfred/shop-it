@@ -13,11 +13,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/kristalalfred/ship-it/internal/browser"
-	"github.com/kristalalfred/ship-it/internal/interpret"
-	"github.com/kristalalfred/ship-it/internal/planner"
-	"github.com/kristalalfred/ship-it/internal/retailer"
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/browser"
+	"github.com/kristalalfred/shop-it/internal/interpret"
+	"github.com/kristalalfred/shop-it/internal/planner"
+	"github.com/kristalalfred/shop-it/internal/retailer"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type Server struct {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 func eventStream(events ...any) string {

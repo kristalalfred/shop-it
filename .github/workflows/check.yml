@@ -36,6 +36,6 @@ jobs:
       - run: GOOS=windows go vet ./...
       - run: for script in internal/backend/web/app.js internal/backend/plugin/app.js extension/assets/*.js; do node --check "$script"; done
       - run: go build -o bin/ ./cmd/...
-      - run: ./bin/ship-it -extension-dir bin/extension
+      - run: ./bin/shop-it -extension-dir bin/extension
       - run: node --test extension/tests/*.test.mjs tests/web/*.test.mjs
       - run: ./bin/test-harness

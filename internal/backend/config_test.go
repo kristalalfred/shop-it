@@ -8,7 +8,7 @@ import (
 
 func TestDefaultConfigKeepsDataNextToIt(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "ship-it", "config.json")
+	path := filepath.Join(dir, "shop-it", "config.json")
 	if err := EnsureConfig(path); err != nil {
 		t.Fatal(err)
 	}
@@ -23,11 +23,11 @@ func TestDefaultConfigKeepsDataNextToIt(t *testing.T) {
 		t.Fatal("an existing configuration was replaced")
 	}
 	t.Chdir(t.TempDir())
-	config, err := LoadConfig(filepath.Join("..", filepath.Base(dir), "ship-it", "config.json"))
+	config, err := LoadConfig(filepath.Join("..", filepath.Base(dir), "shop-it", "config.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.DataDir != filepath.Join(dir, "ship-it", "data") || config.PluginDir() != filepath.Join(dir, "ship-it", "plugin") || config.Interpreter.Mode != "auto" {
+	if config.DataDir != filepath.Join(dir, "shop-it", "data") || config.PluginDir() != filepath.Join(dir, "shop-it", "plugin") || config.Interpreter.Mode != "auto" {
 		t.Fatalf("config: %+v", config)
 	}
 }

@@ -83,5 +83,5 @@
     }
     return {read, set, session, search};
   }
-  globalThis.ShipItAdapters = {origins, names, create};
+  globalThis.ShopItAdapters = {origins, names, create};
 })();

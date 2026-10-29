@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/kristalalfred/ship-it/internal/mockio"
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 func planRequest(text string) shopping.PlanRequest {

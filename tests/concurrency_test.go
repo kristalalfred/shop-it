@@ -14,10 +14,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
-	"github.com/kristalalfred/ship-it/internal/mockio"
-	"github.com/kristalalfred/ship-it/internal/shopping"
-	"github.com/kristalalfred/ship-it/internal/testenv"
+	"github.com/kristalalfred/shop-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/testenv"
 )
 
 const userToken = "local-demo-api-token"
@@ -26,17 +26,17 @@ const clientToken = "local-demo-client-token"
 var binary string
 
 func TestMain(m *testing.M) {
-	if provided := os.Getenv("SHIP_IT_TEST_BINARY"); provided != "" {
+	if provided := os.Getenv("SHOP_IT_TEST_BINARY"); provided != "" {
 		binary = provided
 		os.Exit(m.Run())
 	}
-	dir, err := os.MkdirTemp("", "ship-it-blackbox-")
+	dir, err := os.MkdirTemp("", "shop-it-blackbox-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	binary = filepath.Join(dir, "ship-it")
-	cmd := exec.Command("go", "build", "-race", "-o", binary, "./cmd/ship-it")
+	binary = filepath.Join(dir, "shop-it")
+	cmd := exec.Command("go", "build", "-race", "-o", binary, "./cmd/shop-it")
 	cmd.Dir = ".."
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	code := 1

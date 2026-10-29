@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/kristalalfred/ship-it/extension"
+	"github.com/kristalalfred/shop-it/extension"
 )
 
 //go:embed web/*
@@ -41,7 +41,7 @@ func (s *Server) registerWeb(mux *http.ServeMux) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", "attachment; filename=ship-it-"+browser)
+		w.Header().Set("Content-Disposition", "attachment; filename=shop-it-"+browser)
 		w.Header().Set("Cache-Control", "no-store")
 		_ = extension.Archive(w, browser[:len(browser)-4])
 	})

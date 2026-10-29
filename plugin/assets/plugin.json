@@ -1,18 +1,18 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "ship-it",
+  "name": "shop-it",
   "version": "0.2.0",
   "description": "Plan groceries with ChatGPT, compare your connected stores, and fill a basket in your own browser.",
-  "repository": "https://github.com/kristalalfred/ship-it",
+  "repository": "https://github.com/kristalalfred/shop-it",
   "extensions": {
     "com.openai": {
       "requires_local_executor": true,
       "onboardingSkill": "./skills/setup/SKILL.md",
       "interface": {
-        "displayName": "Ship It",
+        "displayName": "Shop It",
         "shortDescription": "Your groceries, from idea to basket",
         "capabilities": ["Read", "Write"],
-        "defaultPrompt": ["Help me set up Ship It.", "Plan five dinners for two and compare my stores."],
+        "defaultPrompt": ["Help me set up Shop It.", "Plan five dinners for two and compare my stores."],
         "brandColor": "#245c43"
       }
     }

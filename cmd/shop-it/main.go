@@ -8,14 +8,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kristalalfred/ship-it/extension"
-	"github.com/kristalalfred/ship-it/internal/mcpproxy"
-	"github.com/kristalalfred/ship-it/plugin"
+	"github.com/kristalalfred/shop-it/extension"
+	"github.com/kristalalfred/shop-it/internal/mcpproxy"
+	"github.com/kristalalfred/shop-it/plugin"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
-	"github.com/kristalalfred/ship-it/internal/localserver"
-	"github.com/kristalalfred/ship-it/internal/persistence"
-	"github.com/kristalalfred/ship-it/internal/transfers"
+	"github.com/kristalalfred/shop-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/localserver"
+	"github.com/kristalalfred/shop-it/internal/persistence"
+	"github.com/kristalalfred/shop-it/internal/transfers"
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 		if err := plugin.Build(config.PluginDir(), *path); err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("ChatGPT plugin written to %s\nInstall it with:\n  codex plugin marketplace add %q\n  codex plugin add ship-it@ship-it-local\n", config.PluginDir(), config.PluginDir())
+		fmt.Printf("ChatGPT plugin written to %s\nInstall it with:\n  codex plugin marketplace add %q\n  codex plugin add shop-it@shop-it-local\n", config.PluginDir(), config.PluginDir())
 		return
 	}
 	if *stdio {

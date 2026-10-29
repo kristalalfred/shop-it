@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/kristalalfred/ship-it/internal/interpret"
-	"github.com/kristalalfred/ship-it/internal/planner"
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/interpret"
+	"github.com/kristalalfred/shop-it/internal/planner"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 func (s *Server) registerPlans(mux *http.ServeMux) {

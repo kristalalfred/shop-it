@@ -1,6 +1,6 @@
 const extension = globalThis.browser || globalThis.chrome;
 const $ = (id) => document.getElementById(id);
-let url = 'http://127.0.0.1:18080';
+let url = 'http://127.0.0.1:24816';
 async function update() {
   const result = await extension.runtime.sendMessage({type: 'status'});
   $('status').textContent = result.status;

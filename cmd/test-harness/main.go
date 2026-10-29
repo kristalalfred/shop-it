@@ -9,10 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
-	"github.com/kristalalfred/ship-it/internal/demo"
-	"github.com/kristalalfred/ship-it/internal/mockio"
-	"github.com/kristalalfred/ship-it/internal/testenv"
+	"github.com/kristalalfred/shop-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/demo"
+	"github.com/kristalalfred/shop-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/testenv"
 )
 
 func main() {

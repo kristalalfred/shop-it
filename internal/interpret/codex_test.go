@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 func TestCodexInterpretation(t *testing.T) {
 	for _, mode := range []string{"valid", "failure", "invalid", "missing", "oversized", "timeout"} {
 		t.Run(mode, func(t *testing.T) {
 			dir := t.TempDir()
-			t.Setenv("SHIP_IT_CODEX_HELPER", mode)
-			t.Setenv("SHIP_IT_CODEX_CAPTURE", filepath.Join(dir, "capture.json"))
+			t.Setenv("SHOP_IT_CODEX_HELPER", mode)
+			t.Setenv("SHOP_IT_CODEX_CAPTURE", filepath.Join(dir, "capture.json"))
 			binary := filepath.Join(dir, "codex")
 			script := "#!/bin/sh\nexec " + strconv.Quote(os.Args[0]) + " -test.run=^TestCodexProcessHelper$ -- \"$@\"\n"
 			if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
@@ -78,7 +78,7 @@ func TestCodexInterpretation(t *testing.T) {
 }
 
 func TestCodexProcessHelper(t *testing.T) {
-	mode := os.Getenv("SHIP_IT_CODEX_HELPER")
+	mode := os.Getenv("SHOP_IT_CODEX_HELPER")
 	if mode == "" {
 		return
 	}
@@ -92,7 +92,7 @@ func TestCodexProcessHelper(t *testing.T) {
 	}
 	dir, _ := os.Getwd()
 	capture, _ := json.Marshal(map[string]any{"dir": dir, "args": os.Args, "req": req})
-	if os.WriteFile(os.Getenv("SHIP_IT_CODEX_CAPTURE"), capture, 0600) != nil {
+	if os.WriteFile(os.Getenv("SHOP_IT_CODEX_CAPTURE"), capture, 0600) != nil {
 		os.Exit(2)
 	}
 	output := ""

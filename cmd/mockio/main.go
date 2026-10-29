@@ -9,15 +9,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kristalalfred/ship-it/internal/localserver"
-	"github.com/kristalalfred/ship-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/localserver"
+	"github.com/kristalalfred/shop-it/internal/mockio"
 )
 
 func main() {
 	mode := flag.String("mode", "retailers", "mock mode: retailers or browser")
-	listen := flag.String("listen", "127.0.0.1:18081", "mock retailer listen address")
+	listen := flag.String("listen", "127.0.0.1:24818", "mock retailer listen address")
 	scenarioPath := flag.String("scenario", "testdata/demo.json", "synthetic I/O scenario")
-	backendURL := flag.String("backend", "http://127.0.0.1:18080", "backend URL for browser polling")
+	backendURL := flag.String("backend", "http://127.0.0.1:24817", "backend URL for browser polling")
 	token := flag.String("token", "local-demo-client-token", "paired browser token")
 	flag.Parse()
 	scenario, err := mockio.LoadScenario(*scenarioPath)

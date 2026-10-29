@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 func Search(ctx context.Context, catalog shopping.Catalog, basket shopping.Basket, item shopping.Item, limit int) (shopping.BasketLine, error) {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/backend"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -43,11 +43,11 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 		} `json:"plugins"`
 	}
 	raw, err = os.ReadFile(filepath.Join(dir, "plugin", ".agents", "plugins", "marketplace.json"))
-	if err != nil || json.Unmarshal(raw, &marketplace) != nil || marketplace.Name != "ship-it-local" || len(marketplace.Plugins) != 1 {
+	if err != nil || json.Unmarshal(raw, &marketplace) != nil || marketplace.Name != "shop-it-local" || len(marketplace.Plugins) != 1 {
 		t.Fatalf("marketplace: %v %s", err, raw)
 	}
 	packageDir := filepath.Join(dir, "plugin", filepath.FromSlash(marketplace.Plugins[0].Source.Path))
-	archive, err := zip.OpenReader(filepath.Join(dir, "plugin", "ship-it.zip"))
+	archive, err := zip.OpenReader(filepath.Join(dir, "plugin", "shop-it.zip"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,11 +55,11 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 	names := map[string]bool{}
 	for _, f := range archive.File {
 		names[f.Name] = true
-		if f.Name == "bin/ship-it" && f.Mode().Perm()&0111 == 0 {
+		if f.Name == "bin/shop-it" && f.Mode().Perm()&0111 == 0 {
 			t.Fatal("packaged executable lost its permissions")
 		}
 	}
-	for _, name := range []string{"plugin.json", "mcp.json", "skills/setup/SKILL.md", "bin/ship-it"} {
+	for _, name := range []string{"plugin.json", "mcp.json", "skills/setup/SKILL.md", "bin/shop-it"} {
 		if !names[name] {
 			t.Fatalf("package missing %s", name)
 		}
@@ -81,7 +81,7 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 	if err := json.Unmarshal(manifest, &servers); err != nil {
 		t.Fatal(err)
 	}
-	server := servers.MCPServers["ship-it"]
+	server := servers.MCPServers["shop-it"]
 	if !strings.HasPrefix(server.Command, "./") || server.Cwd != "${PLUGIN_ROOT}" {
 		t.Fatalf("Codex only launches commands and working directories inside the plugin: %+v", server)
 	}
@@ -99,11 +99,11 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 	if err != nil || len(tools.Tools) != 9 {
 		t.Fatalf("tools: %v %s", err, stderr.String())
 	}
-	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "open_ship_it", Arguments: map[string]any{}})
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "open_shop_it", Arguments: map[string]any{}})
 	if err != nil || result.IsError {
 		t.Fatalf("open: %v %+v", err, result)
 	}
-	resource, err := session.ReadResource(t.Context(), &mcp.ReadResourceParams{URI: "ui://ship-it/planner-v1.html"})
+	resource, err := session.ReadResource(t.Context(), &mcp.ReadResourceParams{URI: "ui://shop-it/planner-v1.html"})
 	if err != nil || len(resource.Contents) != 1 || resource.Contents[0].MIMEType != "text/html;profile=mcp-app" {
 		t.Fatalf("UI resource: %v %+v", err, resource)
 	}

@@ -103,7 +103,7 @@ function demoPlan() {
 
 test('missing groceries are visible and do not disable the remaining basket', async () => {
   const ui = await app();
-  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.plan(shoppingPlan());
   assert.match(ui.elements.get('missing').textContent, /1 item needs attention/);
   assert.match(ui.elements.get('lines').textContent, /Sallad 200 g · No products found\. Not found/);
@@ -155,7 +155,7 @@ test('groceries are searched at every shop without choosing one first', async ()
 
 test('each shop basket is a card and choosing one switches the list, total and fill target', async () => {
   const ui = await app();
-  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.plan(shoppingPlan());
   const cards = () => ui.elements.get('baskets').children;
   assert.equal(ui.elements.get('shops').hidden, false);
@@ -203,11 +203,11 @@ test('filling a live basket asks for the extension until it connects', async () 
   assert.equal(ui.elements.get('transfer').disabled, true);
   assert.equal(ui.elements.get('extension-setup').hidden, false);
   assert.equal(ui.elements.get('extension-install').hidden, false);
-  ui.emit('ship-it-extension-ready', {connected: false, error: 'Pairing failed.'});
+  ui.emit('shop-it-extension-ready', {connected: false, error: 'Pairing failed.'});
   assert.match(ui.elements.get('extension-status').textContent, /Pairing failed/);
   assert.equal(ui.elements.get('extension-install').hidden, true);
   assert.equal(ui.elements.get('transfer').disabled, true);
-  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   assert.equal(ui.elements.get('extension-setup').hidden, true);
   assert.equal(ui.elements.get('transfer').disabled, false);
   ui.responses['/v1/shopping-plans/plan/transfer'] = {id: 'transfer', state: 'pending', retailer_id: 'mathem', basket_url: basketURL};
@@ -230,7 +230,7 @@ test('demo shops fill their basket without the extension', async () => {
 
 test('a partial fill marks the items that were not added in the list and leaves this page in place', async () => {
   const ui = await app();
-  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.plan(shoppingPlan());
   ui.receipt('partial');
   const receipt = ui.elements.get('receipt');
@@ -247,7 +247,7 @@ test('a partial fill marks the items that were not added in the list and leaves 
 
 test('a filled basket only confirms the fill and New list starts over', async () => {
   const ui = await app();
-  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.elements.get('text').value = 'Korvstroganoff';
   ui.plan(shoppingPlan());
   ui.receipt('pending');
@@ -282,7 +282,7 @@ test('a filled basket only confirms the fill and New list starts over', async ()
 
 test('a finished fill can be tried again as a new attempt', async () => {
   const ui = await app();
-  ui.emit('ship-it-extension-ready', {connected: true, client_id: 'browser'});
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   ui.plan(shoppingPlan());
   const fill = async (state) => {
     ui.responses['/v1/shopping-plans/plan/transfer'] = {id: `transfer-${state}`, state, retailer_id: 'mathem', basket_url: basketURL, created_at: new Date().toISOString()};
@@ -310,7 +310,7 @@ test('a fill nobody picks up explains that the extension is not responding', asy
   ui.receipt('pending');
   assert.match(ui.elements.get('receipt').textContent, /Opening Mathem in a new tab/);
   ui.receipt('pending', 'mathem', new Date(Date.now() - 15000).toISOString());
-  assert.match(ui.elements.get('receipt').textContent, /Waiting for the Ship It extension/);
+  assert.match(ui.elements.get('receipt').textContent, /Waiting for the Shop It extension/);
   ui.receipt('expired');
   assert.match(ui.elements.get('receipt').textContent, /did not pick this up/);
   assert.match(ui.elements.get('extension-status').textContent, /not running in this browser/);

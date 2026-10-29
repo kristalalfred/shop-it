@@ -14,7 +14,7 @@ const userToken = 'test-user';
 const clientToken = 'test-browser';
 
 test('the backend searches the shop and the real adapter fills and verifies the basket', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'ship-it-extension-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'shop-it-extension-test-'));
   t.after(() => rm(dir, {recursive: true, force: true}));
   const searches = [];
   const storefront = createServer((request, response) => {
@@ -28,7 +28,7 @@ test('the backend searches the shop and the real adapter fills and verifies the 
   const config = {listen: '127.0.0.1:0', api_token: userToken, adapter_timeout_ms: 5000, data_dir: join(dir, 'data'), retailers: [{id: 'willys', name: 'Willys', mode: 'browser', gateway_url: `http://127.0.0.1:${storefront.address().port}`, basket_url: 'https://www.willys.se/varukorg'}], clients: [{id: 'browser', token: clientToken}, {id: 'other', token: 'other-client'}]};
   const path = join(dir, 'config.json');
   await writeFile(path, JSON.stringify(config));
-  const process = spawn(resolve('bin/ship-it'), ['-config', path], {stdio: ['ignore', 'pipe', 'pipe']});
+  const process = spawn(resolve('bin/shop-it'), ['-config', path], {stdio: ['ignore', 'pipe', 'pipe']});
   t.after(async () => {
     if (process.exitCode === null) { process.kill('SIGINT'); await once(process, 'exit'); }
   });
@@ -52,7 +52,7 @@ test('the backend searches the shop and the real adapter fills and verifies the 
   }
   const basket = {'unrelated_ST': 7};
   let mutations = 0;
-  const adapter = ShipItAdapters.create('willys', {request: async (path, options) => {
+  const adapter = ShopItAdapters.create('willys', {request: async (path, options) => {
     if (path.endsWith('/cart')) return {products: Object.entries(basket).map(([code, quantity]) => ({code, quantity, pickQuantity: 0, productBasketType: {code: 'ST'}}))};
     if (path.includes('/p/')) return {productBasketType: {code: 'ST'}};
     if (path.endsWith('/cart/addProducts')) {

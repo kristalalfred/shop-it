@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type SeedTransfer struct {

@@ -22,7 +22,7 @@ func Build(root, configPath string) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(root, "ship-it")
+	dir := filepath.Join(root, "shop-it")
 	if err := fs.WalkDir(assets, "assets", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
@@ -36,7 +36,7 @@ func Build(root, configPath string) error {
 		return err
 	}
 	// Claude: Codex rejects stdio commands and cwd values outside the plugin root, so the package carries its own copy of the binary.
-	manifest := map[string]any{"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json", "mcpServers": map[string]any{"ship-it": map[string]any{"type": "stdio", "cwd": "${PLUGIN_ROOT}", "command": "./bin/ship-it", "args": []string{"-mcp", "-config", configPath}}}}
+	manifest := map[string]any{"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json", "mcpServers": map[string]any{"shop-it": map[string]any{"type": "stdio", "cwd": "${PLUGIN_ROOT}", "command": "./bin/shop-it", "args": []string{"-mcp", "-config", configPath}}}}
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
@@ -52,13 +52,13 @@ func Build(root, configPath string) error {
 	if err != nil {
 		return err
 	}
-	if err := write(filepath.Join(dir, "bin", "ship-it"), binary, 0755); err != nil {
+	if err := write(filepath.Join(dir, "bin", "shop-it"), binary, 0755); err != nil {
 		return err
 	}
 	if err := write(MarketplacePath(root), marketplace, 0644); err != nil {
 		return err
 	}
-	return archive(dir, filepath.Join(root, "ship-it.zip"))
+	return archive(dir, filepath.Join(root, "shop-it.zip"))
 }
 
 func MarketplacePath(root string) string {
@@ -69,7 +69,7 @@ func write(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(filepath.Dir(path), ".ship-it-*")
+	file, err := os.CreateTemp(filepath.Dir(path), ".shop-it-*")
 	if err != nil {
 		return err
 	}

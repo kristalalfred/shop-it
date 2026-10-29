@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/backend"
-	"github.com/kristalalfred/ship-it/internal/mockio"
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/backend"
+	"github.com/kristalalfred/shop-it/internal/mockio"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 const (
@@ -59,7 +59,7 @@ func Start(ctx context.Context, options Options) (_ *Environment, err error) {
 		Client:  &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}},
 		calls:   make([]shopping.SearchRequest, 0),
 	}
-	e.dir, err = os.MkdirTemp("", "ship-it-testenv-")
+	e.dir, err = os.MkdirTemp("", "shop-it-testenv-")
 	if err != nil {
 		return nil, err
 	}

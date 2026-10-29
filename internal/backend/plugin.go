@@ -14,19 +14,19 @@ import (
 	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/kristalalfred/ship-it/internal/browser"
-	"github.com/kristalalfred/ship-it/internal/interpret"
-	"github.com/kristalalfred/ship-it/internal/persistence"
-	"github.com/kristalalfred/ship-it/internal/retailer"
-	"github.com/kristalalfred/ship-it/internal/shopping"
-	"github.com/kristalalfred/ship-it/plugin"
+	"github.com/kristalalfred/shop-it/internal/browser"
+	"github.com/kristalalfred/shop-it/internal/interpret"
+	"github.com/kristalalfred/shop-it/internal/persistence"
+	"github.com/kristalalfred/shop-it/internal/retailer"
+	"github.com/kristalalfred/shop-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/plugin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 //go:embed plugin/*
 var pluginFiles embed.FS
 
-const pluginURI = "ui://ship-it/planner-v1.html"
+const pluginURI = "ui://shop-it/planner-v1.html"
 const pluginMIME = "text/html;profile=mcp-app"
 
 type pluginPreferences struct {
@@ -82,9 +82,9 @@ func (s *Server) snapshot(ctx context.Context, planID string) (pluginSnapshot, e
 	if root := s.config.PluginDir(); root != "" {
 		marketplace := plugin.MarketplacePath(root)
 		if _, err := os.Stat(marketplace); err == nil {
-			out.PluginPath = filepath.Join(root, "ship-it")
-			out.InstallURL = "codex://plugins/ship-it?marketplacePath=" + queryEscape(marketplace)
-			prompt := "[@Ship It](plugin://ship-it@ship-it-local) " + prefs.Draft
+			out.PluginPath = filepath.Join(root, "shop-it")
+			out.InstallURL = "codex://plugins/shop-it?marketplacePath=" + queryEscape(marketplace)
+			prompt := "[@Shop It](plugin://shop-it@shop-it-local) " + prefs.Draft
 			out.ChatURL = "codex://new?path=" + queryEscape(root) + "&prompt=" + queryEscape(prompt)
 		}
 	}
@@ -178,7 +178,7 @@ func (s *Server) pluginBaskets(ids []string) ([]shopping.Basket, map[string]shop
 		baskets = append(baskets, shopping.Basket{RetailerID: id, Context: storeContext})
 	}
 	if len(baskets) == 0 {
-		return nil, nil, errors.New("Choose and connect at least one store in Ship It.")
+		return nil, nil, errors.New("Choose and connect at least one store in Shop It.")
 	}
 	return baskets, catalogs, nil
 }
@@ -346,8 +346,8 @@ func (s *Server) registerPlugin(mux *http.ServeMux) error {
 }
 
 func (s *Server) mcpServer() *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "ship-it", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: "Use open_ship_it first to resume setup or the current shopping plan. The user and ChatGPT edit the same plan. Create plans from structured ingredients; no external AI key is required. Candidate prices and quantities are calculated by Ship It. Select only matching candidates from returned IDs, respect dietary requirements, and explain unresolved items. Filling a basket changes the retailer cart; do it only when the user requests it. Checkout stays at the retailer."})
-	server.AddResource(&mcp.Resource{URI: pluginURI, Name: "Ship It", MIMEType: pluginMIME}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: "Use open_shop_it first to resume setup or the current shopping plan. The user and ChatGPT edit the same plan. Create plans from structured ingredients; no external AI key is required. Candidate prices and quantities are calculated by Shop It. Select only matching candidates from returned IDs, respect dietary requirements, and explain unresolved items. Filling a basket changes the retailer cart; do it only when the user requests it. Checkout stays at the retailer."})
+	server.AddResource(&mcp.Resource{URI: pluginURI, Name: "Shop It", MIMEType: pluginMIME}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{URI: pluginURI, MIMEType: pluginMIME, Text: s.pluginHTML(false), Meta: map[string]any{"ui": map[string]any{"prefersBorder": false}}}}}, nil
 	})
 	for _, definition := range pluginTools() {
@@ -365,15 +365,15 @@ func (s *Server) mcpServer() *mcp.Server {
 
 func pluginSummary(s pluginSnapshot) string {
 	if s.Transfer != nil {
-		return "Basket transfer: " + s.Transfer.State + ". Review the result in Ship It."
+		return "Basket transfer: " + s.Transfer.State + ". Review the result in Shop It."
 	}
 	if s.Plan != nil {
 		return fmt.Sprintf("Plan %s, revision %d. %d ingredients. Choose matching products from the returned candidates; read the latest revision before editing.", s.Plan.ID, s.Plan.Revision, len(s.Plan.Lines))
 	}
 	if !s.BrowserOnline && !s.Demo {
-		return "Open Ship It setup to connect the browser extension, then choose a store. The shopping request is saved."
+		return "Open Shop It setup to connect the browser extension, then choose a store. The shopping request is saved."
 	}
-	return "Ship It is open. Choose and check a store to start shopping."
+	return "Shop It is open. Choose and check a store to start shopping."
 }
 
 func schema(properties map[string]any, required ...string) map[string]any {
@@ -390,8 +390,8 @@ func pluginTools() []*mcp.Tool {
 	boolean := field("boolean")
 	id := map[string]any{"plan_id": str, "revision": integer}
 	tools := []*mcp.Tool{
-		{Name: "open_ship_it", Title: "Open Ship It", Description: "Open the shared grocery planner, resume onboarding, or read the current plan and revision. Returns real browser and store connection status.", InputSchema: schema(map[string]any{"plan_id": str})},
-		{Name: "configure_ship_it", Title: "Choose stores", Description: "Save the user's chosen stores and shopping request during setup. Does not connect stores or change retailer baskets.", InputSchema: schema(map[string]any{"retailer_ids": map[string]any{"type": "array", "items": str}, "draft": str})},
+		{Name: "open_shop_it", Title: "Open Shop It", Description: "Open the shared grocery planner, resume onboarding, or read the current plan and revision. Returns real browser and store connection status.", InputSchema: schema(map[string]any{"plan_id": str})},
+		{Name: "configure_shop_it", Title: "Choose stores", Description: "Save the user's chosen stores and shopping request during setup. Does not connect stores or change retailer baskets.", InputSchema: schema(map[string]any{"retailer_ids": map[string]any{"type": "array", "items": str}, "draft": str})},
 		{Name: "connect_store", Title: "Check store connection", Description: "Open a selected store in the paired browser and check its current store or delivery context. User may need to sign in or choose a store there, then retry. Never invent a successful connection.", InputSchema: schema(map[string]any{"retailer_id": str}, "retailer_id")},
 		{Name: "create_shopping_plan", Title: "Compare groceries", Description: "Create a comparison from concrete ingredients using connected store sessions. ChatGPT supplies ingredients and chooses matching products from returned candidates. No backend AI calls. Required traits belong only on ingredients the user constrained. Prices exclude delivery.", InputSchema: schema(map[string]any{"text": str, "items": map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": schema(map[string]any{"label": str, "query": str, "amount": schema(map[string]any{"quantity": integer, "unit": map[string]any{"type": "string", "enum": []string{"g", "ml", "each", "pack"}}}, "quantity", "unit"), "required_traits": map[string]any{"type": "array", "items": str}}, "label", "query", "amount", "required_traits")}, "budget_minor": integer, "retailer_ids": map[string]any{"type": "array", "items": str}}, "text", "items")},
 		{Name: "select_store", Title: "Choose comparison", Description: "Choose a store in an existing shopping comparison. Requires its current revision.", InputSchema: schema(map[string]any{"plan_id": str, "revision": integer, "retailer_id": str}, "plan_id", "revision", "retailer_id")},
@@ -401,7 +401,7 @@ func pluginTools() []*mcp.Tool {
 		{Name: "fill_basket", Title: "Fill retailer basket", Description: "Change the user's retailer basket to add the reviewed plan. Only call when the user requests filling it. Unresolved lines must first be selected or explicitly skipped. Requires current revision and a stable request_id for retry safety. Never checks out or pays.", InputSchema: schema(map[string]any{"plan_id": str, "revision": integer, "request_id": str, "acknowledge_warnings": boolean, "allow_over_budget": boolean}, "plan_id", "revision", "request_id")},
 	}
 	for _, t := range tools {
-		read := t.Name == "open_ship_it"
+		read := t.Name == "open_shop_it"
 		world := t.Name == "connect_store" || t.Name == "create_shopping_plan" || t.Name == "refresh_plan" || t.Name == "fill_basket" || t.Name == "update_plan_line"
 		destructive := t.Name == "fill_basket"
 		t.Annotations = &mcp.ToolAnnotations{ReadOnlyHint: read, DestructiveHint: &destructive, OpenWorldHint: &world, IdempotentHint: read || t.Name == "fill_basket"}
@@ -448,8 +448,8 @@ func (s *Server) callPluginTool(ctx context.Context, name string, raw json.RawMe
 	}
 	var err error
 	switch name {
-	case "open_ship_it":
-	case "configure_ship_it":
+	case "open_shop_it":
+	case "configure_shop_it":
 		err = s.configurePlugin(args.RetailerIDs, args.Draft)
 	case "connect_store":
 		_, err = s.connectStore(ctx, args.RetailerID)
@@ -483,7 +483,7 @@ func (s *Server) callPluginTool(ctx context.Context, name string, raw json.RawMe
 				if err == nil {
 					clientID = session.ClientID
 					if session.Status != "ready" {
-						err = errors.New("Choose delivery or pickup at the store, then reconnect in Ship It.")
+						err = errors.New("Choose delivery or pickup at the store, then reconnect in Shop It.")
 					} else if !sameStore(session.Context, basket.Context) {
 						err = errors.New("The store or delivery settings changed. Refresh prices before filling the basket.")
 					}

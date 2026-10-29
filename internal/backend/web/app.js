@@ -297,18 +297,18 @@ function updateConnection() {
 }
 function updateExtension() {
   $('extension-setup').hidden = planRetailer()?.mode !== 'browser' || browserExtension.connected;
-  $('extension-status').textContent = browserExtension.error || 'The Ship It extension is not running in this browser. Install it, or reload it if it is already installed, then reload this page.';
+  $('extension-status').textContent = browserExtension.error || 'The Shop It extension is not running in this browser. Install it, or reload it if it is already installed, then reload this page.';
   $('extension-install').hidden = browserExtension.ready;
   buttons();
 }
 $('reconnect').addEventListener('click', () => action(connect));
-document.addEventListener('ship-it-extension-ready', (event) => {
+document.addEventListener('shop-it-extension-ready', (event) => {
   let detail = {};
   try { detail = JSON.parse(event.detail || '{}'); } catch {}
   browserExtension = {ready: true, connected: detail.connected === true, clientID: detail.client_id || '', error: detail.error || ''};
   updateExtension();
 });
-document.dispatchEvent(new CustomEvent('ship-it-extension-probe'));
+document.dispatchEvent(new CustomEvent('shop-it-extension-probe'));
 for (const button of document.querySelectorAll('[data-example]')) button.addEventListener('click', () => { $('text').value = examples[button.dataset.example]; $('text').focus(); });
 $('ack').addEventListener('change', buttons); $('over').addEventListener('change', buttons);
 
@@ -328,8 +328,8 @@ function showFill(transfer) {
   const retailer = retailers.find((r) => r.id === transfer.retailer_id);
   const simulated = retailer?.mode === 'mock', name = retailer?.name || 'the shop';
   const waiting = !simulated && transfer.state === 'pending' && Date.now() - Date.parse(transfer.created_at) > 10000;
-  const progress = {pending: simulated ? 'Filling your basket…' : waiting ? 'Waiting for the Ship It extension. If nothing happens, reload the extension and this page.' : `Opening ${name} in a new tab…`, claimed: `Filling your ${name} basket…`};
-  const problems = {expired: 'The Ship It extension did not pick this up. Make sure it is running, then fill the basket again.', partial: 'Some items were not added. They are at the top of the list.', login_required: `Sign in at ${name}, then fill the basket again.`, uncertain: `Some items may be missing from your ${name} basket. They are at the top of the list.`, failed: 'The basket could not be updated.'};
+  const progress = {pending: simulated ? 'Filling your basket…' : waiting ? 'Waiting for the Shop It extension. If nothing happens, reload the extension and this page.' : `Opening ${name} in a new tab…`, claimed: `Filling your ${name} basket…`};
+  const problems = {expired: 'The Shop It extension did not pick this up. Make sure it is running, then fill the basket again.', partial: 'Some items were not added. They are at the top of the list.', login_required: `Sign in at ${name}, then fill the basket again.`, uncertain: `Some items may be missing from your ${name} basket. They are at the top of the list.`, failed: 'The basket could not be updated.'};
   const text = progress[transfer.state] || problems[transfer.state] || (transfer.state === 'completed' ? '' : 'Checking your basket…');
   $('receipt').replaceChildren(...(text ? [el('p', `${simulated ? 'Demo: ' : ''}${text}`, problems[transfer.state] ? 'callout' : 'muted')] : []));
   $('filled').textContent = simulated ? '✓ Demo basket filled' : `✓ Basket filled at ${name}`;
@@ -352,11 +352,11 @@ $('new-list').addEventListener('click', newList);
 
 $('transfer').addEventListener('click', () => action(async () => {
   const clientID = planClient();
-  if (!clientID) throw new Error('The Ship It extension is not running in this browser.');
-  const scope = `ship-it-transfer:${plan.id}:${plan.revision}:${clientID}`;
+  if (!clientID) throw new Error('The Shop It extension is not running in this browser.');
+  const scope = `shop-it-transfer:${plan.id}:${plan.revision}:${clientID}`;
   let key = sessionStorage.getItem(scope); if (!key) { key = crypto.randomUUID(); sessionStorage.setItem(scope, key); }
   const result = await api(`/v1/shopping-plans/${plan.id}/transfer`, {revision: plan.revision, client_id: clientID, acknowledge_warnings: $('ack').checked, allow_over_budget: $('over').checked}, 'POST', key);
-  document.dispatchEvent(new CustomEvent('ship-it-fill'));
+  document.dispatchEvent(new CustomEvent('shop-it-fill'));
   const follow = (transfer) => {
     showFill(transfer);
     if (['pending', 'claimed'].includes(transfer.state)) poll = setTimeout(check, 1000);

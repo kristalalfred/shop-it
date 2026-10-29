@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Ship It",
+  "name": "Shop It",
   "version": "0.2.0",
-  "description": "Connect your store session to the local Ship It grocery planner.",
+  "description": "Connect your store session to the local Shop It grocery planner.",
   "permissions": [
     "storage",
     "alarms"
@@ -46,7 +46,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "ship-it@kristalalfred",
+      "id": "shop-it@kristalalfred",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": [

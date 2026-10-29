@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 var Storefronts = map[string]string{

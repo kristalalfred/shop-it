@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/shop-it/internal/shopping"
 )
 
 type Command struct {
@@ -87,7 +87,7 @@ func (h *Hub) Complete(clientID, id string, reply Reply) error {
 
 func (h *Hub) Do(ctx context.Context, clientID, retailerID, operation string, input any) (json.RawMessage, error) {
 	if !h.Online(clientID) {
-		return nil, errors.New("Open Ship It in your browser to reconnect the extension.")
+		return nil, errors.New("Open Shop It in your browser to reconnect the extension.")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 65*time.Second)
 	defer cancel()
@@ -136,5 +136,5 @@ func (h *Hub) Session(retailerID string) (Session, error) {
 			return s, nil
 		}
 	}
-	return Session{}, errors.New("Connect this store in Ship It before searching.")
+	return Session{}, errors.New("Connect this store in Shop It before searching.")
 }

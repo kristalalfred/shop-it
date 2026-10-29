@@ -1,7 +1,7 @@
 'use strict';
 
 (() => {
-  if (globalThis.ShipItOverlay) return;
+  if (globalThis.ShopItOverlay) return;
   const styles = `
     :host { all: initial; }
     .card { box-sizing: border-box; width: min(400px, calc(100vw - 32px)); margin: auto; padding: 24px; background: #fff; color: #171717; border: 2px solid #171717; border-radius: 0; box-shadow: 6px 6px 0 #171717; font: 15px/1.5 Arial, Helvetica, sans-serif; outline: none; }
@@ -31,13 +31,13 @@
   }
   function show(state) {
     if (!host) {
-      host = document.createElement('ship-it-overlay');
+      host = document.createElement('shop-it-overlay');
       const root = host.attachShadow({mode: 'closed'});
       element('style', '', root).textContent = styles;
       const card = element('dialog', 'card', root);
       card.setAttribute('aria-live', 'polite');
       card.addEventListener('cancel', (event) => event.preventDefault());
-      element('p', 'brand', card).textContent = 'ship it';
+      element('p', 'brand', card).textContent = 'shop it';
       parts = {card, title: element('p', 'title', card), detail: element('p', 'detail', card), fill: element('div', 'fill', element('div', 'bar', card)), count: element('p', 'count', card)};
       document.documentElement.append(host);
       card.showModal();
@@ -50,5 +50,5 @@
     clearTimeout(watchdog);
     watchdog = setTimeout(remove, 60000);
   }
-  globalThis.ShipItOverlay = {show, remove};
+  globalThis.ShopItOverlay = {show, remove};
 })();

@@ -1,20 +1,20 @@
-# Ship It
+# Shop It
 
-Ship It turns a meal idea or a grocery list into a basket at Swedish online grocery stores. It finds matching products at each store, compares basket totals, and adds the basket you choose to the store's cart in your own browser. You review the cart and check out at the store.
+Shop It turns a meal idea or a grocery list into a basket at Swedish online grocery stores. It finds matching products at each store, compares basket totals, and adds the basket you choose to the store's cart in your own browser. You review the cart and check out at the store.
 
 Supported stores: Mathem, Willys and Hemköp.
 
-Ship It runs on your computer. It has three parts:
+Shop It runs on your computer. It has three parts:
 
-- `ship-it`, a local service with a web app at `http://127.0.0.1:18080`.
+- `shop-it`, a local service with a web app at `http://127.0.0.1:24816`.
 - A browser extension that fills store carts in your signed-in browser session.
 - An optional ChatGPT plugin, installed through Codex, that plans groceries in a chat and shares the plan with the web app.
 
-Ship It is not affiliated with Mathem or Axfood. It uses the stores' website endpoints, which can change without notice.
+Shop It is not affiliated with Mathem or Axfood. It uses the stores' website endpoints, which can change without notice.
 
 ## Requirements
 
-- Go 1.26 or newer to build `ship-it`.
+- Go 1.26 or newer to build `shop-it`.
 - Chrome, Edge, Brave or another Chromium browser, or Firefox 142 or newer.
 - An account at each store you want to fill a cart at.
 - For meal planning from free text, one of:
@@ -26,8 +26,8 @@ Without either, the web app reads explicit grocery lists such as `2 litres milk,
 ## Install
 
 ```sh
-go install github.com/kristalalfred/ship-it/cmd/ship-it@latest
-ship-it
+go install github.com/kristalalfred/shop-it/cmd/shop-it@latest
+shop-it
 ```
 
 The first run creates a configuration file and prints the address it listens on. Open that address in your browser.
@@ -38,20 +38,20 @@ The web app shows the downloads while the extension is not connected. They are a
 
 | Browser | Download | Install |
 | --- | --- | --- |
-| Firefox, Zen | `http://127.0.0.1:18080/extension/firefox.zip` | Open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the downloaded file. Firefox removes temporary add-ons when it restarts. |
-| Chrome, Edge, Brave | `http://127.0.0.1:18080/extension/chromium.zip` | Unzip the download, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the folder. |
+| Firefox, Zen | `http://127.0.0.1:24816/extension/firefox.zip` | Open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the downloaded file. Firefox removes temporary add-ons when it restarts. |
+| Chrome, Edge, Brave | `http://127.0.0.1:24816/extension/chromium.zip` | Unzip the download, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the folder. |
 
 The extension pairs with the service the next time you open the web app.
 
 ### ChatGPT plugin
 
 ```sh
-ship-it -plugin
-codex plugin marketplace add "<plugin directory printed by ship-it>"
-codex plugin add ship-it@ship-it-local
+shop-it -plugin
+codex plugin marketplace add "<plugin directory printed by shop-it>"
+codex plugin add shop-it@shop-it-local
 ```
 
-`ship-it -plugin` writes a local plugin marketplace next to the configuration file. The plugin contains a copy of the `ship-it` binary. Run the three commands again after upgrading `ship-it`.
+`shop-it -plugin` writes a local plugin marketplace next to the configuration file. The plugin contains a copy of the `shop-it` binary. Run the three commands again after upgrading `shop-it`.
 
 The plugin starts the service if it is not running. Its log is `plugin.log` next to the configuration file.
 
@@ -71,13 +71,13 @@ The configuration file is created on first run:
 
 | Platform | Path |
 | --- | --- |
-| macOS | `~/Library/Application Support/ship-it/config.json` |
-| Linux | `$XDG_CONFIG_HOME/ship-it/config.json`, or `~/.config/ship-it/config.json` |
-| Windows | `%AppData%\ship-it\config.json` |
+| macOS | `~/Library/Application Support/shop-it/config.json` |
+| Linux | `$XDG_CONFIG_HOME/shop-it/config.json`, or `~/.config/shop-it/config.json` |
+| Windows | `%AppData%\shop-it\config.json` |
 
 | Key | Description |
 | --- | --- |
-| `listen` | Loopback address and port. Default `127.0.0.1:18080`. |
+| `listen` | Loopback address and port. Default `127.0.0.1:24816`. |
 | `api_token` | Token for the web app and plugin. Generated on first run. |
 | `clients` | Browser extension identities and tokens. Generated on first run. |
 | `retailers` | Stores to compare. Each entry has `id`, `name`, `mode` and `basket_url`. |
@@ -106,16 +106,16 @@ Command-line flags:
 | `-interpreter <mode>` | Override `interpreter.mode`. |
 | `-plugin` | Write the ChatGPT plugin and exit. |
 
-One service can use a data directory at a time. Ship It keeps the 30 most recently updated plans.
+One service can use a data directory at a time. Shop It keeps the 30 most recently updated plans.
 
 ## Privacy
 
 - The service accepts connections only on the loopback interface, and every API request needs a token from the configuration file.
-- Store sign-in stays in your browser. Ship It does not read or store store passwords.
+- Store sign-in stays in your browser. Shop It does not read or store store passwords.
 - In the web app, the service searches each store's public catalog. Prices can differ from your chosen store until you open the cart.
 - With the ChatGPT plugin, searches run in your browser through the extension, using the store and delivery settings you chose at the store.
 - Your shopping request and product names are sent to the interpreter you configure: Codex or OpenAI. The `builtin` interpreter sends nothing.
-- Ship It never checks out or pays.
+- Shop It never checks out or pays.
 
 ## Development
 
@@ -128,7 +128,7 @@ The [`justfile`](justfile) has the common tasks:
 | `just test [case]` | Run all tests, or one test harness case by name. |
 | `just run` | Run the service with your configuration. |
 | `just run demo` | Run with simulated stores from `config/dev.json`. |
-| `just install` | Install `ship-it` with `go install` and write the ChatGPT plugin. |
+| `just install` | Install `shop-it` with `go install` and write the ChatGPT plugin. |
 
 `just check` needs Node.js and [Hurl](https://hurl.dev).
 
