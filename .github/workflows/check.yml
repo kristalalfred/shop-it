@@ -13,13 +13,16 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - name: Install Hurl
         env:
           HURL_VERSION: 8.0.1
@@ -30,6 +33,7 @@ jobs:
       - run: test -z "$(gofmt -l cmd internal tests extension plugin)"
       - run: hurlfmt --check tests/api/*.hurl
       - run: go vet ./...
+      - run: GOOS=windows go vet ./...
       - run: for script in internal/backend/web/app.js internal/backend/plugin/app.js extension/assets/*.js; do node --check "$script"; done
       - run: go build -o bin/ ./cmd/...
       - run: ./bin/ship-it -extension-dir bin/extension
