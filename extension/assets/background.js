@@ -31,13 +31,22 @@ async function openShop(input) {
   throw new Error(`${name} did not finish loading. Try again.`);
 }
 
+async function shopTab(retailerID, origin) {
+  for (const tab of await extension.tabs.query({url: `${origin}/*`})) {
+    try {
+      await storeCall(tab.id, retailerID, 'ready');
+      return tab.id;
+    } catch {}
+  }
+  return openShop({retailer_id: retailerID, basket_url: origin});
+}
+
 async function runCommand(settings, command) {
   let reply;
   try {
     const origin = ShopItAdapters.origins[command.retailer_id];
     if (!origin || !['session', 'search'].includes(command.operation)) throw new Error('Unsupported store operation.');
-    const tabs = await extension.tabs.query({url: `${origin}/*`});
-    const tabID = tabs[0]?.id ?? await openShop({retailer_id: command.retailer_id, basket_url: origin});
+    const tabID = await shopTab(command.retailer_id, origin);
     if (command.operation === 'session') await extension.tabs.update(tabID, {active: true});
     const result = await storeCall(tabID, command.retailer_id, command.operation, {input: command.input});
     reply = {result};
