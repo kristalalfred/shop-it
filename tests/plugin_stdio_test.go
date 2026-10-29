@@ -29,12 +29,25 @@ func TestBuiltPluginPackageConnectsOverStdio(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	packageDir := filepath.Join(dir, "plugin")
-	build := exec.Command(binary, "-config", path, "-plugin-dir", packageDir)
+	build := exec.Command(binary, "-config", path, "-plugin")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("package: %v %s", err, output)
 	}
-	archive, err := zip.OpenReader(packageDir + ".zip")
+	var marketplace struct {
+		Name    string `json:"name"`
+		Plugins []struct {
+			Name   string `json:"name"`
+			Source struct {
+				Path string `json:"path"`
+			} `json:"source"`
+		} `json:"plugins"`
+	}
+	raw, err = os.ReadFile(filepath.Join(dir, "plugin", ".agents", "plugins", "marketplace.json"))
+	if err != nil || json.Unmarshal(raw, &marketplace) != nil || marketplace.Name != "ship-it-local" || len(marketplace.Plugins) != 1 {
+		t.Fatalf("marketplace: %v %s", err, raw)
+	}
+	packageDir := filepath.Join(dir, "plugin", filepath.FromSlash(marketplace.Plugins[0].Source.Path))
+	archive, err := zip.OpenReader(filepath.Join(dir, "plugin", "ship-it.zip"))
 	if err != nil {
 		t.Fatal(err)
 	}

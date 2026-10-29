@@ -8,7 +8,15 @@ import (
 	"path/filepath"
 )
 
-func InitLocal(path string) error {
+func DefaultConfigPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "ship-it", "config.json"), nil
+}
+
+func EnsureConfig(path string) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -16,7 +24,7 @@ func InitLocal(path string) error {
 	}
 	config := Config{
 		Listen: "127.0.0.1:18080", APIToken: rand.Text(), AdapterTimeoutMS: 25000,
-		DataDir: filepath.Join(filepath.Dir(path), "live"), Interpreter: InterpreterConfig{Mode: "codex"},
+		DataDir: "data", Interpreter: InterpreterConfig{Mode: "auto"},
 		Retailers: []RetailerConfig{
 			{ID: "mathem", Name: "Mathem", Mode: "browser", BasketURL: BasketURLs["mathem"]},
 			{ID: "willys", Name: "Willys", Mode: "browser", BasketURL: BasketURLs["willys"]},

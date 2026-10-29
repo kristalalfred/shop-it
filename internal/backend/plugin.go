@@ -19,6 +19,7 @@ import (
 	"github.com/kristalalfred/ship-it/internal/persistence"
 	"github.com/kristalalfred/ship-it/internal/retailer"
 	"github.com/kristalalfred/ship-it/internal/shopping"
+	"github.com/kristalalfred/ship-it/plugin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -78,13 +79,13 @@ func (s *Server) snapshot(ctx context.Context, planID string) (pluginSnapshot, e
 	for _, c := range s.config.Clients {
 		out.BrowserOnline = out.BrowserOnline || s.browser.Online(c.ID)
 	}
-	if cwd, err := os.Getwd(); err == nil {
-		marketplace := filepath.Join(cwd, ".agents", "plugins", "marketplace.json")
+	if root := s.config.PluginDir(); root != "" {
+		marketplace := plugin.MarketplacePath(root)
 		if _, err := os.Stat(marketplace); err == nil {
-			out.PluginPath = filepath.Join(cwd, "bin", "ship-it-plugin")
-			out.InstallURL = "codex://plugins/ship-it?marketplacePath=" + url.QueryEscape(marketplace)
+			out.PluginPath = filepath.Join(root, "ship-it")
+			out.InstallURL = "codex://plugins/ship-it?marketplacePath=" + queryEscape(marketplace)
 			prompt := "[@Ship It](plugin://ship-it@ship-it-local) " + prefs.Draft
-			out.ChatURL = "codex://new?path=" + url.QueryEscape(cwd) + "&prompt=" + url.QueryEscape(prompt)
+			out.ChatURL = "codex://new?path=" + queryEscape(root) + "&prompt=" + queryEscape(prompt)
 		}
 	}
 	sessions := s.browser.Sessions()
@@ -106,10 +107,11 @@ func (s *Server) snapshot(ctx context.Context, planID string) (pluginSnapshot, e
 	}
 	if planID != "" {
 		plan, err := s.plans.Get(ctx, planID)
-		if err != nil {
+		if err == nil {
+			out.Plan = &plan
+		} else if planID != prefs.PlanID || !errors.Is(err, shopping.ErrNotFound) {
 			return out, err
 		}
-		out.Plan = &plan
 	}
 	if prefs.TransferID != "" && planID == prefs.PlanID {
 		transfer, err := s.transfers.Get(ctx, prefs.TransferID)
@@ -120,6 +122,10 @@ func (s *Server) snapshot(ctx context.Context, planID string) (pluginSnapshot, e
 		}
 	}
 	return out, nil
+}
+
+func queryEscape(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }
 
 func (s *Server) configurePlugin(retailerIDs []string, draft *string) error {

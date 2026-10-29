@@ -47,13 +47,14 @@ func New(config Config, transfers shopping.TransferStore) (http.Handler, error) 
 		return nil, err
 	}
 	s.interpreter, s.interpreterMode = interpret.Builtin{}, "builtin"
-	if config.Interpreter.Mode == "codex" {
+	if config.Interpreter.Mode == "codex" || config.Interpreter.Mode == "auto" {
 		provider, err := interpret.NewCodex(config.Interpreter.Model)
-		if err != nil {
+		if err == nil {
+			s.interpreter, s.productMatcher = provider, provider
+			s.interpreterMode = "codex"
+		} else if config.Interpreter.Mode == "codex" {
 			return nil, err
 		}
-		s.interpreter, s.productMatcher = provider, provider
-		s.interpreterMode = "codex"
 	}
 	if config.Interpreter.Mode == "openai" {
 		key := os.Getenv("OPENAI_API_KEY")

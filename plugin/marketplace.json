@@ -4,7 +4,7 @@
   "plugins": [
     {
       "name": "ship-it",
-      "source": {"source": "local", "path": "./bin/ship-it-plugin"},
+      "source": {"source": "local", "path": "./ship-it"},
       "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
       "category": "Productivity"
     }

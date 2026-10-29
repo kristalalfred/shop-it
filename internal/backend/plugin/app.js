@@ -128,7 +128,7 @@
       const steps = node('ol'), download = node('li'); download.append(link('Download browser extension ↓', `/extension/${browser}.zip`, 'button small')); steps.append(download);
       const extensions = node('li', 'Open your browser’s extension manager.');
       const address = node('input', null, 'copyfield'); address.readOnly = true; address.value = browser === 'firefox' ? 'about:debugging#/runtime/this-firefox' : 'chrome://extensions'; address.setAttribute('aria-label', 'Extension manager address'); address.addEventListener('click', () => address.select()); extensions.append(address); steps.append(extensions);
-      const load = node('li', browser === 'firefox' ? 'Choose Load Temporary Add-on, then select manifest.json in the extracted folder.' : 'Extract the download, enable Developer mode, then choose Load unpacked and select the folder.'); steps.append(load); box.append(steps);
+      const load = node('li', browser === 'firefox' ? 'Choose Load Temporary Add-on, then select the downloaded file.' : 'Extract the download, enable Developer mode, then choose Load unpacked and select the folder.'); steps.append(load); box.append(steps);
       box.append(button('Check connection', () => action('Connecting browser', async () => { document.dispatchEvent(new CustomEvent('ship-it-extension-probe')); accept(await call('open_ship_it')); if (!state.browser_online) throw new Error('Load the extension, then reload this page to connect.'); }), 'primary'));
     }
     parent.append(box);

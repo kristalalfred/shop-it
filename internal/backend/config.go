@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/kristalalfred/ship-it/internal/shopping"
@@ -44,6 +46,7 @@ type Config struct {
 	Clients          []ClientConfig    `json:"clients"`
 	DataDir          string            `json:"data_dir,omitempty"`
 	Interpreter      InterpreterConfig `json:"interpreter,omitempty"`
+	path             string
 }
 
 type InterpreterConfig struct {
@@ -52,6 +55,10 @@ type InterpreterConfig struct {
 }
 
 func LoadConfig(path string) (Config, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return Config{}, err
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return Config{}, err
@@ -66,7 +73,18 @@ func LoadConfig(path string) (Config, error) {
 	if err := d.Decode(new(any)); err != io.EOF {
 		return Config{}, fmt.Errorf("configuration must contain one JSON object")
 	}
+	config.path = path
+	if config.DataDir != "" && !filepath.IsAbs(config.DataDir) {
+		config.DataDir = filepath.Join(filepath.Dir(path), config.DataDir)
+	}
 	return config, config.Validate()
+}
+
+func (c Config) PluginDir() string {
+	if c.path == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(c.path), "plugin")
 }
 
 func (c Config) Validate() error {
@@ -80,8 +98,8 @@ func (c Config) Validate() error {
 	if len(c.Retailers) == 0 || len(c.Clients) == 0 {
 		return fmt.Errorf("at least one retailer and client are required")
 	}
-	if c.Interpreter.Mode != "" && c.Interpreter.Mode != "builtin" && c.Interpreter.Mode != "openai" && c.Interpreter.Mode != "codex" {
-		return fmt.Errorf("interpreter mode must be builtin, openai or codex")
+	if !slices.Contains([]string{"", "auto", "builtin", "openai", "codex"}, c.Interpreter.Mode) {
+		return fmt.Errorf("interpreter mode must be auto, builtin, openai or codex")
 	}
 	if c.Interpreter.Mode == "openai" && strings.TrimSpace(c.Interpreter.Model) == "" {
 		return fmt.Errorf("openai interpreter requires a model")

@@ -82,7 +82,7 @@ func ensureService(ctx context.Context, client *http.Client, endpoint, address, 
 		return err
 	}
 	defer log.Close()
-	command := exec.Command(exe, "-config", path, "-listen", address, "-interpreter", "builtin")
+	command := exec.Command(exe, "-config", path, "-listen", address)
 	command.Stdout, command.Stderr = log, log
 	if err := command.Start(); err != nil {
 		return err

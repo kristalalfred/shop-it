@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,27 +19,25 @@ import (
 )
 
 func main() {
-	workdir := flag.String("C", "", "change to this directory before doing anything else")
-	path := flag.String("config", ".data/local.json", "service configuration file")
+	defaultConfig, err := backend.DefaultConfigPath()
+	if err != nil {
+		log.Fatal(err)
+	}
+	path := flag.String("config", defaultConfig, "service configuration file, created on first run")
 	extensionDir := flag.String("extension-dir", "", "write Chromium and Firefox extension bundles and exit")
 	stdio := flag.Bool("mcp", false, "connect ChatGPT to the local service over MCP stdio")
-	pluginDir := flag.String("plugin-dir", "", "write an installable desktop plugin package and exit")
-	interpreter := flag.String("interpreter", "", "override the text interpreter: builtin, codex or openai")
+	writePlugin := flag.Bool("plugin", false, "write the ChatGPT plugin next to the configuration and exit")
+	interpreter := flag.String("interpreter", "", "override the text interpreter: auto, builtin, codex or openai")
 	listen := flag.String("listen", "", "override the local listen address")
 	flag.Parse()
-	if *workdir != "" {
-		if err := os.Chdir(*workdir); err != nil {
-			log.Fatal(err)
-		}
-	}
 	if *extensionDir != "" {
 		if err := extension.Build(*extensionDir); err != nil {
 			log.Fatal(err)
 		}
 		return
 	}
-	if *path == ".data/local.json" {
-		if err := backend.InitLocal(*path); err != nil {
+	if *path == defaultConfig {
+		if err := backend.EnsureConfig(*path); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -55,13 +54,11 @@ func main() {
 	if err := config.Validate(); err != nil {
 		log.Fatal(err)
 	}
-	if *pluginDir != "" {
-		if err := plugin.Build(*pluginDir, *path, config.Listen); err != nil {
+	if *writePlugin {
+		if err := plugin.Build(config.PluginDir(), *path); err != nil {
 			log.Fatal(err)
 		}
-		if err := plugin.Archive(*pluginDir, *pluginDir+".zip"); err != nil {
-			log.Fatal(err)
-		}
+		fmt.Printf("ChatGPT plugin written to %s\nInstall it with:\n  codex plugin marketplace add %q\n  codex plugin add ship-it@ship-it-local\n", config.PluginDir(), config.PluginDir())
 		return
 	}
 	if *stdio {

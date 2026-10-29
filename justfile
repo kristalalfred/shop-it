@@ -22,15 +22,13 @@ check: build
     hurlfmt --check tests/api/*.hurl
     ./bin/test-harness
 
-run mode="backend" config="": build
-    #!/usr/bin/env bash
-    set -euo pipefail
-    SHIP_IT_CONFIG={{quote(config)}}
-    case {{quote(mode)}} in
-      demo) exec ./bin/test-harness -mode demo -config "${SHIP_IT_CONFIG:-config/dev.json}" ;;
-      backend) exec ./bin/ship-it -config "${SHIP_IT_CONFIG:-.data/local.json}" ;;
-      *) exit 2 ;;
+run mode="app": build
+    case {{quote(mode)}} in \
+      app) exec ./bin/ship-it ;; \
+      demo) exec ./bin/test-harness -mode demo ;; \
+      *) echo "mode must be app or demo" >&2; exit 2 ;; \
     esac
 
-plugin config=".data/local.json" listen="127.0.0.1:18081": build
-    ./bin/ship-it -config {{quote(config)}} -listen {{quote(listen)}} -plugin-dir bin/ship-it-plugin
+install:
+    go install ./cmd/ship-it
+    bin="$(go env GOBIN)"; "${bin:-$(go env GOPATH)/bin}/ship-it" -plugin
