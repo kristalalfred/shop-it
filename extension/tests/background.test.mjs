@@ -8,14 +8,16 @@ import {api, applyTransfer, localURL} from '../assets/runner.js';
 const source = (await readFile(new URL('../assets/background.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
 const settings = {url: 'http://127.0.0.1:24816', token: 'client-token', client_id: 'browser'};
 
-function load(store, tabs) {
+function load(store, tabs = {}) {
+  let listener;
   const extension = {
-    runtime: {id: 'shop-it', getURL: () => 'moz-extension://shop-it/', onMessage: {addListener() {}}},
+    runtime: {id: 'shop-it', getURL: () => 'moz-extension://shop-it/', onMessage: {addListener: (callback) => { listener = callback; }}},
     storage: {local: {get: async (key) => ({[key]: store[key]}), set: async (values) => { Object.assign(store, values); }, remove: async (key) => { delete store[key]; }}},
     alarms: {create() {}, onAlarm: {addListener() {}}},
     tabs,
   };
   runInContext(source, createContext({browser: extension, ShopItAdapters, api, applyTransfer, localURL, URL, setTimeout, setInterval() {}}));
+  return listener;
 }
 
 async function until(condition) {
@@ -57,4 +59,22 @@ test('concurrent commands for a shop without an open tab share one new tab', asy
   await until(() => results.length === 6);
   assert.equal(tabs.length, 1);
   assert.deepEqual(results, Array(6).fill({result: {products: []}}));
+});
+
+test('pairing from the Shop It page replaces a stale client token', async () => {
+  const store = {settings: {...settings, token: 'stale-token'}};
+  globalThis.fetch = async (url, options) => {
+    const {pathname} = new URL(url);
+    if (pathname === '/v1/clients') return Response.json({clients: [{id: 'browser'}]});
+    if (pathname === '/v1/clients/browser/pair') return Response.json({id: 'browser', token: 'fresh-token'});
+    if (options.headers.Authorization !== 'Bearer fresh-token') return Response.json({error: 'unauthorized'}, {status: 401});
+    if (pathname === '/v1/client/commands') return Response.json({commands: []});
+    return new Response(null, {status: 204});
+  };
+  const listener = load(store);
+  const sender = {id: 'shop-it', tab: {id: 1}, url: 'http://127.0.0.1:24816/'};
+  const reply = await new Promise((resolve) => listener({type: 'pair', url: 'http://127.0.0.1:24816', token: 'user-token'}, sender, resolve));
+  assert.deepEqual(JSON.parse(JSON.stringify(reply)), {client_id: 'browser'});
+  assert.equal(store.settings.token, 'fresh-token');
+  delete store.settings;
 });
