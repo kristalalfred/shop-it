@@ -124,7 +124,7 @@ The [`justfile`](justfile) has the common tasks:
 | `just run` | Run the service with your configuration. |
 | `just run demo` | Run with simulated stores from `config/dev.json`. |
 | `just install` | Install `shop-it` with `go install` and write the ChatGPT plugin. |
-| `just publish-firefox` | Submit the Firefox extension to addons.mozilla.org. Reads `AMO_API_KEY` and `AMO_API_SECRET` from `.data/.env`. |
+| `just publish-firefox` | Submit the Firefox extension to addons.mozilla.org. Reads `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` from `.data/.env`. |
 
 `just check` needs Node.js and [Hurl](https://hurl.dev).
 
