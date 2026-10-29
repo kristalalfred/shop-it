@@ -263,7 +263,7 @@ async function history() {
   $('history').replaceChildren();
   if (!result.plans.length) $('history').textContent = 'No saved lists.';
   for (const saved of result.plans.slice(0, 8)) {
-    const button = el('button', `${saved.text.slice(0, 55)}${saved.text.length > 55 ? '…' : ''} · ${shopName(saved.retailer_id)} ${money(chosenBasket(saved).total)}`); button.type = 'button';
+    const button = el('button', `${saved.text.slice(0, 55)}${saved.text.length > 55 ? '…' : ''} · ${shopName(saved.retailer_id)} ${money(saved.total)}`); button.type = 'button';
     button.addEventListener('click', () => action(async () => {
       showPlan(await api(`/v1/shopping-plans/${saved.id}`, undefined, 'GET'));
       $('saved-lists').open = false;

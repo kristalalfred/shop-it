@@ -103,3 +103,39 @@ func TestRequirementMissesBecomeAlternativesOnUpgrade(t *testing.T) {
 		t.Fatalf("basket: %+v", basket)
 	}
 }
+
+func TestOnlyRecentPlansAreKept(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "plans.json")
+	store, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	first, err := store.Create(ctx, shopping.Plan{PlanRequest: shopping.PlanRequest{Text: "first"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range savedPlans - 1 {
+		if _, err := store.Create(ctx, shopping.Plan{PlanRequest: shopping.PlanRequest{Text: strconv.Itoa(i)}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.Update(ctx, first.ID, first.Revision, func(*shopping.Plan) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	latest, err := store.Create(ctx, shopping.Plan{PlanRequest: shopping.PlanRequest{Text: "latest"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summaries, err := reopened.List(ctx)
+	if err != nil || len(summaries) != savedPlans || summaries[0].ID != latest.ID || summaries[1].ID != first.ID {
+		t.Fatalf("summaries: %+v, %v", summaries, err)
+	}
+	if slices.ContainsFunc(summaries, func(s shopping.PlanSummary) bool { return s.Text == "0" }) {
+		t.Fatal("the least recently updated plan was kept")
+	}
+}

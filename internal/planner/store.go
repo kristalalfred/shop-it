@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/kristalalfred/ship-it/internal/persistence"
 	"github.com/kristalalfred/ship-it/internal/shopping"
 )
+
+const savedPlans = 30
 
 type Store struct {
 	state *persistence.Store[map[string]shopping.Plan]
@@ -51,6 +54,9 @@ func (s *Store) Create(ctx context.Context, plan shopping.Plan) (shopping.Plan, 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		for _, old := range newestFirst(*data)[min(len(*data), savedPlans-1):] {
+			delete(*data, old.ID)
+		}
 		(*data)[plan.ID] = plan
 		return nil
 	})
@@ -75,7 +81,7 @@ func (s *Store) Get(ctx context.Context, id string) (shopping.Plan, error) {
 	return plan, nil
 }
 
-func (s *Store) List(ctx context.Context) ([]shopping.Plan, error) {
+func (s *Store) List(ctx context.Context) ([]shopping.PlanSummary, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -83,20 +89,27 @@ func (s *Store) List(ctx context.Context) ([]shopping.Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	plans := make([]shopping.Plan, 0, len(data))
-	for _, plan := range data {
-		plans = append(plans, plan)
+	plans := newestFirst(data)
+	summaries := make([]shopping.PlanSummary, len(plans))
+	for i, plan := range plans {
+		basket, _ := Chosen(plan)
+		summaries[i] = shopping.PlanSummary{ID: plan.ID, Text: plan.Text, RetailerID: plan.RetailerID, Total: basket.Total, UpdatedAt: plan.UpdatedAt}
 	}
+	return summaries, nil
+}
+
+func newestFirst(data map[string]shopping.Plan) []shopping.Plan {
+	plans := slices.Collect(maps.Values(data))
 	slices.SortFunc(plans, func(a, b shopping.Plan) int {
 		if n := b.UpdatedAt.Compare(a.UpdatedAt); n != 0 {
 			return n
 		}
-		return b.CreatedAt.Compare(a.CreatedAt)
+		if n := b.CreatedAt.Compare(a.CreatedAt); n != 0 {
+			return n
+		}
+		return strings.Compare(a.ID, b.ID)
 	})
-	if len(plans) > 100 {
-		plans = plans[:100]
-	}
-	return plans, nil
+	return plans
 }
 
 func (s *Store) Update(ctx context.Context, id string, revision int, change func(*shopping.Plan) error) (shopping.Plan, error) {

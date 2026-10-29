@@ -168,7 +168,7 @@ test('each shop basket is a card and choosing one switches the list, total and f
   await settle();
   assert.equal(ui.requests.some((request) => request.method === 'PATCH'), false);
   ui.responses['/v1/shopping-plans/plan'] = {...shoppingPlan('willys'), revision: 2};
-  ui.responses['/v1/shopping-plans'] = {plans: [{...shoppingPlan('willys'), text: 'Risotto'}]};
+  ui.responses['/v1/shopping-plans'] = {plans: [{id: 'plan', text: 'Risotto', retailer_id: 'willys', total: {amount_minor: 2900, currency: 'SEK'}}]};
   cards()[1].listeners.click();
   await settle();
   const choice = ui.requests.find((request) => request.path === '/v1/shopping-plans/plan');

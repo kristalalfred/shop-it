@@ -98,6 +98,14 @@ type Basket struct {
 	Missing    int          `json:"missing"`
 }
 
+type PlanSummary struct {
+	ID         string    `json:"id"`
+	Text       string    `json:"text"`
+	RetailerID string    `json:"retailer_id"`
+	Total      Money     `json:"total"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type Plan struct {
 	ID       string `json:"id"`
 	Revision int    `json:"revision"`
