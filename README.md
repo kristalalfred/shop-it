@@ -110,12 +110,7 @@ One service can use a data directory at a time. Shop It keeps the 30 most recent
 
 ## Privacy
 
-- The service accepts connections only on the loopback interface, and every API request needs a token from the configuration file.
-- Store sign-in stays in your browser. Shop It does not read or store store passwords.
-- In the web app, the service searches each store's public catalog. Prices can differ from your chosen store until you open the cart.
-- With the ChatGPT plugin, searches run in your browser through the extension, using the store and delivery settings you chose at the store.
-- Your shopping request and product names are sent to the interpreter you configure: Codex or OpenAI. The `builtin` interpreter sends nothing.
-- Shop It never checks out or pays.
+Shop It sends no data to the developer. See [PRIVACY.md](PRIVACY.md) for what the app and extension read, store and send.
 
 ## Development
 
@@ -129,6 +124,7 @@ The [`justfile`](justfile) has the common tasks:
 | `just run` | Run the service with your configuration. |
 | `just run demo` | Run with simulated stores from `config/dev.json`. |
 | `just install` | Install `shop-it` with `go install` and write the ChatGPT plugin. |
+| `just publish-firefox` | Submit the Firefox extension to addons.mozilla.org. Reads `AMO_API_KEY` and `AMO_API_SECRET` from `.data/.env`. |
 
 `just check` needs Node.js and [Hurl](https://hurl.dev).
 

@@ -32,3 +32,6 @@ run mode="app": build
 install:
     go install ./cmd/shop-it
     bin="$(go env GOBIN)"; "${bin:-$(go env GOPATH)/bin}/shop-it" -plugin
+
+publish-firefox: build
+    pnpm dlx web-ext@10 sign --source-dir bin/extension/firefox --artifacts-dir bin/web-ext-artifacts --channel listed --amo-metadata extension/store/amo-metadata.json --approval-timeout 0 --api-key "$AMO_API_KEY" --api-secret "$AMO_API_SECRET"
