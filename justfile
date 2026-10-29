@@ -34,4 +34,4 @@ install:
     bin="$(go env GOBIN)"; "${bin:-$(go env GOPATH)/bin}/shop-it" -plugin
 
 publish-firefox: build
-    pnpm dlx web-ext@10 sign --source-dir bin/extension/firefox --artifacts-dir bin/web-ext-artifacts --channel listed --amo-metadata extension/store/amo-metadata.json --approval-timeout 0 --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
+    WEB_EXT_API_KEY="$AMO_JWT_ISSUER" WEB_EXT_API_SECRET="$AMO_JWT_SECRET" pnpm dlx web-ext@10 sign --source-dir bin/extension/firefox --artifacts-dir bin/web-ext-artifacts --channel listed --amo-metadata extension/store/amo-metadata.json --approval-timeout 0

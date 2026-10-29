@@ -3,6 +3,7 @@ package extension
 import (
 	"archive/zip"
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -10,7 +11,10 @@ import (
 	"path/filepath"
 )
 
-//go:embed assets/*
+//go:embed assets/manifest.json assets/manifest.firefox.json
+//go:embed assets/background.js assets/runner.js assets/adapters.js assets/content.js assets/overlay.js assets/bridge.js
+//go:embed assets/popup.html assets/popup.css assets/popup.js
+//go:embed assets/icon-16.png assets/icon-32.png assets/icon-48.png assets/icon-128.png
 var assets embed.FS
 
 func files(browser string, write func(string, []byte) error) error {
@@ -55,7 +59,7 @@ func Icon() []byte {
 func Build(dir string) error {
 	for _, browser := range []string{"chromium", "firefox"} {
 		destination := filepath.Join(dir, browser)
-		if err := os.MkdirAll(destination, 0755); err != nil {
+		if err := replace(destination); err != nil {
 			return err
 		}
 		if err := writeFiles(browser, func(name string, data []byte) error {
@@ -76,6 +80,20 @@ func Build(dir string) error {
 		}
 	}
 	return nil
+}
+
+func replace(destination string) error {
+	entries, err := os.ReadDir(destination)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(destination, "manifest.json")); len(entries) > 0 && err != nil {
+		return fmt.Errorf("%s is not an extension build", destination)
+	}
+	if err := os.RemoveAll(destination); err != nil {
+		return err
+	}
+	return os.MkdirAll(destination, 0755)
 }
 
 func Archive(w io.Writer, browser string) error {
