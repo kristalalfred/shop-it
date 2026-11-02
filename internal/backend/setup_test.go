@@ -71,7 +71,7 @@ func TestSetupFollowsTheExtensionChatGPTAndStoreChecks(t *testing.T) {
 	}
 	fresh := get()
 	marketplace := filepath.Join(dir, "plugin", ".agents", "plugins", "marketplace.json")
-	if fresh.BrowserOnline || fresh.ChatGPTConnected || fresh.Demo || len(fresh.Stores) != 2 || fresh.ExtensionDir != filepath.Join(dir, "extension") || fresh.InstallURL != "codex://plugins/shop-it?marketplacePath="+queryEscape(marketplace) {
+	if fresh.BrowserOnline || fresh.ChatGPTConnected || fresh.Demo || len(fresh.Stores) != 2 || fresh.ExtensionDir != filepath.Join(dir, "extension") || fresh.InstallURL != "codex://plugins/shop-it?marketplacePath="+queryEscape(marketplace) || fresh.ChatURL != "codex://new?path="+queryEscape(filepath.Join(dir, "plugin"))+"&prompt=%5B%40Shop%20It%5D%28plugin%3A%2F%2Fshop-it%40shop-it-local%29%20" {
 		t.Fatalf("fresh setup: %+v", fresh)
 	}
 	if status, _ := browserRequest(t, t.Context(), server.URL, "/v1/setup", "GET", "client-secret", nil); status != http.StatusUnauthorized {

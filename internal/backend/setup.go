@@ -41,7 +41,7 @@ func (s *Server) setup(prefs pluginPreferences) setupState {
 	if root := s.config.PluginDir(); root != "" {
 		if _, err := os.Stat(plugin.MarketplacePath(root)); err == nil {
 			out.InstallURL = "codex://plugins/shop-it?marketplacePath=" + queryEscape(plugin.MarketplacePath(root))
-			out.ChatURL = "codex://new?path=" + queryEscape(root) + "&prompt=" + queryEscape("[@Shop It](plugin://shop-it@shop-it-local) "+prefs.Draft)
+			out.ChatURL = "codex://new?path=" + queryEscape(root) + "&prompt=" + queryEscape("[@Shop It](plugin://shop-it@shop-it-local) ")
 		}
 	}
 	sessions := s.browser.Sessions()
