@@ -100,8 +100,9 @@ button:disabled { opacity: .45; cursor: default; }
 .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; border: var(--border); background: #fff; box-shadow: 6px 6px 0 var(--ink); }
 .step { counter-increment: step; display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 16px; row-gap: 14px; align-items: start; padding: 20px; border-bottom: var(--border); }
 .step:last-child { border-bottom: 0; }
-.step::before { content: counter(step); grid-row: span 2; width: 34px; height: 34px; display: grid; place-items: center; border: var(--border); font-weight: 900; }
+.step::before { content: counter(step); width: 34px; height: 34px; display: grid; place-items: center; border: var(--border); font-weight: 900; }
 .step.done::before { content: "✓"; background: var(--accent); }
+.step:has(> :not(.step-head):not([hidden]))::before { grid-row: span 2; }
 .step > :not(.step-head) { grid-column: 2; justify-self: start; }
 .step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 34px; padding-top: 5px; }
 .step h2 { font-size: 18px; letter-spacing: -.4px; }
