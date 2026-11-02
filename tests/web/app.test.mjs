@@ -267,6 +267,13 @@ test('filling waits for the extension and lets the app pick the browser', async 
   assert.equal(ui.requests.filter((request) => request.path === '/v1/shopping-plans/plan/transfer').at(-1).headers['Idempotency-Key'], 'key-2');
 });
 
+test('a tab opened before the extension was installed can still fill once the app sees the extension', async () => {
+  const ui = await app({setup: setupState(shops, {browser_online: true})});
+  assert.equal(ui.elements.get('setup').hidden, true);
+  assert.equal(ui.elements.get('transfer').disabled, false);
+  assert.equal(ui.elements.get('refresh').disabled, false);
+});
+
 test('the store’s own explanation is shown when a fill is refused', async () => {
   const ui = await app();
   ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});

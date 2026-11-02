@@ -153,11 +153,11 @@ function buttons() {
   const finished = Boolean(fill) && !filling(), completed = fill?.state === 'completed', shop = planRetailer();
   const live = shop?.mode === 'browser';
   $('refresh').hidden = finished;
-  $('refresh').disabled = busy || filling() || (live && !browserExtension.connected);
+  $('refresh').disabled = busy || filling() || (live && !extensionConnected());
   $('refresh').textContent = busy === 'refresh' ? 'Checking prices…' : 'Refresh prices';
   $('transfer').className = completed ? '' : 'primary';
   $('transfer').textContent = busy === 'fill' && !fill ? 'Checking the store…' : filling() ? 'Filling…' : finished ? 'Fill basket again' : !shop ? 'Fill basket' : shop.mode === 'mock' ? `Fill ${shop.name} demo basket` : `Fill ${shop.name} basket`;
-  $('transfer').disabled = Boolean(busy) || filling() || chosenBasket().status !== 'ready' || (needsAck() && !$('ack').checked) || (chosenBasket().over_budget && !$('over').checked) || (live && !browserExtension.connected);
+  $('transfer').disabled = Boolean(busy) || filling() || chosenBasket().status !== 'ready' || (needsAck() && !$('ack').checked) || (chosenBasket().over_budget && !$('over').checked) || (live && !extensionConnected());
   $('filled').hidden = !completed;
   $('review-store').hidden = !finished;
   for (const card of $('baskets').children) card.disabled = Boolean(busy) || filling();
