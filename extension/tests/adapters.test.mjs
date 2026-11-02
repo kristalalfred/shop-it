@@ -180,6 +180,15 @@ test('Mathem uses the selected delivery address and exposes only its postcode an
   assert.equal(paths.length, 2);
 });
 
+test('a pickup store chosen at Willys or Hemköp is ready, as the stores spell the pickup mode', async () => {
+  for (const id of ['willys', 'hemkop']) {
+    const request = async (path) => path.endsWith('/store/active') ? {storeId: '2351', name: 'Willys Stockholm Bromma', activelySelected: true, address: {postalCode: '168 67'}} : {products: [], deliveryModeCode: 'pickUpInStore', postalCode: null};
+    const session = await ShopItAdapters.create(id, {request}).session();
+    assert.equal(session.status, 'ready');
+    assert.deepEqual(session.context, {store_id: '2351', postal_code: '16867', fulfillment: 'pickup'});
+  }
+});
+
 test('default Axfood stores do not count as a user connection', async () => {
   const adapter = ShopItAdapters.create('hemkop', {request: async (path) => path.endsWith('/store/active') ? {storeId: '4003', activelySelected: false, address: {postalCode: '74634'}} : {deliveryModeCode: 'pickupInStore'}});
   assert.equal((await adapter.session()).status, 'setup_required');

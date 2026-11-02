@@ -57,8 +57,8 @@
           return {status: /^\d{5}$/.test(postal) ? 'ready' : 'setup_required', label: `Mathem · ${postal}`, context};
         }
         const [cart, store] = await Promise.all([getCart(), request(`${base}/store/active`)]);
-        const mode = cart.deliveryModeCode;
-        const fulfillment = mode === 'homeDelivery' || mode === 'homeDeliveryB2b' ? 'delivery' : mode === 'pickupInStore' ? 'pickup' : '';
+        const mode = String(cart.deliveryModeCode || '').toLowerCase();
+        const fulfillment = mode === 'homedelivery' || mode === 'homedeliveryb2b' ? 'delivery' : mode === 'pickupinstore' ? 'pickup' : '';
         const address = fulfillment === 'delivery' ? cart.deliveryAddress : store.address;
         const postal = String(address?.postalCode || cart.postalCode || '').replaceAll(' ', '');
         const context = {store_id: String(store.storeId || ''), postal_code: postal, fulfillment};
