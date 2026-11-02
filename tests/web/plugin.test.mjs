@@ -52,40 +52,39 @@ async function app({snapshot = initial()} = {}) {
   };
 }
 
-test('onboarding saves the request, retains store choices, and resumes a store that still needs setup', async () => {
+test('before setup is finished the widget shows what is missing and links to the setup page', async () => {
   const ui = await app();
-  const input = ui.find('textarea', 'Your shopping request'); input.value = 'Five dinners for two, under 800 kr'; input.listeners.input();
-  await ui.find('button', 'Continue ↗').click(); await settle();
-  assert.equal(ui.requests.at(-1).args.draft, 'Five dinners for two, under 800 kr');
-  await ui.find('button', 'Willys').click(); await settle();
-  await ui.find('button', 'Connect stores ↗').click(); await settle();
-  assert.match(ui.root.textContent, /Connect your browser/);
-  await ui.find('a', 'Open browser setup ↗').listeners.click({preventDefault() {}}); await settle();
+  assert.match(ui.root.textContent, /Browser extension Not connected/);
+  assert.match(ui.root.textContent, /Stores None chosen/);
+  await ui.find('a', 'Finish setup ↗').listeners.click({preventDefault() {}}); await settle();
   assert.equal(ui.messages.find((m) => m.method === 'ui/open-link').params.url, 'http://127.0.0.1:24816/');
-  assert.equal(ui.find('button', 'Connect').disabled, true);
-  ui.setOnline(true); await ui.intervals[0](); await settle();
-  await ui.find('button', 'Connect').click(); await settle();
-  assert.match(ui.root.textContent, /Choose your store or delivery/);
-  assert.equal(ui.find('button', 'Find my groceries ↗').disabled, true);
-  ui.setStatus('ready'); await ui.find('button', 'Check again').click(); await settle();
-  assert.match(ui.root.textContent, /You’re ready to shop/);
-  assert.equal(ui.find('button', 'Find my groceries ↗').disabled, false);
-  assert.equal(ui.requests.find((r) => r.name === 'configure_shop_it').args.draft, 'Five dinners for two, under 800 kr');
+  const context = JSON.parse(ui.messages.find((m) => m.method === 'ui/update-model-context').params.content[0].text);
+  assert.equal(context.setup_ready, false);
+  assert.equal(context.setup_url, 'http://127.0.0.1:24816/');
 });
 
-test('the embedded app initializes the MCP Apps bridge and hands the saved request to the conversation', async () => {
-  const state = initial(); state.preferences = {draft: 'Vegetarian dinners for two', retailer_ids: ['willys']}; state.browser_online = true; state.stores[0].selected = true; state.stores[0].session = {status: 'ready'};
+test('the embedded app initializes the MCP Apps bridge and tells the model when setup is ready', async () => {
+  const state = initial(); state.preferences = {draft: 'Vegetarian dinners for two', retailer_ids: ['willys']}; state.browser_online = true; state.stores[0].selected = true; state.stores[0].session = {status: 'ready', label: 'Willys Fältöversten'};
   const ui = await app({snapshot: state});
   assert.equal(ui.messages[0].method, 'ui/initialize');
   assert.equal(ui.messages[0].params.protocolVersion, '2026-01-26');
   assert.ok(ui.messages.some((m) => m.method === 'ui/notifications/initialized'));
-  await ui.find('button', 'Find my groceries ↗').click(); await settle();
-  const message = ui.messages.find((m) => m.method === 'ui/message');
-  assert.equal(message.params.role, 'user');
-  assert.match(message.params.content[0].text, /Vegetarian dinners for two/);
-  assert.equal(ui.requests.some((r) => r.name === 'create_shopping_plan'), false);
+  assert.match(ui.root.textContent, /Willys Willys Fältöversten/);
+  assert.equal(ui.find('a', 'Finish setup ↗'), undefined);
+  assert.equal(JSON.parse(ui.messages.find((m) => m.method === 'ui/update-model-context').params.content[0].text).setup_ready, true);
   ui.listeners.get('message')({source: {}, data: {jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: {structuredContent: {...state, stores: [{name: 'Injected state'}]}}}});
   assert.equal(ui.root.textContent.includes('Injected state'), false);
+});
+
+test('a store that still needs delivery or pickup is checked again from the widget', async () => {
+  const state = initial(); state.preferences = {draft: '', retailer_ids: ['willys']}; state.browser_online = true; state.stores[0].selected = true; state.stores[0].session = {status: 'setup_required'};
+  const ui = await app({snapshot: state});
+  assert.match(ui.root.textContent, /Willys Choose delivery or pickup/);
+  ui.setStatus('ready');
+  await ui.find('button', 'Check').click(); await settle();
+  assert.deepEqual(ui.requests.at(-1), {name: 'connect_store', args: {retailer_id: 'willys'}});
+  assert.match(ui.root.textContent, /Willys Willys Stockholm/);
+  assert.equal(ui.find('a', 'Finish setup ↗'), undefined);
 });
 
 function savedBasket() {
@@ -119,15 +118,14 @@ test('a saved basket refreshes changed delivery settings and sends you to the pa
   assert.equal(ui.messages.find((m) => m.method === 'ui/open-link').params.url, 'http://127.0.0.1:24816/?plan=saved-plan');
 });
 
-test('reconnecting a store returns to the saved basket without creating a new plan', async () => {
+test('a saved basket whose store needs attention checks it in place', async () => {
   const state = savedBasket();
   state.stores[0].session.status = 'setup_required';
   const ui = await app({snapshot: state});
-  await ui.find('button', 'Reconnect store').click(); await settle();
-  assert.equal(ui.find('button', 'Back to basket').disabled, true);
   ui.setStatus('ready');
-  await ui.find('button', 'Check again').click(); await settle();
-  await ui.find('button', 'Back to basket').click(); await settle();
+  await ui.find('button', 'Check Willys').click(); await settle();
+  assert.deepEqual(ui.requests.at(-1), {name: 'connect_store', args: {retailer_id: 'willys'}});
+  assert.equal(ui.find('button', 'Check Willys'), undefined);
   assert.ok(ui.find('a', 'Review and fill ↗'));
   assert.equal(ui.requests.some((r) => r.name === 'create_shopping_plan'), false);
   assert.equal(ui.messages.some((m) => m.method === 'ui/message'), false);

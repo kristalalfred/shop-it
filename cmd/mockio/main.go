@@ -26,7 +26,7 @@ func main() {
 	}
 	switch *mode {
 	case "retailers":
-		err = localserver.Run(*listen, mockio.RetailerHandler(scenario))
+		err = localserver.Run(*listen, mockio.RetailerHandler(scenario), nil)
 	case "browser":
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()

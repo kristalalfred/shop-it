@@ -15,11 +15,11 @@ async function storeCall(tabID, retailerID, operation, body = {}) {
   return reply.result;
 }
 
-async function openShop(input) {
+async function openShop(input, active = true) {
   const name = ShopItAdapters.names[input.retailer_id];
   const url = new URL(input.basket_url);
   if (!name || url.origin !== ShopItAdapters.origins[input.retailer_id]) throw new Error('Unsupported shop.');
-  const tab = await extension.tabs.create({url: url.href, active: true});
+  const tab = await extension.tabs.create({url: url.href, active});
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     try {
@@ -38,7 +38,7 @@ async function findShopTab(retailerID, origin) {
       return tab.id;
     } catch {}
   }
-  return openShop({retailer_id: retailerID, basket_url: origin});
+  return openShop({retailer_id: retailerID, basket_url: origin}, false);
 }
 
 const shopTabs = new Map();
@@ -53,8 +53,8 @@ async function runCommand(settings, command) {
     const origin = ShopItAdapters.origins[command.retailer_id];
     if (!origin || !['session', 'search'].includes(command.operation)) throw new Error('Unsupported store operation.');
     const tabID = await shopTab(command.retailer_id, origin);
-    if (command.operation === 'session') await extension.tabs.update(tabID, {active: true});
     const result = await storeCall(tabID, command.retailer_id, command.operation, {input: command.input});
+    if (command.operation === 'session' && result?.status !== 'ready') await extension.tabs.update(tabID, {active: true});
     reply = {result};
   } catch (error) { reply = {error: error.message, status: error.status || 'failed'}; }
   await api(settings, `/v1/client/commands/${encodeURIComponent(command.id)}/result`, 'PUT', reply);

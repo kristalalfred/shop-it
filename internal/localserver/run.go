@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func Run(address string, handler http.Handler) error {
+func Run(address string, handler http.Handler, ready func(url string)) error {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
@@ -34,6 +34,9 @@ func Run(address string, handler http.Handler) error {
 	finished := make(chan error, 1)
 	go func() { finished <- server.Serve(listener) }()
 	fmt.Printf("listening on http://%s\n", listener.Addr())
+	if ready != nil {
+		ready(fmt.Sprintf("http://%s/", listener.Addr()))
+	}
 	select {
 	case err := <-finished:
 		return err

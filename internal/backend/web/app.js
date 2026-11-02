@@ -3,10 +3,13 @@
 const $ = (id) => document.getElementById(id);
 const money = (m) => new Intl.NumberFormat('sv-SE', {style: 'currency', currency: m.currency}).format(m.amount_minor / 100);
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-let token = $('token').value.trim(), plan = null, busy = false, retailers = [], poll = null, watch = null, fill = null;
+let token = $('token').value.trim(), plan = null, busy = false, setup = null, savedPlans = [], poll = null, watch = null, fill = null, showSetup = false;
 let browserExtension = {ready: false, connected: false, error: ''};
-const shopName = (id) => retailers.find((retailer) => retailer.id === id)?.name || id;
-const planRetailer = () => plan ? retailers.find((retailer) => retailer.id === plan.retailer_id) : null;
+const checking = new Set();
+const firefox = /Firefox\//.test(globalThis.navigator?.userAgent || '');
+const stores = () => setup?.stores || [];
+const shopName = (id) => stores().find((store) => store.id === id)?.name || id;
+const planRetailer = () => plan ? stores().find((store) => store.id === plan.retailer_id) : null;
 const chosenBasket = (value = plan) => value.baskets.find((basket) => basket.retailer_id === value.retailer_id);
 const entry = (line) => line.baskets[plan.retailer_id] || {candidates: []};
 
@@ -27,6 +30,118 @@ async function api(path, body, method = 'POST', key) {
 function message(text, error = false) {
   $('message').replaceChildren();
   if (text) $('message').append(el('p', text, `notice${error ? ' error' : ''}`));
+}
+
+const extensionConnected = () => browserExtension.connected || Boolean(setup?.browser_online);
+const storeReady = (store) => store.mode !== 'browser' || store.session?.status === 'ready';
+const storesReady = () => stores().some((store) => store.selected && storeReady(store));
+const setupDone = () => Boolean(setup) && (setup.demo || extensionConnected()) && setup.chatgpt_connected && storesReady();
+
+function mark(id, done) { $(id).className = `step${done ? ' done' : ''}`; }
+
+function copyButton(text) {
+  const button = el('button', text, 'copy'); button.type = 'button';
+  button.addEventListener('click', () => {
+    globalThis.navigator?.clipboard?.writeText(text).then(() => {
+      button.className = 'copy copied';
+      setTimeout(() => { button.className = 'copy'; }, 1500);
+    }).catch(() => {});
+  });
+  return button;
+}
+
+function recipe() {
+  const dir = setup.extension_dir, sep = dir?.includes('\\') ? '\\' : '/';
+  const target = firefox ? [dir, 'firefox', 'manifest.json'] : [dir, 'chromium'];
+  const load = el('li', null), page = el('li', null);
+  page.append(copyButton(firefox ? 'about:debugging#/runtime/this-firefox' : 'chrome://extensions'));
+  load.append(el('span', firefox ? 'Load Temporary Add-on…' : 'Developer mode → Load unpacked', 'recipe-action'));
+  if (dir) load.append(copyButton(target.join(sep)));
+  else { const link = el('a', firefox ? 'firefox.zip' : 'chromium.zip', 'button'); link.href = `/extension/${firefox ? 'firefox' : 'chromium'}.zip`; load.append(link); }
+  return [page, load];
+}
+
+function renderStore(store) {
+  const ready = store.selected && storeReady(store);
+  const card = el('div', null, `store${store.selected ? ' selected' : ''}${ready ? ' ready' : ''}`);
+  const toggle = el('button', store.name, 'store-name'); toggle.type = 'button';
+  toggle.setAttribute('aria-pressed', String(store.selected));
+  toggle.disabled = checking.has(store.id);
+  toggle.addEventListener('click', () => chooseStore(store));
+  card.append(toggle);
+  if (!store.selected) return card;
+  const state = el('div', null, 'store-state'), status = store.session?.status;
+  if (checking.has(store.id)) state.append(el('span', 'Checking…', 'muted'));
+  else if (ready) state.append(el('span', store.session?.label || store.name, 'store-label'));
+  else {
+    if (status === 'login_required' || status === 'setup_required') {
+      const link = el('a', status === 'login_required' ? 'Sign in ↗' : 'Choose delivery ↗', 'store-link');
+      link.href = store.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      state.append(link);
+    }
+    const check = el('button', status ? 'Check again' : 'Check', 'small'); check.type = 'button';
+    check.disabled = !extensionConnected();
+    check.addEventListener('click', () => checkStore(store.id));
+    state.append(check);
+  }
+  card.append(state);
+  return card;
+}
+
+function renderSetup() {
+  if (!setup) return;
+  const extensionDone = setup.demo || extensionConnected();
+  $('step-extension').hidden = setup.demo;
+  mark('step-extension', extensionDone);
+  $('extension-status').textContent = extensionDone ? 'Connected' : browserExtension.ready ? browserExtension.error || 'Reload the extension, then this page.' : '';
+  $('extension-install').hidden = extensionDone || browserExtension.ready;
+  if (!$('extension-install').hidden) { const steps = el('ol'); steps.append(...recipe()); $('extension-install').replaceChildren(steps); }
+  mark('step-chatgpt', setup.chatgpt_connected);
+  $('chatgpt-status').textContent = setup.chatgpt_connected ? 'Added' : '';
+  $('install').hidden = setup.chatgpt_connected || !setup.install_url;
+  if (setup.install_url) $('install').href = setup.install_url;
+  mark('step-stores', storesReady());
+  $('stores').replaceChildren(...stores().map(renderStore));
+  const startable = setup.chatgpt_connected && Boolean(setup.chat_url);
+  $('start').className = `button${setupDone() ? ' primary' : ''}${startable ? '' : ' disabled'}`;
+  if (startable) { $('start').href = setup.chat_url; $('start').removeAttribute('aria-disabled'); }
+  else { $('start').removeAttribute('href'); $('start').setAttribute('aria-disabled', 'true'); }
+  layout();
+}
+
+function layout() {
+  const listing = Boolean(plan);
+  $('setup').hidden = !setup || listing && !showSetup && (setup.demo || extensionConnected());
+  $('setup-title').hidden = listing;
+  $('start').hidden = listing || !setup?.chat_url;
+  $('setup-toggle').hidden = !listing;
+  $('setup-toggle').className = setupDone() ? '' : 'attention';
+  $('setup-toggle').setAttribute('aria-expanded', String(!$('setup').hidden));
+  $('new-list').hidden = !listing || !setup?.chat_url;
+  if (setup?.chat_url) $('new-list').href = setup.chat_url;
+  $('saved-lists').hidden = !savedPlans.length;
+  $('intro').hidden = !listing;
+}
+
+async function chooseStore(store) {
+  const ids = stores().filter((s) => s.id === store.id ? !s.selected : s.selected).map((s) => s.id);
+  try {
+    setup = await api('/v1/setup/stores', {retailer_ids: ids}, 'PUT');
+    renderSetup();
+    if (!store.selected && store.mode === 'browser' && extensionConnected()) await checkStore(store.id);
+  } catch (error) { message(error.message, true); }
+}
+
+async function checkStore(id) {
+  checking.add(id); renderSetup(); message('');
+  try { setup = await api(`/v1/setup/stores/${encodeURIComponent(id)}/check`); }
+  catch (error) { message(error.message, true); }
+  finally { checking.delete(id); renderSetup(); }
+}
+
+async function refreshSetup() {
+  setup = await api('/v1/setup', undefined, 'GET');
+  renderSetup();
 }
 
 const filling = () => ['pending', 'claimed'].includes(fill?.state);
@@ -72,7 +187,6 @@ function showPlan(value) {
   if (new URLSearchParams(window.location.search).get('plan') !== plan.id) window.history.replaceState(null, '', `/?plan=${encodeURIComponent(plan.id)}`);
   $('title').textContent = plan.text;
   $('subtitle').textContent = `Saved ${new Date(plan.updated_at).toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'})}`;
-  $('start')?.setAttribute('hidden', '');
   $('review').hidden = false; $('checkout').hidden = false; $('list').hidden = false;
   const basket = chosenBasket(), missing = plan.lines.filter(needsAttention);
   const hasProducts = plan.lines.some((line) => !line.skipped && entry(line).selected?.eligible);
@@ -93,15 +207,8 @@ function showPlan(value) {
   $('total').textContent = money(basket.total);
   $('estimate').textContent = `${basket.estimated ? 'Estimated by weight. ' : ''}Delivery excluded. ${planRetailer()?.mode === 'mock' ? 'Demo prices.' : 'Confirm prices at checkout.'}`;
   renderList();
-  updateExtension();
-}
-
-function showEmpty() {
-  plan = null;
-  $('title').textContent = 'No lists yet.';
-  $('subtitle').textContent = '';
-  $('start')?.removeAttribute('hidden');
-  $('review').hidden = true; $('checkout').hidden = true; $('list').hidden = true;
+  layout();
+  buttons();
 }
 
 function renderBaskets() {
@@ -136,8 +243,8 @@ function renderLine(line) {
 
 async function loadLists() {
   const result = await api('/v1/shopping-plans', undefined, 'GET');
+  savedPlans = result.plans;
   $('history').replaceChildren();
-  if (!result.plans.length) $('history').textContent = 'No saved lists.';
   for (const saved of result.plans) {
     const button = el('button', `${saved.text.slice(0, 55)}${saved.text.length > 55 ? '…' : ''} · ${shopName(saved.retailer_id)} ${money(saved.total)}`); button.type = 'button';
     if (saved.id === plan?.id) button.setAttribute('aria-current', 'true');
@@ -148,52 +255,52 @@ async function loadLists() {
     }));
     $('history').append(button);
   }
+  layout();
   return result.plans;
 }
 
 async function connect() {
-  const [shops, plans] = await Promise.all([api('/v1/retailers', undefined, 'GET'), api('/v1/shopping-plans', undefined, 'GET')]);
-  retailers = shops.retailers;
+  const [current, plans] = await Promise.all([api('/v1/setup', undefined, 'GET'), api('/v1/shopping-plans', undefined, 'GET')]);
+  setup = current;
   let opened = null;
   for (const id of [new URLSearchParams(window.location.search).get('plan'), plans.plans[0]?.id].filter(Boolean)) {
     try { opened = await api(`/v1/shopping-plans/${encodeURIComponent(id)}`, undefined, 'GET'); break; } catch {}
   }
-  if (opened) showPlan(opened); else showEmpty();
+  if (opened) showPlan(opened);
   await loadLists();
-  updateExtension();
-  watch = setInterval(follow, 5000);
+  renderSetup();
+  watch = setTimeout(follow, plan && setupDone() ? 5000 : 2000);
 }
 
 async function follow() {
-  if (busy || filling()) return;
-  try {
-    const plans = await loadLists();
-    if (!plan && plans.length) showPlan(await api(`/v1/shopping-plans/${plans[0].id}`, undefined, 'GET'));
-    else if (plan && plans.find((saved) => saved.id === plan.id)?.updated_at !== plan.updated_at) showPlan(await api(`/v1/shopping-plans/${plan.id}`, undefined, 'GET'));
-  } catch {}
+  if (!busy && !filling()) {
+    try {
+      await refreshSetup();
+      const plans = await loadLists();
+      if (!plan && plans.length) showPlan(await api(`/v1/shopping-plans/${plans[0].id}`, undefined, 'GET'));
+      else if (plan && plans.find((saved) => saved.id === plan.id)?.updated_at !== plan.updated_at) showPlan(await api(`/v1/shopping-plans/${plan.id}`, undefined, 'GET'));
+    } catch {}
+  }
+  watch = setTimeout(follow, plan && setupDone() ? 5000 : 2000);
 }
 
-function updateExtension() {
-  const live = retailers.some((retailer) => retailer.mode === 'browser');
-  $('extension-setup').hidden = !live || browserExtension.connected;
-  $('extension-status').textContent = browserExtension.error || (browserExtension.ready ? 'The Shop It extension is not connected. Reload the extension and this page.' : 'Install the Shop It extension to fill your basket, then reload this page.');
-  $('extension-install').hidden = browserExtension.ready;
-  buttons();
-}
 document.addEventListener('shop-it-extension-ready', (event) => {
   let detail = {};
   try { detail = JSON.parse(event.detail || '{}'); } catch {}
   browserExtension = {ready: true, connected: detail.connected === true, error: detail.error || ''};
-  updateExtension();
+  renderSetup();
+  buttons();
 });
 document.dispatchEvent(new CustomEvent('shop-it-extension-probe'));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && setup) refreshSetup().catch(() => {}); });
+$('setup-toggle').addEventListener('click', () => { showSetup = $('setup').hidden; layout(); });
 $('ack').addEventListener('change', buttons); $('over').addEventListener('change', buttons);
 
 $('refresh').addEventListener('click', () => action('refresh', async () => { fill = null; showPlan(await api(`/v1/shopping-plans/${plan.id}/refresh`, {revision: plan.revision})); await loadLists(); }));
 
 function showFill(transfer) {
   fill = transfer;
-  const retailer = retailers.find((r) => r.id === transfer.retailer_id);
+  const retailer = stores().find((r) => r.id === transfer.retailer_id);
   const simulated = retailer?.mode === 'mock', name = retailer?.name || 'the shop';
   const waiting = !simulated && transfer.state === 'pending' && Date.now() - Date.parse(transfer.created_at) > 10000;
   const progress = {pending: simulated ? 'Filling your basket…' : waiting ? 'Waiting for the Shop It extension. If nothing happens, reload the extension and this page.' : `Opening ${name} in a new tab…`, claimed: `Filling your ${name} basket…`};
@@ -225,5 +332,5 @@ $('transfer').addEventListener('click', () => action('fill', async () => {
   track(result);
 }));
 
-window.addEventListener('pagehide', () => { stopPoll(); clearInterval(watch); });
+window.addEventListener('pagehide', () => { stopPoll(); clearTimeout(watch); });
 action('open', connect);

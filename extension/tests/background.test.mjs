@@ -61,6 +61,32 @@ test('concurrent commands for a shop without an open tab share one new tab', asy
   assert.deepEqual(results, Array(6).fill({result: {products: []}}));
 });
 
+test('store checks open the shop in the background and bring it forward only when the shopper must act', async () => {
+  const store = {settings}, tabs = [], focused = [], results = [];
+  let commands = [{id: 'mathem-check', retailer_id: 'mathem', operation: 'session'}, {id: 'willys-check', retailer_id: 'willys', operation: 'session'}];
+  globalThis.fetch = async (url, options) => {
+    const {pathname} = new URL(url);
+    if (pathname === '/v1/client/commands') {
+      const batch = commands;
+      commands = [];
+      return Response.json({commands: batch});
+    }
+    if (pathname === '/v1/client/claims') return new Response(null, {status: 204});
+    results.push(pathname);
+    if (results.length === 2) delete store.settings;
+    return Response.json({ok: true});
+  };
+  load(store, {
+    query: async () => [],
+    create: async ({url, active}) => { const tab = {id: tabs.length + 1, url, active}; tabs.push(tab); return tab; },
+    update: async (id, {active}) => { if (active) focused.push(tabs.find((tab) => tab.id === id).url); },
+    sendMessage: async (id, message) => ({result: message.operation === 'ready' || {status: message.retailer_id === 'willys' ? 'ready' : 'login_required'}}),
+  });
+  await until(() => results.length === 2);
+  assert.deepEqual(tabs.map((tab) => tab.active), [false, false]);
+  assert.deepEqual(focused, ['https://www.mathem.se/']);
+});
+
 test('pairing from the Shop It page replaces a stale client token', async () => {
   const store = {settings: {...settings, token: 'stale-token'}};
   globalThis.fetch = async (url, options) => {

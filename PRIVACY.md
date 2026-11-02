@@ -21,6 +21,7 @@ The extension communicates only with the store websites listed above and with th
 - The app accepts connections only from your own computer, and every request needs a token from its configuration file.
 - Plans, settings and basket results are stored in the app's data folder on your computer.
 - The app does not contact the stores itself. Store searches run in your browser through the extension.
+- The app reads the Codex configuration on your computer only to show whether the Shop It plugin is installed.
 - ChatGPT receives your shopping request, your plan and product search results, as part of your conversation.
 
 ## Contact

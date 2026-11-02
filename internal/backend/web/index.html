@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shop It · Groceries</title>
+  <title>Shop It</title>
   <link rel="icon" href="/icon.png">
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
@@ -12,27 +12,37 @@
   <header>
     <a href="/" class="brand">shop it</a>
     <nav aria-label="Lists">
-      {{if .ChatURL}}<a class="button" href="{{.ChatURL}}">New list in ChatGPT ↗</a>{{end}}
-      <details id="saved-lists" class="menu">
+      <button id="setup-toggle" type="button" aria-controls="setup" aria-expanded="false" hidden>Setup</button>
+      <a id="new-list" class="button" hidden>New list ↗</a>
+      <details id="saved-lists" class="menu" hidden>
         <summary>Saved lists</summary>
-        <div class="menu-panel" id="history">No saved lists.</div>
+        <div class="menu-panel" id="history"></div>
       </details>
     </nav>
   </header>
   <main>
     <input id="token" type="hidden" value="{{.Token}}">
-    <section id="extension-setup" class="notice" hidden>
-      <p id="extension-status" role="status">Install the Shop It extension to fill your basket, then reload this page.</p>
-      <details id="extension-install">
-        <summary>Install extension</summary>
-        <p><a href="/extension/firefox.zip">Firefox / Zen</a>: open <strong>about:debugging#/runtime/this-firefox</strong>, choose <strong>Load Temporary Add-on</strong>, and select the downloaded file.</p>
-        <p><a href="/extension/chromium.zip">Chrome / Edge / Brave</a>: unzip the download, open <strong>chrome://extensions</strong>, enable <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the folder.</p>
-      </details>
+    <section id="setup" class="setup" aria-labelledby="setup-title" hidden>
+      <h1 id="setup-title">From idea to basket.</h1>
+      <ol class="steps">
+        <li id="step-extension" class="step">
+          <div class="step-head"><h2>Browser extension</h2><span id="extension-status" class="step-status" role="status"></span></div>
+          <div id="extension-install" class="recipe"></div>
+        </li>
+        <li id="step-chatgpt" class="step">
+          <div class="step-head"><h2>ChatGPT</h2><span id="chatgpt-status" class="step-status" role="status"></span></div>
+          <a id="install" class="button">Add to ChatGPT ↗</a>
+        </li>
+        <li id="step-stores" class="step">
+          <div class="step-head"><h2>Stores</h2><span id="stores-status" class="step-status" role="status"></span></div>
+          <div id="stores" class="stores" role="group" aria-label="Stores"></div>
+        </li>
+      </ol>
+      <a id="start" class="button primary">Make a list in ChatGPT ↗</a>
     </section>
-    <div class="intro">
-      <h1 id="title">Groceries</h1>
+    <div id="intro" class="intro" hidden>
+      <h1 id="title"></h1>
       <p id="subtitle" class="muted"></p>
-      {{if .ChatURL}}<a id="start" class="button primary" href="{{.ChatURL}}" hidden>Make a list in ChatGPT ↗</a>{{end}}
     </div>
     <div id="message" role="status" aria-live="polite"></div>
     <section id="review" class="review" aria-label="Review" hidden>

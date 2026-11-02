@@ -8,18 +8,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/kristalalfred/shop-it/internal/browser"
 	"github.com/kristalalfred/shop-it/internal/persistence"
 	"github.com/kristalalfred/shop-it/internal/planner"
+	"github.com/kristalalfred/shop-it/internal/release"
 	"github.com/kristalalfred/shop-it/internal/retailer"
 	"github.com/kristalalfred/shop-it/internal/shopping"
-	"github.com/kristalalfred/shop-it/plugin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,37 +29,24 @@ const pluginURI = "ui://shop-it/planner-v1.html"
 const pluginMIME = "text/html;profile=mcp-app"
 
 type pluginPreferences struct {
-	RetailerIDs []string `json:"retailer_ids"`
-	Draft       string   `json:"draft"`
-	PlanID      string   `json:"plan_id,omitempty"`
+	RetailerIDs      []string `json:"retailer_ids"`
+	Draft            string   `json:"draft"`
+	PlanID           string   `json:"plan_id,omitempty"`
+	ChatGPTConnected bool     `json:"chatgpt_connected,omitempty"`
 }
 
 type pluginService struct {
-	state   *persistence.Store[pluginPreferences]
-	schemas map[string]*jsonschema.Resolved
-}
-
-type pluginStore struct {
-	ID       string           `json:"id"`
-	Name     string           `json:"name"`
-	URL      string           `json:"url"`
-	Mode     string           `json:"mode"`
-	Selected bool             `json:"selected"`
-	Session  *browser.Session `json:"session,omitempty"`
+	state     *persistence.Store[pluginPreferences]
+	schemas   map[string]*jsonschema.Resolved
+	connected atomic.Bool
 }
 
 type pluginSnapshot struct {
-	Preferences   pluginPreferences      `json:"preferences"`
-	Stores        []pluginStore          `json:"stores"`
-	BrowserOnline bool                   `json:"browser_online"`
-	SetupURL      string                 `json:"setup_url"`
-	PluginPath    string                 `json:"plugin_path,omitempty"`
-	InstallURL    string                 `json:"install_url,omitempty"`
-	ChatURL       string                 `json:"chat_url,omitempty"`
-	Demo          bool                   `json:"demo"`
-	Plan          *shopping.Plan         `json:"plan,omitempty"`
-	ReviewURL     string                 `json:"review_url,omitempty"`
-	SavedPlans    []shopping.PlanSummary `json:"saved_plans"`
+	setupState
+	Preferences pluginPreferences      `json:"preferences"`
+	Plan        *shopping.Plan         `json:"plan,omitempty"`
+	ReviewURL   string                 `json:"review_url,omitempty"`
+	SavedPlans  []shopping.PlanSummary `json:"saved_plans"`
 }
 
 type pluginPlanRequest struct {
@@ -75,29 +61,7 @@ func (s *Server) snapshot(ctx context.Context, planID string) (pluginSnapshot, e
 	if err != nil {
 		return pluginSnapshot{}, err
 	}
-	out := pluginSnapshot{Preferences: prefs, Stores: []pluginStore{}, SetupURL: "http://" + s.config.Listen + "/", Demo: true}
-	for _, c := range s.config.Clients {
-		out.BrowserOnline = out.BrowserOnline || s.browser.Online(c.ID)
-	}
-	if out.ChatURL = s.chatURL(prefs.Draft); out.ChatURL != "" {
-		root := s.config.PluginDir()
-		out.PluginPath = filepath.Join(root, "shop-it")
-		out.InstallURL = "codex://plugins/shop-it?marketplacePath=" + queryEscape(plugin.MarketplacePath(root))
-	}
-	sessions := s.browser.Sessions()
-	for _, r := range s.config.Retailers {
-		store := pluginStore{ID: r.ID, Name: r.Name, URL: r.BasketURL, Mode: r.Mode, Selected: slices.Contains(prefs.RetailerIDs, r.ID)}
-		if r.Mode != "mock" {
-			out.Demo = false
-		}
-		for _, session := range sessions {
-			if session.RetailerID == r.ID {
-				value := session
-				store.Session = &value
-			}
-		}
-		out.Stores = append(out.Stores, store)
-	}
+	out := pluginSnapshot{setupState: s.setup(prefs), Preferences: prefs}
 	if planID == "" {
 		planID = prefs.PlanID
 	}
@@ -118,17 +82,6 @@ func (s *Server) snapshot(ctx context.Context, planID string) (pluginSnapshot, e
 	}
 	out.SavedPlans = saved[:min(len(saved), 10)]
 	return out, nil
-}
-
-func (s *Server) chatURL(request string) string {
-	root := s.config.PluginDir()
-	if root == "" {
-		return ""
-	}
-	if _, err := os.Stat(plugin.MarketplacePath(root)); err != nil {
-		return ""
-	}
-	return "codex://new?path=" + queryEscape(root) + "&prompt=" + queryEscape("[@Shop It](plugin://shop-it@shop-it-local) "+request)
 }
 
 func queryEscape(value string) string {
@@ -259,7 +212,8 @@ func (s *Server) pluginHTML() string {
 	page, _ := pluginFiles.ReadFile("plugin/index.html")
 	css, _ := pluginFiles.ReadFile("plugin/app.css")
 	js, _ := pluginFiles.ReadFile("plugin/app.js")
-	return strings.NewReplacer("{{STYLE}}", string(css), "{{SCRIPT}}", string(js)).Replace(string(page))
+	script := strings.ReplaceAll(string(js), "{{VERSION}}", release.Version)
+	return strings.NewReplacer("{{STYLE}}", string(css), "{{SCRIPT}}", script).Replace(string(page))
 }
 
 func (s *Server) registerPlugin(mux *http.ServeMux) error {
@@ -288,12 +242,18 @@ func (s *Server) registerPlugin(mux *http.ServeMux) error {
 		s.plugin.schemas[tool.Name] = resolved
 	}
 	server := s.mcpServer()
-	mux.Handle("/mcp", s.user(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}).ServeHTTP))
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+	mux.Handle("/mcp", s.user(func(w http.ResponseWriter, r *http.Request) {
+		if !s.plugin.connected.Swap(true) {
+			_ = s.plugin.state.Update(func(p *pluginPreferences) error { p.ChatGPTConnected = true; return nil })
+		}
+		handler.ServeHTTP(w, r)
+	}))
 	return nil
 }
 
 func (s *Server) mcpServer() *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: "0.3.0"}, &mcp.ServerOptions{Instructions: "Use open_shop_it first to resume setup, the current shopping plan or a saved one. The user and ChatGPT edit the same plan. Create plans from structured ingredients. Candidate prices and quantities are calculated by Shop It. Select only matching candidates from returned IDs, respect dietary requirements, and explain unresolved items. The user reviews a finished plan and fills the store basket on the Shop It page at review_url; you cannot change a store basket. Checkout stays at the retailer."})
+	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: release.Version}, &mcp.ServerOptions{Instructions: "Use open_shop_it first to resume setup, the current shopping plan or a saved one. The user and ChatGPT edit the same plan. Create plans from structured ingredients. Candidate prices and quantities are calculated by Shop It. Select only matching candidates from returned IDs, respect dietary requirements, and explain unresolved items. The user reviews a finished plan and fills the store basket on the Shop It page at review_url; you cannot change a store basket. Checkout stays at the retailer."})
 	server.AddResource(&mcp.Resource{URI: pluginURI, Name: "Shop It", MIMEType: pluginMIME}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{URI: pluginURI, MIMEType: pluginMIME, Text: s.pluginHTML(), Meta: map[string]any{"ui": map[string]any{"prefersBorder": false}}}}}, nil
 	})
@@ -315,9 +275,12 @@ func pluginSummary(s pluginSnapshot) string {
 		return fmt.Sprintf("Plan %s, revision %d. %d ingredients. Choose matching products from the returned candidates; read the latest revision before editing. The user reviews it and fills the basket at %s.", s.Plan.ID, s.Plan.Revision, len(s.Plan.Lines), s.ReviewURL)
 	}
 	if !s.BrowserOnline && !s.Demo {
-		return "Open Shop It setup to connect the browser extension, then choose a store. The shopping request is saved."
+		return fmt.Sprintf("The browser extension is not connected. Open %s so the user can finish setup there. The shopping request is saved.", s.SetupURL)
 	}
-	return "Shop It is open. Choose and check a store to start shopping."
+	if !slices.ContainsFunc(s.Stores, func(store pluginStore) bool { return store.Selected }) {
+		return fmt.Sprintf("No store is chosen. Ask which stores to compare, or open %s so the user can choose and sign in.", s.SetupURL)
+	}
+	return "Shop It is open. Check each selected store with connect_store before planning."
 }
 
 func schema(properties map[string]any, required ...string) map[string]any {

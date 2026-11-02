@@ -13,7 +13,7 @@ const shops = [
 const demo = [{id: 'mathem', name: 'Mathem', mode: 'mock', basket_url: basketURL, context: {store_id: 'mathem-demo', postal_code: '11122', fulfillment: 'delivery', memberships: ['mathem-demo-member']}}];
 
 class Element {
-  constructor() { this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.checked = false; this.hidden = false; this.text = ''; }
+  constructor(tag = 'div') { this.tagName = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.value = ''; this.checked = false; this.hidden = false; this.text = ''; this.className = ''; }
   set textContent(value) { this.text = value; this.children = []; }
   get textContent() { return this.text + this.children.map((node) => node.textContent).join(' '); }
   append(...nodes) { this.children.push(...nodes); }
@@ -23,6 +23,13 @@ class Element {
   removeAttribute(name) { delete this.attributes[name]; if (name === 'hidden') this.hidden = false; }
 }
 
+const setupState = (retailers = shops, extra = {}) => ({
+  stores: retailers.map((r) => ({id: r.id, name: r.name, url: r.basket_url, mode: r.mode, selected: false})),
+  browser_online: false, chatgpt_connected: false, setup_url: 'http://127.0.0.1:24816/', demo: retailers.every((r) => r.mode === 'mock'),
+  install_url: 'codex://plugins/shop-it?marketplacePath=%2Fplugin', chat_url: 'codex://new?path=%2Fplugin&prompt=Shop%20It',
+  extension_dir: '/Users/me/Library/Application Support/shop-it/extension', ...extra,
+});
+const find = (element, predicate) => predicate(element) ? element : element.children.map((child) => find(child, predicate)).find(Boolean);
 const sek = (amount_minor) => ({amount_minor, currency: 'SEK'});
 const rice = (name, price, extra = {}) => ({candidates: [], selected: {eligible: true, target_quantity: 1, product: {id: 'rice', name, pack: {quantity: 500, unit: 'g'}}, unit_price: sek(price), total: sek(price), ...extra}});
 const notFound = {candidates: [], issue: 'No products found.'};
@@ -38,18 +45,19 @@ function shoppingPlan(retailer = 'mathem', revision = 1) {
 }
 const summary = (plan) => ({id: plan.id, text: plan.text, retailer_id: plan.retailer_id, total: plan.baskets.find((b) => b.retailer_id === plan.retailer_id).total, updated_at: plan.updated_at});
 
-async function app({retailers = shops, plans = [shoppingPlan()], search = ''} = {}) {
-  const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], new Element()]));
+async function app({retailers = shops, plans = [shoppingPlan()], search = '', setup = setupState(retailers), userAgent = 'Mozilla/5.0 Chrome/140'} = {}) {
+  const elements = new Map([...html.matchAll(/<(\w+)[^>]*\sid="([^"]+)"[^>]*>/g)].map(([tag, name, id]) => { const node = new Element(name); node.hidden = /\shidden[\s>]/.test(tag); return [id, node]; }));
   elements.get('token').value = 'test-user';
-  const documentEvents = new Map(), dispatched = [], timers = new Map(), requests = [], addresses = [];
+  const documentEvents = new Map(), dispatched = [], timers = new Map(), requests = [], addresses = [], copied = [];
   let now = 0, nextID = 1, uuid = 0;
-  const responses = {'/v1/retailers': {retailers}, '/v1/shopping-plans': {plans: plans.map(summary)}};
+  const responses = {'/v1/setup': setup, '/v1/shopping-plans': {plans: plans.map(summary)}};
   for (const plan of plans) responses[`/v1/shopping-plans/${plan.id}`] = plan;
   const values = new Map();
   const storage = {getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key)};
   const emit = (type, detail) => documentEvents.get(type)?.({detail: JSON.stringify(detail)});
   const context = createContext({
-    document: {getElementById: (id) => elements.get(id), createElement: () => new Element(), addEventListener: (type, callback) => documentEvents.set(type, callback), dispatchEvent: (event) => { dispatched.push(event.type); documentEvents.get(event.type)?.(event); }},
+    document: {getElementById: (id) => elements.get(id), createElement: (tag) => new Element(tag), addEventListener: (type, callback) => documentEvents.set(type, callback), dispatchEvent: (event) => { dispatched.push(event.type); documentEvents.get(event.type)?.(event); }},
+    navigator: {userAgent, clipboard: {writeText: async (text) => { copied.push(text); }}},
     window: {location: {search}, history: {replaceState: (state, title, url) => addresses.push(url)}, addEventListener() {}, scrollTo() {}},
     sessionStorage: storage, CustomEvent: class { constructor(type) { this.type = type; } }, URLSearchParams, Intl,
     crypto: {randomUUID: () => `key-${++uuid}`},
@@ -66,7 +74,7 @@ async function app({retailers = shops, plans = [shoppingPlan()], search = ''} = 
   runInContext(source, context);
   await settle();
   return {
-    elements, emit, requests, responses, dispatched, addresses,
+    elements, emit, requests, responses, dispatched, addresses, copied,
     run: (code) => runInContext(code, context),
     receipt: (state, created = new Date().toISOString(), lines = [{product_id: 'rice', status: 'unavailable', confirmed_quantity: 0, message: 'Not sold online at your Mathem store.'}]) => runInContext(`showFill(${JSON.stringify({id: 'transfer', state, retailer_id: 'mathem', basket_url: basketURL, created_at: created, receipt: {lines}})})`, context),
     advance: (duration) => {
@@ -83,7 +91,7 @@ async function app({retailers = shops, plans = [shoppingPlan()], search = ''} = 
 }
 
 async function settle() {
-  for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+  for (let i = 0; i < 16; i++) await new Promise((resolve) => setImmediate(resolve));
 }
 
 const texts = (element) => element.children.map((node) => node.textContent.replaceAll('\u00a0', ' '));
@@ -108,19 +116,95 @@ test('a list named in the address opens instead of the newest, and a missing one
   assert.equal(ui.elements.get('title').textContent, 'Risotto för 2');
 });
 
-test('without lists the page sends you to ChatGPT', async () => {
+test('without lists the page is the setup, and a list made in ChatGPT replaces it', async () => {
   const ui = await app({plans: []});
-  assert.equal(ui.elements.get('title').textContent, 'No lists yet.');
-  assert.equal(ui.elements.get('start').hidden, false);
+  assert.equal(ui.elements.get('setup').hidden, false);
+  assert.equal(ui.elements.get('intro').hidden, true);
   assert.equal(ui.elements.get('review').hidden, true);
   assert.equal(ui.elements.get('checkout').hidden, true);
+  assert.equal(ui.elements.get('saved-lists').hidden, true);
   const made = shoppingPlan();
   ui.responses['/v1/shopping-plans'] = {plans: [summary(made)]};
   ui.responses['/v1/shopping-plans/plan'] = made;
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
   await ui.run('follow()');
   await settle();
   assert.equal(ui.elements.get('title').textContent, 'Risotto för 2');
+  assert.equal(ui.elements.get('intro').hidden, false);
+  assert.equal(ui.elements.get('setup').hidden, true);
   assert.equal(ui.elements.get('start').hidden, true);
+  assert.equal(ui.elements.get('saved-lists').hidden, false);
+});
+
+test('setup marks each step done and opens ChatGPT once Shop It is added there', async () => {
+  const ui = await app({plans: []});
+  const steps = () => ['step-extension', 'step-chatgpt', 'step-stores'].map((id) => ui.elements.get(id).className);
+  assert.deepEqual(steps(), ['step', 'step', 'step']);
+  assert.match(ui.elements.get('extension-install').textContent, /chrome:\/\/extensions .*Load unpacked \/Users\/me\/Library\/Application Support\/shop-it\/extension\/chromium/);
+  find(ui.elements.get('extension-install'), (node) => node.className === 'copy' && node.textContent.endsWith('chromium')).listeners.click();
+  await settle();
+  assert.deepEqual(ui.copied, ['/Users/me/Library/Application Support/shop-it/extension/chromium']);
+  assert.equal(ui.elements.get('install').href, 'codex://plugins/shop-it?marketplacePath=%2Fplugin');
+  assert.equal(ui.elements.get('start').attributes['aria-disabled'], 'true');
+  assert.equal(ui.elements.get('start').href, undefined);
+
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
+  assert.equal(ui.elements.get('extension-status').textContent, 'Connected');
+  assert.equal(ui.elements.get('extension-install').hidden, true);
+
+  const selected = setupState(shops); selected.browser_online = true; selected.stores[1].selected = true;
+  const checked = structuredClone(selected); checked.stores[1].session = {retailer_id: 'willys', status: 'ready', label: 'Willys Fältöversten'};
+  ui.responses['/v1/setup/stores'] = () => [200, selected];
+  ui.responses['/v1/setup/stores/willys/check'] = () => [200, checked];
+  find(ui.elements.get('stores'), (node) => node.tagName === 'button' && node.textContent === 'Willys').listeners.click();
+  await settle();
+  assert.deepEqual(ui.requests.find((request) => request.path === '/v1/setup/stores').body, {retailer_ids: ['willys']});
+  assert.equal(ui.requests.at(-1).path, '/v1/setup/stores/willys/check');
+  assert.match(ui.elements.get('stores').textContent, /Willys Fältöversten/);
+  assert.deepEqual(steps(), ['step done', 'step', 'step done']);
+
+  ui.responses['/v1/setup'] = {...checked, chatgpt_connected: true};
+  await ui.run('follow()');
+  await settle();
+  assert.deepEqual(steps(), ['step done', 'step done', 'step done']);
+  assert.equal(ui.elements.get('install').hidden, true);
+  assert.equal(ui.elements.get('start').href, 'codex://new?path=%2Fplugin&prompt=Shop%20It');
+  assert.equal(ui.elements.get('start').className, 'button primary');
+});
+
+test('a store that needs sign-in links to the store and is checked again on request', async () => {
+  const state = setupState(shops, {browser_online: true});
+  state.stores[0].selected = true;
+  state.stores[0].session = {retailer_id: 'mathem', status: 'login_required'};
+  const ui = await app({plans: [], setup: state});
+  const link = find(ui.elements.get('stores'), (node) => node.tagName === 'a');
+  assert.equal(link.textContent, 'Sign in ↗');
+  assert.equal(link.href, basketURL);
+  ui.responses['/v1/setup/stores/mathem/check'] = () => [409, {error: 'Connect the Shop It browser extension, then try again.'}];
+  find(ui.elements.get('stores'), (node) => node.textContent === 'Check again').listeners.click();
+  await settle();
+  assert.match(ui.elements.get('message').textContent, /Connect the Shop It browser extension/);
+  assert.equal(ui.elements.get('step-stores').className, 'step');
+});
+
+test('Firefox gets the temporary add-on steps', async () => {
+  const ui = await app({plans: [], userAgent: 'Mozilla/5.0 Gecko/20100101 Firefox/144.0'});
+  assert.match(ui.elements.get('extension-install').textContent, /about:debugging#\/runtime\/this-firefox .*Load Temporary Add-on… \/Users\/me\/Library\/Application Support\/shop-it\/extension\/firefox\/manifest\.json/);
+});
+
+test('the setup button reopens setup above a list', async () => {
+  const ui = await app();
+  ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
+  assert.equal(ui.elements.get('setup').hidden, true);
+  assert.equal(ui.elements.get('setup-toggle').hidden, false);
+  assert.equal(ui.elements.get('setup-toggle').className, 'attention');
+  assert.equal(ui.elements.get('new-list').href, 'codex://new?path=%2Fplugin&prompt=Shop%20It');
+  ui.elements.get('setup-toggle').listeners.click();
+  assert.equal(ui.elements.get('setup').hidden, false);
+  assert.equal(ui.elements.get('setup-title').hidden, true);
+  assert.equal(ui.elements.get('setup-toggle').attributes['aria-expanded'], 'true');
+  ui.elements.get('setup-toggle').listeners.click();
+  assert.equal(ui.elements.get('setup').hidden, true);
 });
 
 test('the page follows edits made in ChatGPT', async () => {
@@ -154,14 +238,14 @@ test('choosing another shop switches the list, total and fill target', async () 
 
 test('filling waits for the extension and lets the app pick the browser', async () => {
   const ui = await app();
-  assert.equal(ui.elements.get('extension-setup').hidden, false);
+  assert.equal(ui.elements.get('setup').hidden, false);
   assert.equal(ui.elements.get('transfer').disabled, true);
   assert.equal(ui.elements.get('refresh').disabled, true);
   ui.emit('shop-it-extension-ready', {connected: false, error: 'Pairing failed.'});
   assert.match(ui.elements.get('extension-status').textContent, /Pairing failed/);
   assert.equal(ui.elements.get('extension-install').hidden, true);
   ui.emit('shop-it-extension-ready', {connected: true, client_id: 'browser'});
-  assert.equal(ui.elements.get('extension-setup').hidden, true);
+  assert.equal(ui.elements.get('setup').hidden, true);
   assert.equal(ui.elements.get('transfer').disabled, false);
   ui.responses['/v1/shopping-plans/plan/transfer'] = {id: 'transfer', state: 'pending', retailer_id: 'mathem', basket_url: basketURL, created_at: new Date().toISOString()};
   ui.responses['/v1/basket-transfers/transfer'] = {id: 'transfer', state: 'completed', retailer_id: 'mathem', basket_url: basketURL, receipt: {lines: [{product_id: 'rice', status: 'applied', confirmed_quantity: 1}]}};
@@ -223,7 +307,7 @@ test('demo shops fill their basket without the extension', async () => {
   const plan = shoppingPlan();
   plan.baskets = [{...plan.baskets[0], context: demo[0].context}];
   const ui = await app({retailers: demo, plans: [plan]});
-  assert.equal(ui.elements.get('extension-setup').hidden, true);
+  assert.equal(ui.elements.get('setup').hidden, true);
   assert.equal(ui.elements.get('transfer').disabled, false);
   assert.equal(ui.elements.get('transfer').textContent, 'Fill Mathem demo basket');
   assert.match(ui.elements.get('estimate').textContent, /Demo prices/);

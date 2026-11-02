@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kristalalfred/shop-it/internal/release"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -21,18 +22,18 @@ func (a authenticated) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(copy)
 }
 
-func Run(ctx context.Context, address, token, configPath string) error {
+func Run(ctx context.Context, address, token, configPath, service string) error {
 	client := &http.Client{Transport: authenticated{token}, Timeout: 200 * time.Second}
 	endpoint := "http://" + address
-	if err := ensureService(ctx, client, endpoint, address, configPath); err != nil {
+	if err := ensureService(ctx, client, endpoint, address, configPath, service); err != nil {
 		return err
 	}
-	remote, err := mcp.NewClient(&mcp.Implementation{Name: "shop-it-desktop", Version: "0.3.0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint + "/mcp", HTTPClient: client}, nil)
+	remote, err := mcp.NewClient(&mcp.Implementation{Name: "shop-it-desktop", Version: release.Version}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint + "/mcp", HTTPClient: client}, nil)
 	if err != nil {
 		return err
 	}
 	defer remote.Close()
-	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: "0.3.0"}, &mcp.ServerOptions{Instructions: "Use open_shop_it to resume setup or the current grocery plan. ChatGPT supplies the shopping reasoning and structured ingredients. Select matching candidate IDs from the returned plan. Only fill a retailer basket when requested by the user; checkout stays at the store."})
+	server := mcp.NewServer(&mcp.Implementation{Name: "shop-it", Version: release.Version}, &mcp.ServerOptions{Instructions: "Use open_shop_it to resume setup or the current grocery plan. ChatGPT supplies the shopping reasoning and structured ingredients. Select matching candidate IDs from the returned plan. Only fill a retailer basket when requested by the user; checkout stays at the store."})
 	tools, err := remote.ListTools(ctx, nil)
 	if err != nil {
 		return err
@@ -54,7 +55,7 @@ func Run(ctx context.Context, address, token, configPath string) error {
 	return server.Run(ctx, &mcp.StdioTransport{})
 }
 
-func ensureService(ctx context.Context, client *http.Client, endpoint, address, configPath string) error {
+func ensureService(ctx context.Context, client *http.Client, endpoint, address, configPath, service string) error {
 	ready := func() bool {
 		probe, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
@@ -72,6 +73,9 @@ func ensureService(ctx context.Context, client *http.Client, endpoint, address, 
 	exe, err := os.Executable()
 	if err != nil {
 		return err
+	}
+	if info, err := os.Stat(service); service != "" && err == nil && info.Mode().IsRegular() {
+		exe = service
 	}
 	path, err := filepath.Abs(configPath)
 	if err != nil {

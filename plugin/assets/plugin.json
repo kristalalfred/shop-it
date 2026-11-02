@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "shop-it",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plan groceries with ChatGPT, compare your connected stores, and fill a basket in your own browser.",
   "repository": "https://github.com/kristalalfred/shop-it",
   "extensions": {

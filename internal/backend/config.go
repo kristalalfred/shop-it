@@ -80,6 +80,13 @@ func (c Config) PluginDir() string {
 	return filepath.Join(filepath.Dir(c.path), "plugin")
 }
 
+func (c Config) ExtensionDir() string {
+	if c.path == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(c.path), "extension")
+}
+
 func (c Config) Validate() error {
 	host, _, err := net.SplitHostPort(c.Listen)
 	if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Shop It",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Fills your Mathem, Willys or Hemköp cart with the groceries you plan in the Shop It app on your computer.",
   "icons": {
     "16": "icon-16.png",
