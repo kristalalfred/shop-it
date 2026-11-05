@@ -19,7 +19,7 @@ Description:
 ```
 Shop It turns a meal idea or a grocery list into a basket at Swedish online grocery stores. You plan the groceries with ChatGPT, Shop It compares what the basket costs at Mathem, Willys and Hemköp, and this extension adds the basket you choose to the store's cart in your browser. You review the cart and check out at the store.
 
-The extension works together with the free Shop It app, which runs on your computer, and its ChatGPT plugin. Install the app with Homebrew (brew install kristalalfred/tap/shop-it) and run shop-it. The extension connects to its page automatically.
+The extension works together with the free Shop It app, which runs on your computer, and its ChatGPT plugin. Install the app from https://github.com/kristalalfred/shop-it and run shop-it. The extension connects to its page automatically.
 
 - Uses your existing sign-in at Mathem, Willys and Hemköp.
 - Searches the stores in your browser, so prices match your own store and delivery address.
@@ -57,7 +57,7 @@ Privacy policy URL: https://github.com/kristalalfred/shop-it/blob/main/PRIVACY.m
 The extension is the browser half of Shop It, an open-source app that runs locally: https://github.com/kristalalfred/shop-it. It talks only to that app on http://127.0.0.1 and to mathem.se, willys.se and hemkop.se.
 
 Lists are made in ChatGPT, so testing needs the Codex app signed in with a ChatGPT account. No store account is needed:
-1. Install Shop It on macOS or Linux: brew install kristalalfred/tap/shop-it. Run shop-it. Its page opens at http://127.0.0.1:24816.
+1. Install Go 1.26 or newer, then run: go install github.com/kristalalfred/shop-it/cmd/shop-it@latest. Run shop-it. Its page opens at http://127.0.0.1:24816.
 2. Load this extension in Chrome. The page marks the extension as connected.
 3. Select Add to ChatGPT and install the Shop It plugin in the Codex app.
 4. Select Willys on the page. The extension opens willys.se. Choose a store for pickup there, then select Check again on the page.

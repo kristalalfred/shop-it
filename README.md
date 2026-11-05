@@ -14,20 +14,20 @@ Shop It is not affiliated with Mathem or Axfood. It uses the stores' website end
 
 ## Install
 
+Install Go 1.26 or newer, then:
+
 ```sh
-brew install kristalalfred/tap/shop-it
+go install github.com/kristalalfred/shop-it/cmd/shop-it@latest
 shop-it
 ```
 
-Homebrew packages are available for macOS and Linux. `shop-it` opens its page in your browser, which sets up the rest:
+`shop-it` opens its page in your browser, which sets up the rest:
 
 1. **Browser extension.** The page shows where to load it in Chrome, Edge, Brave, Firefox 142 or newer, or Zen. Firefox removes temporary add-ons when it restarts.
 2. **ChatGPT.** **Add to ChatGPT** opens the Shop It plugin in the Codex app. Install it there.
 3. **Stores.** Choose the stores you shop at. Sign in and choose a delivery address or pickup store at each one in the same browser.
 
 Each step is checked when it is done. Run `shop-it` again at any time to open the page. When Codex uses the plugin, it starts `shop-it` if it is not running. Its log is `plugin.log` next to the configuration file.
-
-To build from source instead, install Go 1.26 or newer and run `just install` in a clone of this repository.
 
 ## Use
 
@@ -86,7 +86,7 @@ The [`justfile`](justfile) has the common tasks:
 | `just run` | Run the service with your configuration. |
 | `just run demo` | Run with simulated stores from `config/dev.json`. |
 | `just install` | Install `shop-it` with `go install` and write the ChatGPT plugin. |
-| `just package` | Build the release archives for the Homebrew tap into `bin/dist/` from a clean, committed tree. |
+| `just package` | Build release archives for macOS and Linux into `bin/dist/` from a clean, committed tree. |
 | `just publish-firefox` | Submit the Firefox extension to addons.mozilla.org. Reads `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` from `.data/.env`. |
 
 `just check` needs Node.js and [Hurl](https://hurl.dev).
